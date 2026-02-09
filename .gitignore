@@ -3,3 +3,6 @@ build/
 nul
 swigwin-4.0.1/
 .vs/
+*.aux
+*.synctex.gz
+*.log
