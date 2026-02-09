@@ -1,0 +1,22 @@
+\documentclass[12pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{times}
+\usepackage{parskip}
+
+\begin{document}
+
+\begin{center}
+    {\Large \textbf{Authoring Tool High Concept Doc}}\\[0.5em]
+\end{center}
+
+\textbf{Authoring Tool Name:} ButterflyWeaver
+
+\textbf{Team Members:} Cecilia Chen and Yiding Tian
+
+\textbf{SigGraph Paper(s):} ``A Practical Model for Realistic Butterfly Flight Simulation,'' Qiang Chen, Tingsong Lu, Yang Tong, Guoliang Luo, Xiaogang Jin, and Zhigang Deng, ACM Transactions on Graphics (TOG), 2022.
+
+\textbf{Summary:}
+
+ButterflyWeaver is a Maya plugin (.mll) that enables artists and technical directors to simulate realistic butterfly flight animations directly within their existing Maya workflows. The tool implements the force-based butterfly flight model proposed by Chen et al., which combines simplified aerodynamic forces (lift and drag computed via quasi-steady theory) with a curl-noise-driven vortex force to produce the characteristically erratic, noisy trajectories of real butterflies---including wing-abdomen interaction, dynamic body posture adjustments, and natural gliding behaviors. Currently, animators who wish to include butterfly motion in their scenes must rely on tedious hand-keyed animation or simplistic cycle-frame playback that lacks the organic dynamism of real butterfly flight; ButterflyStudio fills this gap by providing a physically-inspired, real-time procedural simulation controllable through intuitive MEL-scripted UI panels. The tool is designed for technical directors, animators, and VFX artists working in film, game cinematics, and virtual environment production who need believable insect flight without the prohibitive cost of full CFD simulation. Typical applications include populating outdoor environments with ambient butterfly swarms, creating hero butterfly shots that follow artist-specified paths or chase targets, and simulating environmental interactions such as wind disturbances. As output, ButterflyStudio produces animated Maya scene data---keyframed skeletal transforms on rigged butterfly mesh models---that can be rendered with any standard Maya renderer, exported to game engines, or integrated into larger animation pipelines via Alembic or FBX caches.
+
+\end{document}
