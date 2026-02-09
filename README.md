@@ -1,5 +1,7 @@
 # ButterFlight
 
+![](img/MonarchButterfly.jpg)
+
 **Team Members:** Cecilia Chen and Yiding Tian
 
 **SigGraph Paper:** "A Practical Model for Realistic Butterfly Flight Simulation," Qiang Chen, Tingsong Lu, Yang Tong, Guoliang Luo, Xiaogang Jin, and Zhigang Deng, ACM Transactions on Graphics (TOG), 2022.
