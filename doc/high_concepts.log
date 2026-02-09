@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.28 (TeX Live 2025) (preloaded format=pdflatex 2025.8.6)  9 FEB 2026 14:28
+This is pdfTeX, Version 3.141592653-2.6-1.40.28 (TeX Live 2025) (preloaded format=pdflatex 2025.8.6)  9 FEB 2026 14:30
 entering extended mode
  restricted \write18 enabled.
  file:line:error style messages enabled.
@@ -130,13 +130,13 @@ L3 programming layer <2025-07-20>
 Here is how much of TeX's memory you used:
  1786 strings out of 467801
  29042 string characters out of 5436084
- 440632 words of memory out of 5000000
+ 437632 words of memory out of 5000000
  30460 multiletter control sequences out of 15000+600000
  632467 words of font info for 48 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
- 57i,5n,65p,1809b,151s stack positions out of 10000i,1000n,20000p,200000b,200000s
+ 57i,5n,65p,982b,151s stack positions out of 10000i,1000n,20000p,200000b,200000s
 <c:/texlive/2025/texmf-dist/fonts/type1/urw/times/utmb8a.pfb><c:/texlive/2025/texmf-dist/fonts/type1/urw/times/utmr8a.pfb>
-Output written on high_concepts.pdf (1 page, 32459 bytes).
+Output written on high_concepts.pdf (1 page, 31441 bytes).
 PDF statistics:
  19 PDF objects out of 1000 (max. 8388607)
  11 compressed objects within 1 object stream
