@@ -1,0 +1,855 @@
+J. exp. Biol. 138, 271-288 (1988) 
+Printed in Great Britain © The Company of Biologists Limited 1988 
+
+WING SHAPE AND FLIGHT BEHAVIOUR IN BUTTERFLIES 
+(LEPIDOPTERA: PAPILIONOIDEA AND HESPERIOIDEA): 
+A PRELIMINARY ANALYSIS 
+
+BY C. R. BETTS* AND R. J. WOOTTON 
+
+Department of Biological Sciences, University of Exeter 
+
+Accepted 8 March 1988 
+
+Summary 
+
+Representatives of six butterfly species, flying freely in the field or in simulated 
+field conditions, were filmed with a high-speed cin6 camera and subjected to 
+kinematic and morphometric analysis. This is the first detailed investigation on an 
+insect performing the varied patterns of 'natural' flight. Kinematic parameters in 
+representative sequences of selected flight modes were calculated and compared, 
+and wing shapes were characterized using aspect ratio and non-dimensional 
+moment parameters. 
+
+The analyses and field observations of these and other butterflies suggest 
+possible correlations between flight performance and wing shape. The behaviour 
+of individual species conforms reasonably well with crude predictions based on 
+aspect ratio, wing loading and wing inertia. 
+
+Introduction 
+
+Although several investigations have been carried out on the relationships 
+between form and function in insect wings (e.g. R. A. Norberg, 1975; Pfau, 1978; 
+Wootton, 1981; Newman, 1982; Brodsky & Ivanov, 1983; Betts, 1986a,b,c; 
+Newman & Wootton, 1986), the significance of wing shape (= planform) has been 
+neglected. In contrast, in birds and bats active work on this aspect is in progress 
+
+(U. M. Norberg, 1981; U. M. Norberg & Rayner, 1987; Rayner, 1987). We have 
+carried out a preliminary investigation on a small sample of a selection of butterfly 
+species. Butterflies were chosen because of their diversity of size, wing shape and 
+flight pattern, and because their large size and low wing beat frequencies make 
+them relatively easy to film with a portable high-speed cin6 camera in the field or in 
+large enclosures, for later kinematic analysis. This was important: up to now 
+almost all kinematic studies of insects have been restricted to tethered flight or to 
+* Present address: Commonwealth Institute of Entomology, British Museum (Natural 
+History), Cromwell Road, London SW7 5BD. 
+Key words: flight, behaviour, kinematics, wing shape, morphometrics, aerodynamics, wings, 
+Papilionoidea, Hesperioidea, butterflies. 
+
+
+272 C. R. BEITS AND R. J. WOOTTON 
+
+free flight in small laboratory enclosures, which inevitably limits the range of flight 
+patterns performed and inhibits normal behaviour. 
+
+Wing design is often a compromise between several functions. The wings of 
+butterflies may act in sexual and territorial display; in cryptic or warning defence; 
+in thermoregulation (Kingsolver, 1985); and in a wide range of flight patterns 
+reflecting their complex behaviour (e.g. Baker, 1972; Davies, 1978). Nachtigall 
+(1976), Martin & Carpenter (1977), Bocharova-Messner & Aksyuk (1982), 
+Ellington (1981, 1984a,b) and Brodsky & Ivanov (1984) have investigated the 
+aerodynamics. 
+
+Wing shape is difficult to quantify and in much of the literature is presented 
+simply in the form of the aspect ratio, which has serious shortcomings in describing 
+insect wings. The value of the moments of area was stressed by Weis-Fogh (1973), 
+and their use has been greatly extended by Ellington (1984a, part II), whose 
+discussion of wing shape is a breakthrough in morphometric investigation. The 
+non-dimensional moments of area are functions of wing shape in that they depend 
+solely on the distribution of the non-dimensional chord along the wing; those of 
+mass are rather less precise functions of three-dimensional shape. The radius of 
+the first moment of area gives the position of the centroid, that of the first moment 
+of mass the position of the centre of mass. Moments of area and mass also have 
+mechanical significance: the first moment of mass is proportional to the inertial 
+force on the flapping wings, and the second moment is the moment of inertia of the 
+wing pair. The second moment of area is proportional to the mean lift force in a 
+quasi-steady-state aerodynamic analysis, and the third moment to the mean profile 
+power (Weis-Fogh, 1973). 
+
+Ellington (1984a, part II) has shown empirically for a range of flying animals mostly 
+insects, but including two birds and a bat - that for both area and mass the 
+radii of the second and third moments are very closely correlated with the first 
+moment. He did not include broad-winged Lepidoptera, and a secondary aim of 
+the present investigation has been to test whether Ellington's conclusion holds for 
+butterflies. If the relationship proves to be true for insects in general, then it 
+becomes possible to characterize the shape of a wing with reference to a single, 
+easily found parameter - the first moment of area - and the mass distribution 
+similarly by the first moment of mass. A single value for the first moment does not 
+precisely define a single wing shape as it cannot accurately show asymmetry about 
+the longitudinal axis, but it does appear to represent the wing with respect to the 
+mechanical effects of area distribution, and seems clearly preferable to any single 
+mode of shape measurement previously employed. 
+
+Materials and methods 
+
+Definitions of terms 
+
+A wing couple consists of the forewing and hindwing on one side of the body. 
+
+A wing pair consists either of both forewings or of both hindwings. 
+
+
+Butterfly flight 
+
+A flight mode is a category of movement at more-or-less constant velocity, e.g. 
+fast forward flight, slow forward flight, fast climb, hovering. 
+
+A flight manoeuvre is a change of velocity in flight, through alteration of speed, 
+direction or both. One may distinguish simple manoeuvres, like turning or slowing 
+down, and compound manoeuvres involving sequences of simple manoeuvres. 
+
+A flight behaviour pattern is a recognizable sequence of flight modes and 
+manoeuvres, whose ecological significance may well be apparent. 
+Flight performance is the range of modes and manoeuvres of which an insect is 
+capable. 
+
+The phrase 'flight category' is used to include both modes and manoeuvres. 
+
+Flight modes and simple manoeuvres are - in theory at least - easy to quantify, 
+although there may be practical difficulties. Quantitative description of behaviour 
+patterns is difficult, and has seldom been attempted, but it may prove possible by 
+recording sequences of modes and manoeuvres. 
+
+Species selected 
+Four species of butterfly: Troides rhadamantus H. Lucas (TR), Papilio 
+rumanzovia Eschscholtz (PR), Pachliopta hector Linnaeus (PH) and Graphium 
+sarpedon Linnaeus (GS), showing a range of wing shapes and sizes, were obtained 
+from a dealer for filming in this country. Eight more species were filmed and 
+captured in and around the secondary rain forest at Ulu Gombak Field Station, 
+Malaysia, and data from two of these, Precis iphita Cramer (PI) and Idmon sp. 
+(ID), are included in the present study (Fig. 1). Further observations were made 
+on butterflies in the wild in the UK and Malaysia. 
+
+Maintenance of adults 
+
+Four specimens each of four species of tropical butterfly were purchased as 
+pupae from Entomological Livestock Supplies Ltd. Insects were placed in a netted 
+enclosure ('Papronet': Direct Wire Ties Ltd) approximately 5mx2mx3m , in a 
+section of glasshouse maintained between 20°C and 28°C and between 45 % and 
+85 % relative humidity. 
+
+Filming 
+
+All cine"-films were taken using a tripod-mounted, battery-pack powered 
+Photosonics high-speed cin6 camera with a 72 mm Angenieux zoom lens and reflex 
+viewing system. 
+
+In the field only natural light was used: in Malaysia exposures at around f4 were 
+used for camera speeds between 250 and 300 frames per second (frames s"1), 
+which required force-processing of 150ASA rated film by 2 stops. In the UK f2-8-3 
+gave similar results. In the enclosure, natural light plus 6650 W of artificial light 
+gave exposures at camera speeds of 250 frames s"1 and f3—4 which required force-
+processing of 50ASA film by 2 stops for a grainy, but usable result. All filming in 
+the enclosure used Ilford Pan-F (50 AS A) black and white 16 mm film. In the field 
+
+
+274 C. R. BEITS AND R. J. WOOTTON 
+Troides (TR1; TR2 dotted) Papilio (PR1; PR2 dotted) Pachliopta (PHI; PH2 dotted) 
+
+50 mm 
+
+Idmon 
+Graphium (GS4; GS3 dotted) Precis 
+
+V 
+
+To scale 
+
+x3 
+
+Fig. 1. Outlines to scale of the body and right-hand wing couple of the six species fully 
+investigated. 
+
+Kodak 7240 tungsten-adjusted, colour reversal film (100-200ASA) was used with 
+a Hoya 85A correction filter and a Hoya ultraviolet filter. 
+Ambient wind speeds were negligible at all times during filming. 
+
+Analysis 
+Morphological parameters 
+
+The following parameters were measured or calculated (see Fig. 2). 
+
+(1) Total mass, m (g). 
+(2) Body length, L (mm). 
+(3) Wing length (forewing length as shown in Fig. 2), R (mm). 
+(4) Wing area (total area of both pairs of forewings and hindwings when 
+linked), S (mm2). 
+(5) Aspect ratio, AR; given by AR = 4R2S~1. 
+(6) Wing loading, Pw (Nm~2); given by Pw = mS"1. 
+(7) Moment of inertia of both wing couples, Iw (kgm2). 
+(8) Non-dimensional radius of the first moment of wing area, f^S); given by 
+f^S^fdf
+f^S^cfdf. 
+
+(9) Non-dimensional radius of the second moment of wing area, f2(S); given( 
+byf2(S)=|'cf2df. 
+
+Butterfly flight 
+
+(10) Non-dimensional radius of the first moment of wing mass, ?i(m); given 
+(11) Non-dimensional radius of the second moment of wing mass, ?2(m); 
+given by f2(m) = I nVrdf. 
+(12) Non-dimensional radius of the first moment of virtual mass fi(v); given 
+(13) Non-dimensional radius of the second moment of virtual mass, f2(v); 
+given by f2(v) = l/vj^r^df. 
+Derivations of parameters 8-13 are given by Ellington (1984a). f is the distance 
+from the wing base of an element of the wing with non-dimensional chord c and 
+non-dimensional mass riY. v is the non-dimensional virtual mass of both wing 
+couples. The virtual mass is the mass of air which is accelerated along with the 
+wings during their motion. 
+
+All masses for 1, 7,10 and 11 were taken from fresh specimens. Those collected 
+in Malaysia could not be weighed fresh, and these parameters were therefore not 
+available. Values for 7 and for the moment parameters 8-13 were found by strip 
+analysis. For the moments of area, photographs of the fore- and hindwings, linked 
+in the flight position, were divided into narrow strips concentric to the wing base 
+(see Fig. 2, left-hand side). For 7 and for the moments of mass, the fore- and 
+hindwing, linked as in flight, were cut into narrow, straight strips, parallel to the 
+body axis (Fig. 2, right-hand side). The virtual masses of both wing couples, and 
+the non-dimensional radii of their first and second moments were calculated for 
+the sake of completeness, but are not discussed. 
+
+Ellington (1984a, part II) notes that for animals with AR < 4, the circular chord, 
+as used here for the area parameters, gives more accurate values than the 
+rectangular chord. Unfortunately, it was only possible to obtain rectangular strip 
+values for analysis of wing mass. These still provide a sound basis for comparative 
+study. 
+
+The positioning of the wings for strip analysis is important. Butterflies in 
+
+Circular strip Rectangular strip 
+Fig. 2. Dimensions measured for the current study (see text for abbreviations). 
+
+
+C. R. BEITS AND R. J. WOOTTON 
+collections are conventionally displayed with their wings fully extended. Observations 
+from films suggest that this attitude is rarely achieved and is only transitory 
+(at stroke extremes for instance): the attitudes of the wings in the outlines in Figs 1 
+and 2 are much more usual. Use of the circular chord eliminates the need to align 
+the forewing other than extending it to its natural position. However, rectangular 
+chord measurements and values for R would be affected by wing attitude: here 
+measurements of R have all been made from wings aligned as in Fig. 2. 
+
+Film analysis 
+
+Timings of stroke intervals and tracings were all taken from images projected 
+from an optical data analyser onto a flat surface using a front-silvered mirror. 
+
+Films were digitized for computer analysis using a PCD digital data reader, 
+model ZAE1E, incorporating a back projection screen and digitizer. Digitizer 
+drift and frame distortion were negligible. The output was fed into an Apple II via 
+a standard eight-bit analogue-digital converter. Programs developed by Newman 
+(1982) were used to analyse the data. To summarize, the spatial relationships of 
+the wing and body positions relative to the horizontal plane are calculated from the 
+three-dimensional coordinates generated by computer for each digitized film 
+frame. Changes in angular position of the wings and body can thus be accurately 
+measured for the entire sequence and, by reference to a standard time-base, 
+accelerations and relative velocities calculated. For further details of analysis 
+procedures and notes on the form of the data produced by these programmes see 
+Betts (1986c). 
+
+Parameters measured during film analysis (with abbreviations and units) were as 
+follows (see Fig. 3). 
+
+(i) Wing beat frequency, n (Hz). 
+(ii) Mean angular velocity during downstroke, co (rads"1). 
+(iii) Flight velocity, V (ms"1) (presented in non-dimensional form in this 
+Upstroke limit 
+
+Body axis 
+
+Horizontal 
+plane 
+
+Fig. 3. Measurement of kinematic parameters (see text for symbol key). 
+
+
+Butterfly flight 
+
+study -V (= V/nR) - representing number of wing lengths travelled per wing 
+beat). 
+
+(iv) Advance ratio (ratio of the flight velocity to the mean flapping velocity of 
+the wings), J (= V/20 where (p is in radians). 
+(v) Stroke plane angle (angle of extreme upstroke and downstroke limits 
+relative to horizontal; see Fig. 3), P (presented as degrees in Table 2). 
+(vi) Stroke amplitude (angle described by extreme limits of wingstroke see 
+Fig. 3), <p (presented as degrees in Table 2). 
+(vii) Body angle (angle of longitudinal body axis relative to horizontal), x 
+(presented as degrees in Table 2). 
+(viii) Pronation:supination ratio (ratio of time spent between end of 
+upstroke and start of downstroke, to time spent between end of downstroke and 
+start of upstroke), PRO: SUP. 
+(ix) Upstroke:downstroke ratio, US:DS. 
+Results 
+
+Morphometrics and wing shape 
+
+Table 1 summarizes morphometric data for the specimens filmed. Mean values 
+have not been calculated because of the small sample sizes. Fig. 4 presents the 
+relationship between the position of the centroid of wing area [^(S)] and its radius 
+of gyration [f2(S)] using data from this study. Data from Ellington (1984a, part II) 
+are also included and the curve plotted represents the geometric relationship 
+established by Ellington (1981, equation 38). Fig. 5 presents the equivalent 
+relationship for wing mass and includes data and the curve representing the 
+geometric relationship from Ellington (1981, equation 43). Figs 4 and 5 compare 
+the geometric and empirical relationships. 
+
+Kinematics 
+
+Table 2 summarizes all the kinematic data from the film sequences analysed by 
+computer. The butterflies displayed a wide range of complex flight patterns, each 
+being a sequence of modes and rapid manoeuvres. In the course of filming and 
+analysis four flight modes were distinguished: (1) fast climb (*FC); (2) slow 
+forward flight (*SF); (3) fast forward flight (*FF); (4) hovering (*H). In the 
+discussion which follows, two manoeuvres (tight turns and glides) are also 
+recognized, but not analysed. 
+
+The flight modes were distinguished using ranges of values for J, the advance 
+ratio, which proved to be the most consistent kinematic parameter (Table 2). 
+Where J <0 1 the insect was considered to be hovering, as in Ellington (1984a, 
+part III). The remaining limits have been decided by repeated visual analysis of 
+film sequences. Fast forward flight and fast climb or take-off were separated by an 
+additional variable, the ratio of horizontal to vertical movement, describing the 
+
+(flight angle of the specimen. Sequences with values of this variable less than 2 
+represented a steep climb or take-off. Take-off was easily recognized visually. 
+
+
+to 
+
+Table 1. Morphometric data of specimens examined 
+
+Species R m L Pw S Iw 
+code (mm) (g) (mm) (Nm~2) (mm2) AR (kgm2xHT7) MS) MS) f,(m) f2(m) V f,(v) f2(v) 
+
+TR1 67 0-725 45 1-43 4950 3-63 10-4 0-378 0-440 0-301 0-359 116 0-458 0-477 
+TR2 63 0-629 47 1-51 4069 3-90 919 0-393 0-474 0-362 0-435 0-947 0-499 0-524 
+
+PR1 67 0-435 36 0-957 4454 4-03 8-01 0-343 0-414 0-458 0-522 105 0-470 0-487 Cd 
+
+m 
+
+PR2 55 0-328 33 0-852 3778 3-20 NA 0-497 0-546 0-312 0-375 1-33 0-546 0-570 
+
+GS2 40 0-350 24 1-785 1925 3-32 3-05 0-437 0-491 0-276 0-372 0-874 0-534 0-553 
+GS3 27 0-202 27 1-334 1487 1-96 NA 0-619 0-669 0-368 0-463 1-42 0-748 0-777 
+GS4 40 0-149' 26 0-743 1969 3-25 NA 0-463 0-509 0-369 0-439 1-25 0-508 0-529 
+
+5 AND R. 
+
+PHI 48 0-232 28 0-831 2739 3-36 4-10 0-439 0-491 0-407 0-490 1-19 0-496 0-549 <—i 
+PH2 40 0-190 27 0-956 1949 3-28 NA 0-461 0-529 0-415 0-490 1-00 0-566 0-587 
+
+PI 33 NA 21 NA 1976 2-20 NA 0-528 0-569 NA NA 1-31 0-565 0-590 
+
+3
+
+O 
+
+ID 15 NA 11 NA 250-1 3-60 NA 0-533 0-576 NA NA 103 0-555 0-581 
+
+z 
+
+* Value is unreliable as specimen was not freshly killed; NA, not available. 
+TR, Troides radamantus; PR, Papilio rumanzovia; GS, Graphium sarpedon; PH, Pachliopta hector; PI, Precis iphita; ID, Idmon sp. 
+
+Table 2. Kinematic data from film analysis 
+
+mm 
+
+Species Film Flight n CO P X 
+code sequence mode (Hz) (rads-1) J V (degrees) (degrees) (range, degrees) PRO:SUP US:DS 
+
+TR1 LC9bl *FF 7-3 NA 0-674 2-59 69 110* 7-30 1 0-416 
+LC9b2 *FF 9-8 39-7 0-458 1-60 68 100 10-26 0-666 0-500 
+LC9b3 *H 6-3 NA 0-054 0-262 24* 140* NA 0-666 0-800 
+LCI 61 *SF 9 1 60-6 0-241 0-866 49 103 17-48 1 0-620 
+
+PR] LCI 01 *FF 9-1 29-7 0-369 1-52 30 118 18-50 1 0-438 
+LCI 02 *SF 5-1 32-0 0-198 0-864 45 125 18-52 1 0-960 
+LCI 11 *FF 9-6 NA NA NA NA NA NA 0-666* 0-500 
+PR2 LCI 41 *H 9-8 62-2 0-059 0-172 64 84 0-33 0-500 0-920 
+
+GS3 LC151 *H 19 145 0-091 0-362 35 114 0-11 1 0-800 
+LC152 *FC 21 60-9 0-833 2-52 59 86-7 22-51 0-666* 0-500 Co 
+LC153 *H 13 NA 0 0 62* NA 15* 1* 1 
+LC162 *SF 17 126 0-159 0-537 70 97 14-30 1* 1-10 
+GS4 LCI 71 *H 19 NA 0-071 0-320 28* 130* 68* 1* 0-800 
+
+fSi 
+
+PHI LC201 *H 12 51-4 0-052 0-186 87 102 10-20 1 0-820 
+LC202 *FF 16 53-9 1-06 3-47 79 94-2 44-56 0-500 1 
+LC203 *SF 13 36-9 0-177 0-642 67 104 13-33 1 0-820 
+PH2 LC204 *FF 13 NA 0-314 1-31 55* 110* 40* 1 0-820 
+LC211 *H 14 51-1 0069 0-359 45 148 14-28 1 1 
+LC221 *FF 12 NA 0-249t 0-911 20 105* 67* 1 0-875 
+
+ID LM51 *FC 19 330 0-314 1-71 53 156 14-45 6 1 
+LM52 *FF 14 209 0-615 2-75 61 128 26-48 4 0-571 
+
+PI LM61 *FC 9-4 43-4 2-11 3-83 90 52 19-42 2 1-42 
+
+LM62 *FF 14 NA 0-866 5-44 69* 180* 8* 1* 1-30 
+
+* Visual estimation; NA, not available; t, ?slow climb. 
+Data are mean values of three successive wingbeats. 
+For details of species codes see Table 1, and for details of flight modes see text. 
+
+
+280 C. R. BEITS AND R. J. WOOTTON 
+
+0-7
+
+
+f 
+
+0-6
+
+
+s 
+
+0-5
+
+
+0-4 
+0-3 0-4 0-5 0-6 
+f.(S) 
+
+Fig. 4. Graph representing the relationship between shape parameters ?i(S) and ?2(S)Wing 
+planforms are given for data plotted from the current study, to show how shape 
+varies along the curve. The equations for the regression on this data and for the curve 
+plotted (the geometric relationship of Ellington, 1981) are compared below. 
+
+Geometric relationship Empirical relationship S.D. 
+(Ellington, 1981) (current study) (P = 0-05) 
+2(S) = 0-153+0-847f,(S) f2(S) = 0-116+0-881f,(S) NS 
+
+Key to symbols: + PR1; O PR2; • TR1; D TR2; • GS2; O GS3; 0 GS4; • PHI; 
+A PH2; • PI; kID; + Odonata (Aeshna forewing)*; + Neuroptera (Pterocroce)*; 
+^ Diptera (Tipula)*; -•- Hymenoptera (Apis)*; ^ Coleoptera (Coccinella)*\ 
+A Heteroptera (Palomena)**; ^ bat (Plecotus auritus)*;-•-birds (Amazilia fimbriata 
+
+fluviatilis and Ficedula hypoleuca)*. 
+
+•Ellington, 1984a, part II; **C. R. Betts (unpublished data). 
+Discussion 
+
+Wing shape 
+
+The moment parameters usefully characterize wing shape. They can also give 
+aerodynamic information (for which they were originally designed) and, in 
+conjunction with other morphometric data, yield some interesting observations on 
+overall wing design. Figs 4 and 5 show that data from the current study fit 
+Ellington's (1984a, part II) geometrical laws very closely (no significant statistical 
+difference). This is even true when the wings are badly worn (Graphium3, 
+Papilio2, Pachliopta2) suggesting that, although substantial areas of the wing 
+margin can be lost during normal flying life (25 % for Graphium 3), this wear can 
+
+
+Butterfly flight 
+
+0-5 
+
+0-4 
+
+0-3
+
+
+0-25 
+0-2 0-3 0-4 0-5 
+f,(m) 
+
+Fig. 5. Graph representing the relationship between shape parameters fi(m) and 
+f2(m). The equation for the regression on this data and that for the curve plotted 
+(geometric relationship of Ellington, 1981) are compared below. See Fig. 4 for 
+symbols. 
+
+Geometric relationship Empirical relationship S.D. 
+(Ellington, 1981) (current study) (P = 005) 
+f2(m) = 0-040+l-09f,(m) NS 
+
+be uniform, so that wing shape remains symmetrical. The large spread of values on 
+both graphs is both inter- and intraspecific in origin. Wing damage may account for 
+some of the variation; and males and females can also have different wing shapes 
+(compare Troidesl, male, and Troides2, female, in Fig. 1). In the intact 
+individuals examined, wing area is concentrated quite near the base, with the 
+larger specimens having the lowest ft(S) values (0-4-0-45). Low values are 
+characteristic of flying animals with broad wing bases, like most papilionid 
+butterflies. The distribution of wing mass is much more variable, some specimens 
+having it concentrated towards the wing base (Troides, Graphium), others where 
+the centre of wing mass is more distal, comparable to dragonflies (intact Papilio 1 
+and Pachliopta). 
+
+Wing loading in the butterflies examined is also very low, at the bottom end of 
+the range of flying animals (see data in Ellington, 1984a). 
+
+Of those examined, intact specimens of Papilio and Troides have the most 
+similar wing shape and size. Their flight behaviour, however, is very different, and 
+^here are structural differences. Intact Papilio 1 has more wing area concentrated 
+
+
+282 C. R. BEITS AND R. J. WOOTTON 
+
+basally [^(S) = 0-343; average Troides values = 0-381] but relatively more mass 
+concentrated distally [^(m) = 0-458; average Troides values = 0-331]. Papilio is 
+much lighter than Troides, and the wing loading of both specimens is 20 % lower 
+than in Troides. 
+
+Kinematics 
+
+It is possible to characterize each flight mode using the kinematic parameters 
+described earlier (see values of J in Table 2). Although there are inconsistencies, 
+due both to flight versatility and analysis error, some patterns are still discernible 
+from the data, and from extensive qualitative observation, and unlisted measurements 
+from other sequences. 
+
+Fast forward flight 
+The kinematics of Troides and Papilio were notably different through the range 
+of flight behaviour. During fast forward flight Papilio had a lower mean angular 
+velocity than Troides, but comparable wing beat frequency and greater stroke 
+amplitude. Body angle was continually changing in all species recorded, with a 
+good deal of vertical motion and pitching. Stroke plane angle is affected by 
+altering the body angle; and the greater the stroke plane angle, the faster the flight 
+speed (Ellington, 1984a: part III). In fast flight, Papilio adopted a higher range of 
+body angles than Troides, and the stroke plane was consequently shallower. In 
+contrast, Pachliopta adopted a steep stroke plane angle and greater wing beat 
+frequency and mean angular velocity than Troides and Papilio. 
+Precis had the highest non-dimensional flight velocity in this mode, employing a 
+near-vertical stroke plane with a shallow body angle. Both stroke amplitude 
+(visual estimate) and upstroke/downstroke ratio were by far the highest among 
+the butterflies studied and may indicate the aerodynamic mechanism employed 
+(see next section). 
+
+Slow forward flight 
+During slow forward flight both Papilio and Graphium had greater stroke 
+amplitude, mean angular wing velocity and stroke plane angle, but lower wing 
+beat frequency than in fast flight. Troides also increased its mean angular wing 
+velocity, but in contrast reduced its stroke plane angle. This variation between 
+species in change of stroke plane angle suggests different flight strategies. In all 
+three species, the consistent increase in mean angular wing velocity was accompanied 
+by an increase in the US:DS ratio; these latter changes appeared to 
+continue as flight speed decreased, culminating in the extreme values seen during 
+hovering. 
+Pachliopta, most frequently seen in this flight mode, showed little consistent 
+kinematic change between modes. 
+
+Hovering 
+
+During hovering, in most sequences analysed, a mean body angle of around 15° 
+
+
+Butterfly flight 
+
+was maintained, associated in all species except Troides with a steeply inclined 
+stroke plane. Although a horizontal stroke plane was certainly used on occasions, 
+particularly by Graphium, this was more the exception than the rule. Indeed an 
+inclined stroke plane may well be more common in other hovering insects than 
+previously supposed (A. R. Ennos, personal communication). Stroke amplitude 
+varied but mean angular velocity was greater for Papilio and Graphium than in 
+their other flight modes. There was a relative increase in upstroke times during 
+hovering except in Pachliopta, which retained a US:DS ratio of about 0-8:1 
+throughout the range of flight modes. A high US:DS ratio has been recorded in 
+other hovering animals (Ellington, 1984a, part III). Pachliopta and Graphium 
+were probably the most accurate and frequent hoverers. Troides was rarely 
+recorded hovering; the analysed sequence shows a shallow stroke plane as is 
+consistent with the reduction in stroke plane angle with flight speed recorded 
+above. 
+
+Take-off and climb 
+
+All species were capable of high non-dimensional flight speeds during take-off 
+and rapid climbs: Papilio was the slowest, Graphium and Idmon the fastest by far. 
+The latter two species stand out by having such high mean angular wing velocities 
+during take-off and hovering - between two and five times as high as any of the 
+other species. 
+
+Aerodynamic considerations 
+
+Despite notable recent advances (Weis-Fogh, 1973; Ellington, 1978, 19846; 
+Rayner, 1979) there is still much to be learnt about the aerodynamics of flapping 
+flight. The clap-and-fling mechanism of Weis-Fogh (1973) is now well known. 
+Ellington (19846) presents some additional aerodynamic lift-generating mechanisms 
+for some insects for which the 'quasi-steady assumption' (where instantaneous 
+forces generated by a moving wing are explained in terms of a 
+conventional steady, not-flapping, aerofoil) fails. These mechanisms all rely on 
+vortex shedding during rotational motion of the wing at stroke extremes. The 
+'peel' and 'partial peel' rely on the wings meeting and then moving rapidly apart, 
+leading edge first, creating circulation about each wing. The large stroke 
+amplitude and wing deformations seen during sequences of hovering, slow 
+forward and fast forward flight in Precis, Graphiuml and Graphium4, and 
+especially Idmon, suggest they may be using the peel or partial peel to generate lift 
+at stroke reversal. Bocharova-Messner & Aksyuk (1982), studying the flight of 
+Gonopteryx rhamni, have also suggested that the wing alignment when the wings 
+meet at stroke extremes creates a 'tunnel', which could act as a funnel for the 
+production of 'jet-forces'. The attitude of the wings at stroke reversal would direct 
+the action of the aerodynamic forces generated in this way and so determine the 
+relative proportion of lift and thrust components. 
+
+The quasi-steady assumption may be enough to explain the flight of many 
+animals (although the use of alternative mechanisms can never be ruled out) and 
+
+
+284 C. R. BEITS AND R. J. WOOTTON 
+
+may be adequate for the low-frequency, large-amplitude wing beats exhibited by 
+most butterflies. Rotational mechanisms may also be operating, particularly in 
+those butterflies where strong wing twisting is observed (e.g. Pachliopta, Graphium, 
+Idmon). 
+
+The vertical stroke plane seen in Pieris during take-off and hovering (Ellington, 
+1984ft) has also been seen in some film sequences of Pachliopta, Graphium and 
+Papilio and during fast forward flight in Precis. In the case of Precis and Pachliopta 
+in particular, the insect gives the appearance of rowing through the air (similar to 
+that seen in Heteroptera; Betts, 1986c). A pressure-drag mechanism of force-
+generation proposed by Ellington (19846) is used to explain this phenomenon. 
+Film of Pieris flying in the wild shows that, like the other species, it does not always 
+employ a vertical stroke plane and a large stroke amplitude during fast forward 
+flight; and it may well prove to be similarly variable when hovering, using inclined, 
+vertical or horizontal stroke planes. 
+
+Many butterflies use a 'flap-glide' technique where fast forward flight is 
+interspersed with significant periods of gliding. This is rarely used by other insects 
+(Kingsolver, 1985) although recorded for locusts by Baker & Cooter (1979) and for 
+some dragonflies. Butterflies may be able to optimize their gliding performance by 
+smoothing the airflow over their wings. Martin & Carpenter (1977) established 
+empirically that the wing 'tails' of some species enhanced the airflow over the wing 
+surface by stabilizing the shed tip-vorticity. In their experiments, Martin & 
+Carpenter used specimens and scale models with linked wings acting as single 
+aerofoils. In all the gliding sequences analysed here the wings of each specimen 
+appeared to be unlinked during gliding (Fig. 6). By permitting airflow between the 
+
+Fig. 6. Tracing from high-speed cine' film of Papilio rumanzovia during a glide, 
+showing the unlinked fore- and hindwings. Its direction of motion is indicated by the 
+arrow. 
+
+
+Butterfly flight 
+
+fore- and hindwings, the flow over the whole aerofoil may perhaps be improved by 
+a slotting effect, delaying stalling at low speeds and/or high angles of attack. 
+
+Flight behaviour and wing form 
+Predictions 
+
+Our knowledge of the relationship between wing shape and flight performance 
+in animals comes mainly from birds and bats (e.g. Norberg, 1981; Norberg & 
+Rayner, 1987; Rayner, 1987). Butterfly wing planforms are very different from 
+those of vertebrates; their wing loadings are several orders of magnitude lower, 
+and they probably make far more use of non-steady aerodynamic mechanisms. 
+Nonetheless, it is useful to list some simple predictive generalizations, based on 
+theory and on vertebrate studies, against which our observations can be tested. 
+
+In general, high wing loading is associated with fast flight, low wing loading with 
+slow flight and sometimes hovering. A high aspect ratio goes with power economy; 
+low aspect ratios allow low loadings in comparatively short wings, when there are 
+environmental constraints on span, or advantages in minimizing inertial and 
+bending moments. 
+
+A low moment of inertia (second moment of mass) tends to minimize power 
+consumption in flapping flight, and may also aid agility - particularly in animals 
+where direction changes and accelerations occur in the course of one or two wing 
+beats. 
+
+In butterflies it might therefore be expected that: (1) short, broad (low AR) 
+wings would favour slow, agile flight, and would be common among forms that 
+frequently fly in restricted spaces or dense vegetation; (2) long, slender (high AR) 
+wings would be associated with species that fly extensively, but available speeds 
+would depend on wing loading, which would be low in forms that hover frequently 
+and high in species that fly fast and use shallow glides; (3) forewings with 
+extended, narrow tips would gain some of the benefits of a high aspect ratio while 
+maintaining reasonably low moments of area and mass, and hence high agility. 
+
+Conclusions 
+
+How far do our results (Tables 1, 2) match these predictions? 
+
+Troides radamantus consistently performed prolonged, fast flights, travelling the 
+full expanse of the area, occasionally climbing or visiting flowers, but rarely 
+hovering or executing rapid manoeuvres. This fits well with predictions: the high 
+aspect ratio and high wing loading together favouring fast extended flight, and the 
+high moment of wing inertia discouraging manoeuvrability and hovering. However, 
+the insects may not have shown their full range of flight patterns in the rather 
+small enclosure. In Malaysia, Troides ?helena flew similarly, but seemed to glide 
+more frequently and for greater distances (original observation); and males of this 
+species have been seen performing fast turns and accurate hovering during sexual 
+display (R. Vane-Wright, personal communication). But in general fast, pro
+
+
+
+286 C. R. BETTS AND R. J. WOOTTON 
+
+longed, relatively unmanoeuvrable flight seems to be characteristic of many 
+birdwing butterflies. In Malaysia, Trogonoptera brookiana males (AR = 5) appeared 
+to fly even faster than Troides, at steady speeds along uniform paths 
+performing occasional steep climbs and tight turns. 
+
+Papillo rumanzovia, superficially rather similar in size and shape to Troides but 
+with a markedly lower wing loading and moment of wing inertia, presents a nice 
+contrast in flight pattern, which fits well with expectation. The individuals studied 
+flew more slowly and with far greater manoeuvrability, showing rapid accelerations 
+and extended tight turns, and hovering at flowers. 
+
+Pachliopta hector is a smaller species - about half the mass and wing area of 
+
+P. rumanzovia and so with a similar wing loading - and has a lower moment of 
+wing inertia. The aspect ratio is distinctly lower than that of the intact Papilio; but 
+the moments of area are higher, probably reflecting the elongate and rather broad 
+forewing, and illustrating the limitations of describing butterfly wing shape solely 
+in terms of aspect ratio. The manoeuvrability, generally low flight speed, and 
+frequent hovering conform with predictions, but the insect was capable on 
+occasion of flying nearly as fast as Troides. 
+The wing area of Graphium sarpedon is about 17 % lower than that of 
+Pachliopta, and the wing loading of the intact male was markedly higher. Aspect 
+ratio and area moments are similar despite the obvious difference in shape: the 
+forewing has a narrower elongate tip, and the hindwing no tail. The moments of 
+inertia are far lower, reflecting the basal concentration of wing mass. 
+
+The flight of Graphium was very different from the other species studied. Both 
+in the enclosure and in the wild it was a fast, agile flier capable of repeated rapid 
+manoeuvres and skilful accurate hovering. Individuals often settled, and executed 
+short, fast flights between perches- as did the smaller nymphalid, Polyura, which 
+occurs in the same situations. Polyura has broader wings than Graphium, but 
+shares the conspicuously narrow and produced forewing tip. 
+
+Again performance matches well with expectation, particularly with prediction 
+3 above. The high wing loading conforms with the generally rapid flight, and low 
+moment of wing inertia with manoeuvrability and frequent hovering. 
+Interestingly, wing clapping and the high angular accelerations at stroke reversal 
+tended to fray the lightly constructed distal margins, so that it was possible to 
+monitor the effect of a more-or-less isometric reduction in wing area. Loss of 25 % 
+of the wing of Graphium?) increased the beat frequency, lowered the speed, and 
+reduced the capacity to hover and turn accurately, and prevented sustained flight. 
+
+Precis iphita has a low aspect ratio and high area moments: it is broad-winged, 
+with a large distal chord. The filmed individual flew with a lower beat frequency 
+and mean angular velocity than did Graphium, using its short, stiff wings for rapid 
+manoeuvring and extended slow glides - predictable from the wing shape - but was 
+capable of remarkable and unexpected bursts of speed, using a steep stroke plane 
+and a sharply increased amplitude and frequency. 
+
+Hesperiidae (skippers) are taxonomically and morphologically distinct frorri 
+other butterflies. Most are small, though some approach hawk-moth size and look 
+
+
+Butterfly flight 
+
+rather similar, but with broader wings. Idmon's aspect ratio is moderate, with a 
+large distal chord. We have no figure for wing-loading, but the bodies are stout and 
+values are probably high. 
+
+Skippers are capable of very fast flight, are extremely manoeuvrable, and hover 
+well. In Malaysia Idmon was difficult to follow in flight: it may not have reached 
+full speed on film. The wing bases are stout, and the tips are strongly deformed at 
+stroke reversal; this is not surprising since the mean angular velocities reached are 
+comparable with those of some asynchronous flight systems (Betts, 1986b). The 
+unremarkable value for wing beat frequency is misleading, since one wing beat 
+occupied only 20 ms followed by a delay of about 40 ms before the next 
+downstroke. Throughout this interval the skipper was propelled forward with 
+wings closed over its abdomen. Manoeuvres could be accurately performed within 
+a half-stroke. 
+
+In summary, the flight patterns of the butterflies studied broadly agree with 
+predictions based on theory and on experience of the effects of wing loading, 
+aspect ratio and wing inertial moments in vertebrates. However, this is clearly a 
+simplistic approach. Butterflies sometimes perform in unexpected ways: witness 
+the bursts of high-speed flight in Precis and Pachliopta, and the hovering of male 
+Troides in courtship. There is an overall impression of great versatility, with 
+individuals being capable of switching between flight modes and manoeuvres by 
+startling shifts in frequency, amplitude and stroke plane angle, in a manner quite 
+unlike that of most insects whose flight has been investigated. Inter- and 
+intraspecific differences in kinematic parameters suggest that a wide variety of 
+aerodynamic tricks are in use, whose implications on wing design are quite 
+unknown. 
+
+The quantitative description of wing form remains a problem. Aspect ratio, a 
+mainstay of bird and bat morphometrics, is evidently quite inadequate to describe 
+the complex shapes of butterfly wings. Non-dimensional moment parameters are 
+far more promising, though still imperfect, and other measures of shape may be 
+devised. However described, the significance of wing form will only emerge 
+through multivariate analysis of the flight and morphology of a wide range of 
+species, and from a rigorous study of their aerodynamics. Both are now under 
+way. 
+
+Most sincere thanks are due to Julia Stansfield, Mr David Stansfield, and Dr 
+Yong Hoi Sen (University of Malaya) for their help and friendship whilst in 
+Singapore and Malaysia; to Mr Brian Woods, of the School of Education (Exeter 
+University) for the loan and use of a camera and analysis facilities; to Mr Jonathan 
+Watts for the generous gift of colour cin6 film; and to Dr C. P. Ellington for his 
+valuable comments on an earlier draft of this paper. The cooperation of staff in the 
+Department of Biological Sciences at the University of Exeter and the British 
+Museum (Natural History) is also greatly appreciated. This work was partly 
+funded by the University of Exeter Research Fund. 
+
+
+288 C. R. BEITS AND R. J. WOOTTON 
+
+References 
+BAKER, R. R. (1972). Territorial behaviour of the nymphalid butterflies Aglais urlicae and 
+Inachisio. J. Anim. Ecol. 41, 453-469. 
+BAKER, P. S. & COOTER, R. J. (1979). The natural flight of the migratory locust, Locusta 
+migraloria L. II. Gliding. /. comp. Physiol. A 131, 89-94. 
+BETTS, C. R. (1986a). The comparative morphology of the wings and axillae of selected 
+Heteroptera. J. Zool., Lond. B 1, 255-282. 
+BETTS, C. R. (1986£>). Functioning of the wings and axillary sclerites of Heteroptera during 
+flight. /. Zool., Lond. B 1, 283-301. 
+BETTS, C. R. (1986C). The kinematics of Heteroptera in freeflight. J. Zool., Lond. B 1, 303-315. 
+BOCHAROVA-MESSNER, O. M. & AKSYUK, T. S. (1982). Production of a tunnel by the wings 
+during flight in butterflies (Lepidoptera, Rhopalocera). Dokl. Akad. Nauk SSSR 260, 
+1490-1493. 
+BRODSKY, A. K. & IVANOV, V. D. (1983). Functional estimation of the structure of wings in 
+insects. Ent. Rev. 62, 35-52. 
+BRODSKY, A. K. & IVANOV, V. D. (1984). The role of vortices in insect flight. Zoologicheskii 
+Zhurnal63, 197-208 (in Russian). 
+DAVIES, N. B. (1978). Territorial defence in the speckled wood butterfly (Pararge aegeria): the 
+resident always wins. Anim. Behav. 26, 138-147. 
+ELLINGTON, C. P. (1978). The aerodynamics of normal hovering flight: three approaches. In 
+Comparative Physiology -Water, Ions and Fluid Mechanics (ed. K. Schmidt-Nielsen, L. Bolis 
+& S. H. P. Maddrell), pp. 327-345. Cambridge: Cambridge University Press. 
+ELLINGTON, C. P. (1981). The aerodynamics of hovering animal flight. Ph.D. thesis, Cambridge 
+University, viii, 290pp. 
+ELLINGTON, C. P. (1984a). The aerodynamics of hovering insect flight. Phil. Trans. R. Soc. Ser. 
+B305, 1-181. 
+ELLINGTON, C. P. (1984£>). The aerodynamics of flapping animal flight. Am. Zool. 24, 95-105. 
+KINGSOLVER, J. G. (1985). Butterfly engineering. Scient. Am. 253, 106-113. 
+MARTIN, L. J. & CARPENTER, P. W. (1977). Flow-visualisation experiments on butterflies in 
+simulated gliding flight. Fortschr. Zool. 24, 307-316. 
+NACHTIGALL, W. (1976). Wing movements and the generation of aerodynamic forces by some 
+medium-sized insects. In Insect Flighted. R. C. Rainey). Symp. R. ent. Soc, Lond. 7, 31-47. 
+NEWMAN, D. J. S. (1982). The functional morphology of the wings of some Odonata. 
+Unpublished Ph.D. thesis: University of Exeter. 
+NEWMAN, D. J. S. & WOOTTON, R. J. (1986). An approach to the mechanics of pleating in 
+dragonfly wings. /. exp. Biol. 125, 361-372. 
+NORBERG, R. A. (1975). Hovering flight of the dragonfly Aeschna juncea L., kinematics and 
+aerodynamics. In Swimming and Flying in Nature, vol. 2 (ed. T. Y. Wu, C. J. Brokaw & 
+
+C. Brennen), pp. 763-781. New York: Plenum Press. 
+NORBERG, U. M. (1981). Allometry of bat wings and legs and comparison with bird wings. Phil. 
+Trans. R. Soc. Ser. B 292, 359-398. 
+NORBERG, U. M. & RAYNER, J. M. V. (1987). Ecological morphology and flight in bats 
+(Mammalia; Chiroptera): wing adaptations, flight performance, foraging strategy and 
+echolocation. Phil. Trans. R. Soc. Ser. B 316, 335-427. 
+
+PFAU, H. K. (1978). Funktionsanatomische Aspekte des Insektenflugs. Zool. Jb. (Anat.) 99, 
+
+99-108. 
+RAYNER, J. M. V. (1979). A new approach to animal flight mechanics. J. exp. Biol. 80, 17-54. 
+RAYNER, J. M. V. (1987). Form and function in avian flight. Curr. Ornith. 5. 
+WEIS-FOGH, T. (1973). Quick estimates of flight fitness in hovering animals, including novel 
+
+mechanisms for lift production. J. exp. Biol. 59, 169-230. 
+WOOTTON, R. J. (1981). Support and deformability in insect wings. J. Zool., Lond. 193, 
+447-468. 
+
+

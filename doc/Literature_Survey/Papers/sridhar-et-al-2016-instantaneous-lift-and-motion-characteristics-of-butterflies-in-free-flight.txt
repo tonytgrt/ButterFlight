@@ -1,0 +1,1616 @@
+ = 
+= 
+= 
+= 
+= 
+= 
+= 
+= 
+= 
+= 
+= 
+= 
+= 
+= 
+= 
+= 
+= 
+= 
+= =
+
+ = 
+= 
+= 
+= 
+
+
+RW1, RW2, RW3, RW4 = right forewing markers [1] 
+RI→b = rotation matrix from inertial frame to body frame [1] 
+Rb→w = rotation matrix from body frame to wing frame [1] 
+S = wing area [m2] 
+T1, T2, T3 = thorax markers [1] 
+Vx, Vy, Vz = x-, y-and z-components of body velocity [m/s] 
+V = body velocity [m/s] 
+Wb = body weight [N] 
+XI, YI, ZI = coordinate axes of inertial reference frame [m] 
+XV, YV, ZV = coordinate axes of velocity vector adjusted inertial reference frame [m] 
+xb, yb , zb = coordinate axes of body reference frame [m] 
+α 
+= feathering angle [deg] 
+β 
+= stroke plane angle [deg] 
+γ 
+= flapping angle [deg] 
+δ 
+= deviation angle [deg] 
+φ 
+= body roll angle [deg] 
+ψΤ 
+= body yaw angle [deg] 
+ψV = yaw angle of body velocity vector projection [deg] 
+ρ 
+= air density [kg/m3] 
+θ 
+= thorax pitch angle [deg] 
+χ 
+= abdomen angle with horizontal [deg] 
+ζ 
+= positional angle [deg] 
+Ζ 
+= stroke amplitude [deg] 
+
+I. 
+Introduction 
+
+I
+I
+NSECT flight has garnered a lot of attention from both the engineering and biology communities in the recent 
+decades, often driven by an interest in bioinspired or bio-mimicked design of small unmanned aerial vehicles, 
+called Micro-air vehicles (MAVs). MAVs are classified as miniature aerial vehicles with wingspans less than 15cm1. 
+Given their small size compared to conventional drones, MAVs have even more potential to revolutionize our 
+sensing and information gathering capabilities in areas such as environmental monitoring and homeland security1. 
+There are two key challenges in MAV development that need to be addressed: i) their power efficiency and ii) 
+stability in an unsteady flight environment2. State-of-the-art MAVs, e.g. the Nano Hummingbird3, DelFly4, or 
+Harvard’s robotic fly5 have limited onboard power sources due to their small sizes. Even larger commercially 
+available drones can only fly 10 to 25 minutes on the onboard battery. Moreover, the flight environment is often 
+unsteady with wind gusts of magnitudes that are the same as their operating speeds. 
+Biological flyers showcase desirable flight characteristics and performance in rapid maneuvers1 that can guide 
+the design of MAVs. These flapping flyers utilize wing kinematics, deformable wing shapes, and large scale vortical 
+structures to enhance lift and thrust6. For decades, the aerodynamics of insect flight remained inexplicable. A well-
+known example is the myth that bumblebees cannot fly according to the classical, aerodynamics theories7. Since 
+then, many findings on unsteady lift enhancing mechanisms, such as the clap and fling8, dynamic stall via leading-
+edge vortices9, wake-capture10,11, and rotational forces due to combined translation and rotation10,12, have enhanced 
+our understanding of how insects stay aloft6. These unsteady physical processes are particularly important for small 
+flyers, such as insects, which operate at low Reynolds number of around O(102) to O(103). In low Reynolds number 
+regimes, both viscous, inertial, and unsteady effects are important. Furthermore, the aerodynamic efficiency is 
+reduced significantly for stationary non-flapping flight at lower Reynolds numbers, compared to that of passenger 
+airplanes6,13. 
+
+Butterflies are also known to use clap and peel, a variant of clap and fling, wake-capture, leading-edge vortex, 
+and rotational mechanisms14. However, compared to the wealth of research on the aerodynamics of biological flyers 
+
+, bees16,17
+
+such as flies10,15 , dragonflies18–22, as well as birds and bats6, the flight of butterflies remains inadequately 
+understood due to their many unique characteristics. They are extremely evasive with agile maneuvers23–26 and large 
+body undulations with closely coupled wing-body interaction25,27. Biologists have conjectured that butterflies 
+became evasive to escape from predators, such as birds28–30. Among these flapping flyers, the Monarch butterfly, 
+Danaus plexippus, stands out with the longest migration distance among insects -up to 4,000 km over the course of 
+
+2 
+American Institute of Aeronautics and Astronautics 
+
+
+three months31–33. They fly from eastern North America to central Mexico during the fall34,35. Glider pilots have 
+spotted migrating Monarch butterflies at an altitude of 1,250 m36. At these high altitudes, the Monarch can take 
+advantage of favorable weather and wind patterns in the boundary layer of the earth31,37,38, presumably to conserve 
+
+39,40
+
+energy . They use magnetic and sun compasses for navigation to Mexico41. Their long migration suggests that 
+they are extremely efficient flyers. Moreover, they flap, glide29, and perform agile maneuvers while climbing up and 
+down with ease23. 
+
+However, even though the morphological characteristics of the Monarch butterflies are well studied42,43, the 
+structural and aerodynamic mechanisms behind their intriguing maneuverability has not been elucidated. Also, 
+butterfly wing area is relatively large with fore and hindwings that flap in sync44, unlike dragonflies with relatively 
+long wings often flapping out of sync20,21. Furthermore, there are limited experimental results that characterize the 
+aerodynamics of their large flexible wings with complex vein structures45–47. 
+
+Many insect motion measurements consider tethered flight18 or hovering flight8,18,42. However, measurements of 
+tethered insects may not represent the actual motion in free flight48. The main difficulty faced in recording kinematic 
+data of a forward flying insect is that it must fly through a relatively small volume that is in full view of the cameras. 
+Many studies have used wind tunnels26,42,48 or 2D image processing45. 3D photogrammetric methods27,49–52 were also 
+used that capture the three-dimensional wing shape deformation of dragonfly wings53, however these measurements 
+are still limited to a relatively small capture volume. 
+
+In our earlier work, we used twenty two high speed motion tracking cameras in a capture volume of 5.7 m×9.1 
+m×3.0 m to measure and report the flapping wing angle and body trajectory of freely flying Monarch butterflies54. In 
+this capture volume butterflies can fly unobstructed for a large sequence of flaps without requiring any extra 
+equipment to entice flight. The number of high resolution cameras and the post processing software provide a 
+unique opportunity to continuously record flights and accurately process entire flights in minutes so that a vast 
+amount of data can be collected and compared to previous experiments. We showed that the wing beat frequency 
+was similar to the undulating motion of the body, suggesting that the flapping wing aerodynamics and flight 
+dynamics are closely coupled to each other. Moreover, the butterfly wings significantly deform during flight. An 
+accurate measurement of both wing kinematics and the body motion is crucial to understand the dynamic flight 
+stability and control of a flapping insect55. 
+
+a) Upstroke 
+abdomen 
+thorax 
+left 
+forewing 
+right forewingright hindwing 
+0.0 s 0.0125 s 0.025 s 0.0375 s 0.05 s 
+b) Downstroke 
+0.05 s 0.0625 s 0.075 s 0.0875 s 0.1 s 
+Figure 1. High speed camera snapshots of a free flying Monarch butterfly. Body rotation and wing motions 
+continuously vary during the transition from a forward to a climbing flight. (a) Upstroke; (b) Downstroke. 
+
+3 
+American Institute of Aeronautics and Astronautics 
+
+
+For insects, with a notable exception of butterflies, the instantaneous information from flapping may not be as 
+critical for simple flight dynamics models because flapping time is much faster than that of the entire flyer6,56. 
+However, Lin et al.27 showed that moment of inertia of the body plays a significant role in maneuverability of the 
+painted lady butterflies, implying that a time-averaged analysis may not be ideal in the analysis of butterfly flight. 
+Moreover, the orientation and the shape of the butterfly body continuously change during flight57. Sunada et al.58 
+showed that the moment generated by the body rotation caused the stroke plane orientation to change during flight, 
+affecting the aerodynamics of the flapping wings. More recently, Fei and Yang59 carried out computational 
+simulations of free flying butterflies by prescribing body angles and suggested that the butterfly adjusts its body 
+orientation to minimize the drag force. However, their body angle was prescribed and the effects of the abdominal 
+motion were left for future exploration. 
+
+The relative motion of the abdomen with respect to the thorax within a flapping cycle as shown in Figure 1 
+introduces additional complexity in analyzing the coupled wing-body motion. Monarch butterfly, as captured by our 
+high speed camera system, continuously vary their relative angle between the thorax and abdomen, its thorax 
+orientation with respect to the horizontal, and wing shape and orientation during a flight in a closely coupled 
+manner. However, simultaneous quantification of the position and orientation of these different body parts and 
+wings have not been reported before. Moreover, the aerodynamic and flight dynamic influence of a continuously 
+rotating and deforming body on the butterfly flight and its coupled interaction with the flapping motion of the wings 
+is not fully reported and understood. 
+
+The objective of this paper is three-fold. Firstly, we resolve the overall body orientation into two main segments: 
+the thorax and abdomen. In our previous study54, we reported the undulating motion of the body by tracking one 
+marker placed on the thorax. In the current study, we provide a more detailed representation of the body by 
+recording the thorax and the abdomen orientations separately. Secondly, we determine the instantaneous lift 
+coefficient during climbing flight by considering a force balance. Thirdly, the state of the body during free flight is 
+considered as a six degree-of-freedom representation including the three Euler angles. The flapping motion of the 
+forewing is also represented as a six degree of freedom (DOF) system. We also report on the orientation of the 
+stroke plane, consistent with the definition by Ellington60. We consider a single representative flight and quantify the 
+body orientation and the wing angles during two flapping cycles. We collected 19 test flights using the above 
+framework and a statistically relevant analysis will be reported in the future. 
+
+The organization of the paper is as follows. First, we provide a detailed description of the experimental 
+methodology in Section II. This is followed by the discussion of results from a single flight test with a focus on body 
+and wing kinematics in Section III. Finally, we analyze and discuss the 6-DOF representation of the body and wing 
+as well as the force balance on the resulting trajectory of a freely flying Monarch. 
+
+II.􀀁 Methodology 
+
+A.􀀁VICON Motion Capture System 
+
+The experiments are conducted in the Autonomous Tracking and Optical Measurements (ATOM) laboratory at 
+the University of Alabama in Huntsville (UAH). The ATOM lab is a motion capture facility which uses 33 VICON 
+T40s cameras, Mx Giganet connectivity node, and Nexus61 software, designed to track reflective markers in three-
+dimensional space. Maximum capture volume dimensions are 17.2 m × 9.1 m × 3.0 m. In our previous work54, 
+twenty two cameras were placed inside a smaller capture volume of 5.7 m × 9.1 m × 3.0 m to increase the number of 
+cameras in the capture volume. The relatively large size of the capture volume with respect to the size of a butterfly 
+enables data capture with unrestricted free flight trajectories. 
+
+The VICON T40s cameras record at 515 fps at a full resolution of 4 megapixels. They are equipped with a near 
+infrared (NIR) strobe, and visible light filters to allow for operation under a variety of lighting conditions. The 
+cameras track reflective markers specifically designed for motion capture systems and efficiently reflect the NIR 
+light. Each camera contains an onboard processor which locates all markers recorded in a frame, calculates a circle 
+fit and determines the centroid of the circle. The location of the centroid and radius are the only data that are sent to 
+the Mx Giganet during a motion capture test. The Mx Giganet calculates the three-dimensional position of all 
+markers seen by two or more cameras simultaneously and sends it to the VICON workstation and into Nexus. 
+Depending upon the user's requirements, the data can be transmitted to the monitor for real time monitoring, or 
+recorded for post processing. The output environment is the virtual work space, which provides a three-dimensional 
+representation of the location of all cameras and position of the markers detected. 
+
+4 
+American Institute of Aeronautics and Astronautics 
+
+
+The motion capture system requires regular calibration, which is done before data is collected in the form of a 
+dynamic calibration. Calibration requires the use of a T-shaped tool provided by VICON. The calibration tool has 
+five markers with precise spacing, which are recognized by each camera. During calibration, the calibration tool is 
+waved around the capture volume. As two or more cameras see all five markers on the tool simultaneously, the 
+Giganet compares the images from the cameras to the known dimensions of the wand. The position of each camera 
+can then be calculated from this information. This process happens over one thousand times during a single 
+calibration. The system can then record data using the same calibration until vibrations in the walls or slippage in the 
+cameras causes a loss in resolution of the data. It was found that a calibration at the beginning of each day of testing 
+was sufficient to retain uniform resolution. 
+
+Cameras 
+(a) (b) 
+Abdomen 
+Flight Trajectory 
+Left wing 
+Right wing 
+Thorax 
+Figure 2. Experimental setup. (a) Physical capture volume. (b) Virtual capture volume and the camera 
+positions as seen in Nexus with close up view of the reconstructed markers on the butterfly. 
+
+The motion capture system detects the three-dimensional position of reflective markers. We tested various 
+markers sizes and shapes in our previous study54. A reflective rectangular tape of 3 mm size was chosen for its 
+significantly reduced mass. This choice was critical to reduce the changes in flight behavior that could be caused by 
+the addition of mass to the butterfly. Although the 3 mm markers are lighter, they are not well suited for placement 
+on the body. The width of the thorax is of the order of 5 mm and a single 3 mm marker covers more than half of the 
+thorax width. Additionally, to isolate thorax and abdomen motion, more than one marker is needed on the body. To 
+meet this requirement, we reduced the size of the marker further down to a circular shape with diameter of 1.8 mm. 
+To track these smaller markers, the distance between the camera and the marker had to be reduced. The capture 
+volume was shrunk to 1.2 m × 1.2 m × 1.5 m with 12 VICON cameras (Figure 2) without affecting the tracking 
+quality. The markers were cut using a hole punch which enabled us to standardize the marker shape and mass. A 
+Python script was generated to post-process the recorded data from the motion capture system. 
+
+B. 
+Monarch Butterflies and Testing Procedure 
+
+Monarch butterfly body can be divided into head, thorax and the abdomen regions. Head is at the forefront of the 
+body which houses a pair of eyes and antennae. Thorax is located behind the head and the fore and hindwings 
+extend from the thorax. The third region of the body is called the abdomen, which is a flexible, segmented and 
+slender region. A snapshot of the body orientation during flight is shown in Figure 3(a). The length of the head, 
+thorax and abdomen are denoted by Lh, Lt and La respectively. The thorax of a Monarch butterfly is a relatively rigid 
+structure when compared to the abdomen. The thorax and the abdomen sections normally are not aligned in a 
+straight line (Figure 1). Instead, the abdomen is positioned around a hinge point with respect to the thorax and is free 
+to move up and down or laterally. Morphological data for five butterfly specimens measured before the testing is 
+given in Table 1. The wing mass when compared to the corresponding body mass measured for two specimens were 
+around 20%. 
+
+5 
+American Institute of Aeronautics and Astronautics 
+
+
+The Monarch butterflies are shipped in individual boxes packed in a Styrofoam cooler with ice packs to ensure 
+the butterflies were kept safe through the shipping process. Monarch butterflies use cool temperatures during 
+overwintering to reduce usage of their lipid reserves62 which consequently reduces body activity and even impairs 
+their ability to fly32. This state of reduced activity was used by the research team to more safely handle, measure and 
+place markers on the specimens. During a week of testing, the first day consisted of removing each butterfly from 
+the shipping container where they were kept chilled. The butterflies were kept cold as they were first weighed, 
+markers were placed and were weighed again. The butterflies were then placed in terrariums under a directed 
+incandescent lamp and allowed to rest overnight to attempt to reduce the potential effects of stress from handling 
+and the addition of markers. 
+
+Table 1. Morphological data measured for five specimens. Current study corresponds to butterfly No. 1. 
+
+No. Gender Mass, Half Body Body length [mm] Wing area, Wing loading Aspect 
+m [g] wingspan, width S 
+[N/m2] Ratio, AR 
+
+
+[×10-4
+
+R [mm] [mm] m2]
+
+Lh Lt La 
+
+1 M 0.458 48.94 5.93 4.9 9.3 19.5 27.895 1.612 3.863 
+2 M 0.443 49.04 5.68 4.3 8.7 19.1 26.069 1.667 3.820 
+3 M 0.477 48.60 6.01 4.4 8.6 21.2 25.057 1.867 3.839 
+4 F 0.361 47.51 5.04 3.8 9.3 18.0 26.695 1.326 3.756 
+5 M 0.402 49.92 5.85 3.7 8.9 20.1 24.529 1.679 3.790 
+
+Avg. 0.428 48.80 5.70 4.2 8.9 19.5 26.049 1.630 3.813 
+
+
+1.8 mm dia Markers 
+T1
+
+Hinge 
+Point 
+Thorax 
+Abdomen 
+V 
+(a) (b) 
+T3 
+A1A2 
+Thorax 
+Abdomen 
+Hinge 
+Point 
+χLa 
+Lt 
+θlt 
+la 
+Figure 3. (a) A snapshot of a free flying Monarch butterfly at the end of downstroke with an elevated 
+abdomen position. Abdomen can change its orientation with respect to the thorax during flight as indicated 
+by dotted lines. (b) Definition of the thorax and the abdomen angles along with morphological definitions 
+used in the current study. 
+
+C.􀀁Marker configuration 
+
+VICON motion capture system detects position of reflective markers. The sampling rate in this study was 200 
+Hz, double the rate in our previous work54. Markers are placed at strategic locations on the body and the wings of 
+butterfly as shown in Figure 4(a). Three circular markers with a diameter of 1.8 mm, denoted as T1, T2 and T3 are 
+
+6 
+American Institute of Aeronautics and Astronautics 
+
+
+placed on the thorax. Markers T1 and T3 are carefully aligned with the longitudinal axis of the body with a separation 
+distance lt=6.9 mm. A third marker T2 is placed at a small offset of 2.6 mm to the left of the longitudinal axis. The 
+thorax orientation is denoted by the line segment joining the markers T1 and T3. Similarly, markers A1 and A2 are 
+placed longitudinally on the lower end of the abdomen at a separation distance la=3.9 mm. The abdomen orientation 
+is denoted by the line segment between A1 and A2. The orientation of the thorax and the abdomen with respect to the 
+horizontal are denoted by the angles θ and χ respectively (Figure 3(b)). 
+
+The wing markers are rectangular in shape with dimension of 2×3 mm. Markers RW1, RW2, RW3 are placed on 
+the leading edge of the right forewing at 0.4R, 0.7R and 1.0R respectively, where R=48.94 mm is the half wing span 
+measured from the wing root. A fourth marker, RW4, is placed on the trailing edge of the right forewing at 0.7R. The 
+vector between RW2 and RW4 represents the chord of the right forewing at approximately 0.7R measured at 
+c0.7R=18.9 mm. On the leading edge of the left forewing, three markers LW1, LW2, and LW3 are placed at 0.4R, 0.7R 
+and 1.0R respectively. To prevent marker occlusion during the upstroke when the wings fold backwards, rectangular 
+markers of 2×3 mm were placed on the underside of the wings at the same position as on the upper side of the wing. 
+
+Table 2. Reflective markers used in this study. 
+
+Marker Type Usage # of 
+Markers 
+Total Marker 
+Mass (g) 
+% Butterfly 
+mass (0.458 g) 
+% Total wing 
+mass (4 wings) 
+(0.046 g) 
+1.8 mm dia. round Thorax 
+Abdomen 
+3 
+2 
+0.0003 
+0.0002 
+0.065 
+0.043 
+0.6 
+0.4 
+Left Forewing 6 0.0083 1.82 16.6 
+2×3 mm rectangle Right Forewing 8 0.0115 2.51 23 
+Right Hindwing 2 0.0022 0.48 4.8 
+Total 19 0.0225 4.91 48.9 
+
+The placement of reflective tape markers on the body and wings add to the total mass of the butterfly. Reduction 
+in the marker size and mass was achieved by improved calibration techniques. The smallest markers used in the 
+current study were circular markers with a diameter of 1.8 mm. The mass of each of these markers were measured to 
+be 0.063% of the total mass of the butterfly. The rectangular, 2×3 mm marker, with a larger marker area, which were 
+required to track the rapid motion of the wings, weighed around 0.3% of the butterfly mass. The individual 
+contribution from each marker is summarized in Table 2. The total marker mass remains under 5% of the total 
+butterfly mass. Eight rectangular markers on the right forewing combine to about 23% of the total wing mass. We 
+will report on the effects of number of wing markers on the resulting butterfly flight more in detail in the future. 
+
+LW3 
+LW2 LW1 
+R 
+0.7R 
+0.4R 
+RW1 RW2 
+RW3 
+RW4 
+a) b) 
+Longitudinal 
+Axis 
+RW1 RW2 
+RW3 
+RW4 
+c0.7R 
+T1 
+T2 
+T3 
+A1 
+A2 
+Head 
+Thorax 
+Abdomen 
+Lh 
+Lt 
+L a 
+1.8 mm circular marker 
+2×3 mm rectangular marker 
+Figure 4. (a) Marker locations on the body and the wings of a Monarch specimen. (b) A schematic showing 
+the marker labels and body morphology. 
+
+7 
+American Institute of Aeronautics and Astronautics 
+
+
+D.􀀁Coordinate Systems and Frames of Reference 
+
+The VICON motion capture system records the three-dimensional coordinates of moving markers with respect to 
+an inertial coordinate system (XIYIZI) (Figure 5), which is set during the calibration process. The origin of the inertial 
+reference frame is set at one of the corners of the capture volume. The XI and YI axes form the horizontal plane and 
+ZI axis points vertically upwards. At a given instant of time, position of a marker on the butterfly, say T3, in the 
+inertial frame is identified by its position vector rT3,I. The inertial reference frame is rotated about the ZI axis to 
+obtain a velocity vector aligned inertial frame (XVYVZV) such that the XV axis is aligned with the projection of the 
+velocity vector, V, onto the horizontal plane. 
+
+To describe the motion of the butterfly in a three-dimensional space, we define two additional reference frames: 
+the body and wing reference frames. The body reference frame (xbybzb) is fixed on and moves with the body, is 
+constructed with successive rotations along the three mutually perpendicular axes of the inertial frame. The origin of 
+the body reference frame is located at the thorax of the butterfly at T3, which is close to the butterfly center of 
+gravity. The xb axis is aligned along the longitudinal axis of the body, yb is directed to the left of the body 
+perpendicular to the xb axis. The cross product of xb and yb axes gives the zb axis forming a right hand system. 
+
+The right wing reference frame (xwywzw) is constructed with xw =RW4-RW2, yw pointing to the left, along the 
+vector between RW3 and T3. Finally, zw is obtained by cross product of the xw and yw. The inertial, body and wing 
+reference frames follow right hand convention. 
+
+The motion and orientation of the butterfly body during flight in three-dimensional space is represented by a 6DOF 
+system composed of the position in space and three angles. The three orientation angles are the Euler angles, 
+which indicate the rotation of the body about coordinate axes of the inertial frame. 
+
+XI 
+YI 
+ZI 
+zb 
+xbyb 
+δαζθψrT3 
+T3 
+V 
+XVYV 
+ZV 
+Figure 5. Schematic of the reference frames. A fixed inertial frame and a moving body reference frame. 
+
+The thorax markers T1, T2 and T3 are assumed to represent a rigid body. To find the Euler angles of the thorax, it 
+is necessary to find the rotation matrix RI→b about the origin that transforms the inertial frame of reference to the 
+body frame of reference. The rotation matrix RI→b can be decomposed into a product of individual elementary 
+rotation matrices around ZI, YI, XI axes as RI→b=RZ,I(ψ)RY,I(θ)RX,I(φ), where the rotation matrices are defined as 
+
+⎛ 
+cosφ−sinφ 
+0⎞⎛ 
+cosθ 
+0 
+sinθ⎞ 
+⎛10 
+0 
+⎞ 
+⎜⎟⎜⎟⎜ 
+⎟
+
+R(φ) 
+sinφ 
+cosφ 
+0 
+, R(θ 
+) 
+0 
+10 
+, R(ψ 
+) 
+= 
+0 
+cosψ−sinψ 
+. (1)
+
+XI, 
+= 
+⎜⎟ 
+YI, 
+= 
+⎜⎟ 
+ZI, 
+⎜⎟
+⎜⎟⎜⎟⎜ 
+⎟
+
+0 
+01 
+sinθ 
+0 
+cosθ 
+0 
+sinψ 
+cosψ
+
+⎝ 
+⎠⎝− 
+⎠⎝ 
+⎠ 
+
+
+where the Euler angles ψ,θ 
+and φ are the yaw, pitch and roll angles, respectively, and can be extracted from RI􀀂b as 
+
+8 
+American Institute of Aeronautics and Astronautics 
+
+
+⎛ 
+cosθ 
+cosψ 
+cosψ 
+sinφ 
+sinθ− 
+cosφ 
+sinψ 
+cosφ 
+cosψ 
+sinθ 
++ 
+sinφ 
+sinψ⎞ 
+RIb 
+= 
+Rψ 
+RRφ 
+= 
+⎜
+⎜ 
+cosθ 
+sinψ 
+sinφ 
+sinθ 
+sinψ 
++ 
+cosφ 
+cosψ 
+cosφ 
+sinθ 
+sinψ− 
+cosψ 
+sinφ 
+⎟
+⎟ 
+. (2)
+
+→θ 
+⎜⎟
+
+sinθ 
+cosθ 
+sinφ 
+cosφ 
+cosθ
+
+⎝⎠ 
+
+
+The rotation matrix RI→b is computed using the Singular Value Decomposition (SVD) algorithm. The SVD 
+algorithm computes the optimal rotation in three-dimensional space that transforms one set of points to an another 
+set by minimizing the root mean squared error. The position of thorax markers at a reference time t0 is taken as the 
+baseline set of points. In order to determine RI→b at an arbitrary time t, we first find the centroid of the thorax 
+markers T1, T2, and T3, rcentroid 
+t as 
+
+rcentroid 
+t=(rT1+rT2+rT3)/3, (3) 
+
+where the vector components are described in the inertia frame of reference. The translation vector between the 
+current centroid, rcentroid 
+t and the centroid in the reference configuration, rcentroid 
+t0 is simply rtrans 
+t = rcentroid 
+t -rcentroid 
+t0. 
+In the second step, the optimal rotation matrix RI→b is computed that transforms the initial configuration to the final 
+configuration after translating the current reference frame to the initial configuration such that both centroid 
+collocate as shown in Figure 6. This process is repeated at each time instant with a new thorax orientation and a 
+fixed reference orientation. As shown in Figure 6(a), the components of T3 marker in the inertial and body frame is 
+related by 
+
+rT3,b = RI→b(rT3,I -rtrans), (4) 
+
+where the subscript t was omitted for simplicity. 
+
+This procedure can be repeated to determine the body-to-wing rotation matrix Rb→w. A transformation from 
+inertial reference frame to the wing reference frame is represented by the product of individual rotation matrices as 
+
+RI→w = Rb→w RI→b (5) 
+
+
+xb
+
+T1
+
+T2 
+
+T1 
+
+T3 
+
+Thorax 
+
+rcentroid 
+
+Abdomen 
+
+zb ZI y
+
+zb yb 
+rT3,I 
+rtranst 
+Thorax markers 
+at time tZI YI 
+T1 
+T2 
+T3 
+T2 
+XIx
+t 
+
+b YI 
+xb
+
+T3 
+
+Thorax markers 
+at time t0 
+
+t0
+
+rcentroid Colocated centroids 
+
+(a) (b) 
+Figure 6. Schematic showing the inertial and the body reference frames. A position of a marker in space can 
+be represented in either the inertial frame or the body frame. 
+
+9 
+American Institute of Aeronautics and Astronautics 
+
+
+ζmax 
+ZZ 
+αβδζZ 
+αβδζ
+The butterfly flight involves continuous translation and rotation of the body and wings. By quantifying the wing 
+motion in the body frames of reference, we can eliminate the effects of the body motion on the wings. The flapping 
+motion of the right forewing in the body frame can be expressed in terms of three Euler angles6: positional angle, ζ, 
+feathering angle, α, and deviation angle, δ. As shown in Figure 7, clockwise rotation about the longitudinal axis of 
+the body, xb, is defined as the positional angle ζ. The rotation about the yb axis is defined as the feathering angle α 
+and rotation about zb axes is the deviation angle δ. The position of the wing tip at the beginning and end of the 
+downstroke together with the wing root defines the stroke plane57. The positional angle at the beginning of the 
+downstroke is denoted by ζmax and at the end of downstroke by ζmin. The stroke amplitude Ζ is defined as the total 
+sweep angle between the beginning and end of downstroke as Ζ=ζmax -ζmin. An average positional angle is ζa=(ζmax 
+
+
+ζmin)/2. 
+
+Stroke Plane 
+
+Stroke Plane 
+
+Stroke Plane
+
+Horizontal 
+
+α
+
+Plane 
+
+δ
+Horizontal
+
+Horizontal 
+
+Plane 
+
+min Plane 
+
+β 
+
+
+(a) Isometric View (b) Side View (c) Top View 
+Figure 7. Schematic showing the right wing tip at the ends of half stroke together with the wing root forming 
+the stroke plane. The stroke plane angle is denoted by β 
+with the horizontal. Deviation of the wing tip from 
+the stroke plane is denoted by the deviation angle, δ. Feathering angle, θ, is the rotation of the wing surface 
+with respect to the horizontal plane. The stroke amplitude, Ζ, is defined as the total sweep angle between the 
+beginning and end of downstroke. 
+
+Similarly, a stroke plane is defined for wing upstroke by taking the position of the wing tip at the beginning and 
+end of upstroke together with the wing root. The stroke plane orientation with respect to the horizontal is denoted by 
+β. The stroke plane angle, β, not only changes during the up and downstroke, but during different stages of flight. 
+The wing tip normally does not lie on the stroke plane except at the ends of strokes60. The deviation of the wing tip 
+from the stroke plane is measured with the deviation angle δ. The feathering angle is also often described as the 
+pitching angle of the wing6. It is not an angle of attack as the motion velocity vector of the butterfly also 
+continuously changes its orientation. 
+
+III. 
+Results and Discussion 
+
+The methodology and tools developed in Section II are applied on a single butterfly flight to analyze the body 
+and wing kinematics. The results presented here correspond to the Butterfly #1 in Table 1. Statistically significant 
+data and analysis will be reported in the future. Section III.A introduces the trajectory of the climbing flight and the 
+velocity component. This is followed by results from a force balance and lift coefficient in the vertical direction in 
+Section III.B. Section III.C and Section III.D gives a detailed description of the wing and the body kinematics 
+respectively. 
+
+A.􀀁Trajectory of the Butterfly 
+
+The trajectory of the butterfly is the path of the body during flight. Trajectory of the butterfly provides a means 
+to classify a segment of flight into takeoff, climbing or level flight. In our earlier work54, we observed that the body 
+of the butterfly shows an undulating motion with a significant vertical oscillation during flight. The body oscillation 
+had the same frequency as the flapping motion but with a slight phase shift, suggesting that the body and wing 
+motion are closely coupled. In this study, we provide a more comprehensive and detailed quantification of the body 
+motion. The trajectory is defined with respect to the thorax of the butterfly. The three-dimensional trajectory of a 
+free flying butterfly can be quite complex as illustrated in Figure 8. The butterfly is in a climbing trajectory in Figure 
+
+10 
+American Institute of Aeronautics and Astronautics 
+
+
+American Institute of Aeronautics and Astronautics 
+11 
+8, where the thorax is ascending at an average rate of 0.75 m/s during two flapping cycles as will be discussed in 
+Section III.B. In addition to climbing, the butterfly can simultaneously vary the orientation of its thorax during flight 
+as shown with a blue line in Figure 8. The projection of the trajectory and the thorax axis on the x-y and y-z planes 
+show undulating trajectory and a continuously changing thorax orientation. 
+Figure 8. (a) Three-dimensional trajectory of the butterfly in climbing flight. The T1 marker position is 
+indicated by a red dot every 5 ms. The orientation of the thorax at each frame is shown by a red line. The 
+two-dimensional projections on the coordinate planes are also indicated in blue. (b) The projection of the 
+thorax T1-T3 and the local velocity vector on the horizontal plane. T1 marker is shown as a dot. (c) The yaw 
+angle is defined as the difference of the thorax and the velocity vector projection on the horizontal. 
+Figure 9(a) shows the position of the T1 marker during two flapping cycles in the inertial frame. The xcomponent 
+of the T1 marker in Figure 9(a) shows minimal spatial variation with a change in position of about 0.03 
+m in two flapping cycles. On the other hand, change in the y and the z position in the same duration is around 0.19 m 
+and 0.13 m respectively. The undulating oscillations of the thorax is noticeable between up and downstroke motions. 
+The velocity components of the T1 marker are shown in Figure 9(b). The velocity components of the T1 marker 
+shows prominent oscillations when compared to the position. In fact, all three velocity components of the thorax 
+show an increase during downstroke and a decrease during upstroke. The Vx and Vz components are positive whereas 
+Vy is negative. The mean velocity magnitude is 1.28 m/s. 
+YI 
+XI 
+(a) 
+(c) 
+(b) 
+0.05 0.10 0.15 0.20 
+t (s) 
+120 
+100 
+80 
+60 
+40 
+20
+0 
+20 
+40 
+Yaw Angle (deg) 
+Downstroke Upstroke Downstroke 
+ψV 
+ψV- ψT 
+550 
+600 
+650 
+700 
+750 
+650 
+550 
+500 
+450 
+400 
+350 
+x (mm) 
+y (mm) 
+z (mm) 
+y-z Plane 
+x-z Plane 
+x-y Plane 
+300 700 
+500 
+600 
+ψT 
+500 550 600 650 700 
+y (mm) 
+400 
+410 
+420 
+430 
+x (mm) 
+Downloaded by University of Pennsylvania on February 17, 2026 | http://arc.aiaa.org | DOI: 10.2514/6.2016-3252 
+
+z y 
+Downstroke Upstroke1.28 m/s V=
+V x 
+T 1 position (mm) 
+T 1 velocity (m/s) 
+0.40 
+0.50 
+0.60 
+0.70 
+0.0 
+1.0 
+2.0 
+-1.0 
+Downstroke Upstroke Downstroke Upstroke Downstroke Upstroke 
+V y 
+V z 
+x 
+V 
+yz 
+Downstroke Upstroke1.28 m/s V=
+V x 
+T 1 position (mm) 
+T 1 velocity (m/s) 
+0.40 
+0.50 
+0.60 
+0.70 
+0.0 
+1.0 
+2.0 
+-1.0 
+Downstroke Upstroke Downstroke Upstroke Downstroke Upstroke 
+V y 
+V z 
+x 
+V 
+0.05 0.10 0.15 0.20 0.05 0.10 0.15 0.20
+(a) t (s) (b) t (s) 
+Figure 9. (a) Position of T1 marker in the inertial reference frame. (b) The velocity components of the T1 
+marker in the inertial frame. The velocity magnitude, V, and its average are also indicated. 
+
+B. 
+Force Balance and Lift Coefficient 
+
+Figure 10 shows the trajectory, corresponding variation of the lift coefficient and vertical force during two 
+flapping cycles in a climbing flight. Figure 10(a) clearly depicts two distinct climbing regime. The climb rates are 
+
+1.07 m/s and 1.09 m/s in the faster climb regime from the middle of the downstroke to the middle of the upstroke. 
+During the slower climb regime, the rates are 0.44 m/s and 0.52 m/s from the middle of the upstroke to the middle of 
+the downstroke. 
+The lift coefficient is determined from the force balance on the thorax marker T1, 
+
+maz 
+= 
+L 
+− 
+mg, 
+(6) 
+
+where m is the butterfly mass, az is the acceleration in vertical direction, L is the lift, and g is the gravitational 
+constant. The acceleration az was calculated by numerically differentiating the z position of the T1 marker (Figure 10 
+(a)) twice in time. Then the lift coefficient CL follows as 
+
+L 
+(az 
++ 
+g) 
+m
+
+C 
+== 
+,
+
+L121 
+2 
+S 
+(7)
+
+ρVS 
+ρV
+
+22 
+
+
+where 􀀁 is the air density, S is the wing area, and V is the speed of the thorax. Since the morphological (Table 1) and 
+motion parameters are known, the instantaneous lift coefficient can be determined as shown in Figure 10(b). A low 
+pass filter is used to remove high frequency oscillations that result from numerical differentiation in velocity and 
+acceleration components. 
+
+The ratio between the weight mg and the wing area S is also called the wing loading, an important parameter that 
+characterizes the flight performance. The wing loading for this particular butterfly was 1.61 N/m2, which is much 
+lower than birds, e.g. Albatross63: 140 N/m2, or man-made aircrafts, e.g. Boeing 74763: 7570 N/m2. Such a low wing 
+loading in general implies a higher maneuverability, lower take-off and landing speeds and higher climb rate. The 
+flight trajectory considered here is a climbing flight where the butterfly climbs 0.12 m in 0.16 s during two flapping 
+cycles, i.e. a climb rate of 0.75 m/s. 
+
+Positive lift is generated during the downstroke, whereas the lift is negative during the upstroke with a much 
+lower magnitude as seen in Figure 10(b). The lift coefficient at the beginning of downstroke at t=0.054 s is positive 
+with CL=3.8. A small drop in CL observed in the first quarter of the downstroke followed by an increase to a 
+maximum of CL=10.8 at t=0.085 s. These lift coefficients are much greater than the conventional values on man-
+made aircraft wings. During downstroke, the wing flaps downward producing positive lift propelling the butterfly 
+upward and forward. As a result, the climb rate increases to 1.07 m/s and 1.09 m/s from the middle of the 
+downstroke until the middle of the upstroke. The magnitude of the lift coefficient at the end of the downstroke at 
+
+12 
+American Institute of Aeronautics and Astronautics 
+
+
+t=0.105 s is close to zero and turns negative during most of the upstroke with a minimum of CL=-2.5 near the middle 
+of upstroke at t=0.125 s. The climb rate reduces accordingly to 0.44 m/s and 0.52 m/s for the two upstrokes shown 
+in Figure 10(a). Average lift coefficient for two flapping cycles is found to be 1.93. 
+
+The lift force in the vertical direction calculated with Eq. (6) is shown in Figure 10(c). The lift force shown in 
+mN is similar to the CL curve. The only difference is that the velocity of the thorax, V, continuously varies in time in 
+Eq. (7) as shown in Figure 9(b). The weight of the butterfly with mass m=0.481 g, with markers taken into account 
+is indicated by a red horizontal line. The total weight of the butterfly is Wb=4.71 mN and the averaged vertical force 
+is slightly higher at 5.3 mN when averaged over two motion cycles. The butterfly is able to climb with an average 
+climb rate of 0.75 m/s. During downstroke, the butterfly generates force in the vertical direction and at midstroke, 
+the force exceeds its weight roughly by a factor of six. The net force in the upstroke drops to negative. As a 
+consequence, the climb rate reduces during the upstroke (Figure 10(a)). The climb rate is still positive due to the 
+momentum from the previous downstroke. The climb rate was observed to be higher between the transition from 
+
+of the flapping motion on an average was found to be around 151 deg. 
+Figure 11. Definition of flapping angle, γ. The leading edge markers on the left and the right fore wings. 
+Adapted from Cranford et al.54T1z-coordinateright forewing 
+left forewing 
+right hindwing 
+head 
+thorax 
+T3 
+LW3RW3 
+γ
+12 
+
+downstroke to upstroke. 
+=1.93CL10 
+15 
+F z (mN) 
+Downstroke Upstroke Downstroke Upstroke 
+30
+
+0.75 
+
+10 
+
+25 
+
+F z =5.3 mN 
+_ 
+Wb =4.71 mN 
+Downstroke Upstroke Downstroke Upstroke 
+0.44 m/s 
+1.07 m/s 
+0.52 m/s 
+1.09 m/s 
+Downstroke Upstroke 
+0.10 0.15 0.20 
+CL 
+Downstroke Upstroke 
+0.70 
+
+8 
+
+20 
+
+6
+
+0.65 
+
+4 
+
+2
+
+0.60 
+
+5
+
+0 
+
+0
+
+0.55 
+
+-2 
+
+-5
+
+-4 
+
+-10
+
+0.50
+
+0.05 
+
+-6 
+
+0.05 0.10 0.15 0.20 0.05 0.10 0.15 0.20 
+t (s) t (s) t (s)
+
+(a) 
+
+Figure 10. (a) Thorax undulation as shown by the z-coordinate of the T1 marker in the inertial frame. (b) Lift 
+coefficient CL calculated using Eq. (7). The red line indicates average lift coefficient in two cycles. (c) The lift 
+force over two flapping cycles calculated from Eq. (6). 
+
+(b) (c) 
+C.􀀁Flapping Wing Kinematics 
+
+Flapping angle, γ, is defined as the angle between the forewings as shown in Figure 11. It is measured by 
+markers at the tip of the left and right forewings, rLW3 and rRW3, respectively in the body reference frame with origin 
+
+at T3. In particular, the flapping angle, γ, was calculated as 
+
+−1 
+⎛ 
+|r 
+×r 
+|⎞
+
+LW3 
+RW3 
+
+
+γ 
+= 
+tan 
+⎜⎟. 
+(8)
+
+r 
+⋅r
+
+⎝ 
+LW3 
+RW3 
+⎠ 
+
+
+The time history of the flapping angle γ was approximately sinusoidal as shown in Figure 12(a). The amplitude 
+
+13 
+American Institute of Aeronautics and Astronautics 
+
+
+Body angles are computed at each time instant. The Euler angles for two flapping cycles are shown in Figure 
+12(b). The body pitch angle, θ, which is the angle between the thorax and the horizontal plane, varies between θ=7 
+deg and θ=42 deg. The body pitch shows a periodic oscillation similar to the flapping angle, γ, but with a small 
+phase lag. 
+
+At the beginning of the upstroke at t=0.105 s, the flapping angle is at its highest with γ=317.7 deg. The pitch 
+angle of the thorax is close to θ=29 deg at this time instant. The flapping angle decreases during the upstroke as the 
+wings approach each other and the lift coefficient drops causing the butterfly to lose the climb rate. Moreover, the 
+body as a whole is tilted backward, thus increasing the pitch angle. The pitch angle attains a value of around θ=33.3 
+deg at the mid of upstroke at t=0.125 s. During the second half of the upstroke, the thorax tilts forward slightly 
+causing the body pitch angle to drop. By the end of upstroke at t=0.145 s, the pitch angle has slightly decreased to 
+θ=28.3 deg. The flapping angle at this point is at its lowest of with γ=23.4 deg. At the beginning of the downstroke, 
+the body is continuing to tilt forward which decreases the pitch angle further and at the mid of downstroke at t=0.17 
+s, the thorax attains its lowest pitch angle of θ=17 deg. The downward flapping of the wings and the pitch down 
+motion of the thorax takes place simultaneously during the first half of the downstroke. Near the mid of second half 
+of downstroke at t=0.175 s, the flapping angle is around γ=203 deg where the left and the right wings are spread out 
+laterally and the lift generated is at its highest with CL=7.8 (Figure 10(b)). During the second half of the downstroke, 
+the rate of climb increases and thorax simultaneously pitches up and attains θ=36.2 deg at the end of downstroke at 
+t=0.19 s. 
+
+The yaw angle in Figure 12(b) is defined as the rotation of the thorax about the ZV axis. The yaw angle varies 
+between ψ=-8 deg to ψ=31 deg. In general, body orientation is closely related to the type of flight in consideration. 
+Due to the close coupling that exists between body and wing motion, factors such as climb rate (e.g. take-off versus 
+level flight), type of the maneuver (eg. straight versus turning) strongly influence the body orientation angles. 
+Furthermore, to enable comparison between multiple flights while performing a statistical analysis, it is important to 
+eliminate the dependence of body orientation angles on an arbitrarily-fixed inertial reference frame. A definition of 
+angles based on local velocity vector enables a uniform comparison across several individual flights. 
+
+Body Angles(deg) 
+Flapping Angle(deg) 
+0 
+-20 
+20 
+40 
+0 
+100 
+200 
+300 
+ψV-ψT 
+θγ(a) 
+Downstroke DownstrokeUpstroke 
+(b) 
+
+American Institute of Aeronautics and Astronautics 
+14 
+Figure 12. (a) Flapping angle γ. (b) Body pitch and yaw and angles. The yaw angle of the body, ψ=ψV-ψT is 
+defined in the velocity vector adjusted frame as the rotation about ZV axis. (c) Wing angles in the body 
+reference frame. Positional angle is denoted by ζ, feathering angle by α and deviation angle by δ. 
+Wing Angles(deg)
+0 
+50 
+100 
+-50 
+-100 
+α0.05 0.10 0.15 0.20 
+t (s) (c) 
+ζδ
+
+The wing Euler angles are calculated in the body frame of reference. Positional angle, ζ, has the largest stroke 
+amplitude of Ζ=151 deg with an average of about ζa=76 deg in the two flapping cycles considered in Figure 12(c). 
+The feathering angle, α, was mostly negative during upstroke with a maximum angle of α≈10 deg and a minimum 
+angle of α≈-60 deg recorded during downstroke. In this climbing motion the orientation of the wing chord in the 
+body frame of reference is tilted upwards as depicted in Figure 13. The deviation angle, δ, has a relatively lower 
+magnitude of δ≈30 deg compared to the positional and feathering angles. The deviation angle, δ, exhibits dual peaks 
+
+within a full flapping cycle. 
+3 0 Upstroke 
+2 0 Downstroke 
+
+-20 
+T3 
+RW2 RW4-30 
+3 02 01 0 0-1 0 
+
+1 0 
+0 
+
+z (mm) 
+
+-10 
+-20 
+-30 
+
+x (mm) 
+Figure 13. The chord RW4-RW2 in body frame of reference during upstroke and downstroke. The upstroke 
+corresponds to t=0.105 s and t=0.145 s in Figure 12(c). Leading edge, RW2, is shown as a dot. The feathering 
+angle is negative in the clockwise rotation about the yb axis as seen here during upstroke. During downstroke, 
+the counterclockwise rotation is smaller. 
+
+Dominant frequencies of the body and wing angles in Figure 12 are determined with Fast Fourier Transform 
+(FFT). Before performing the FFT, the mean of each time series is calculated and the original data is subtracted from 
+the mean. Figure 14 shows the results from the FFT analysis of the flapping body and wing angles. The flapping 
+angle calculated with left and the right fore wings show a frequency of f=9.52 Hz (Figure 12(a)). Similarly, among 
+the body angles, the body pitch angle appears to have the same frequency as the flapping motion with the yaw and 
+roll angles showing a peak at 4.76 Hz, which is half the frequency of the wings. Among the wing angles, the 
+positional and the feathering angle have a fundamental frequency of 9.52 Hz whereas the deviation angle has a 
+higher frequency of 23.8 Hz, which is 2.5 times greater than the fundamental frequency. The deviation angle, unlike 
+the positional and the feathering angle has two peaks within a halfstroke as seen in Figure 12(c) consistent with the 
+observation in Figure 14(c). 
+
+
+θψV -ψT 
+0 
+1 
+2 
+3 
+4 
+5 
+6 
+9.52 Hz 
+ζαδ0 
+5 
+10 
+15 
+20 
+25 
+γ0 
+20 
+40 
+60 
+80 
+100 
+|Y(freq)| 
+9.52 Hz 
+23.8 Hz 
+4.76 Hz 
+5010 20 30 40
+10 20 3040 
+
+50 
+
+10 20 3040
+
+0 
+
+0 
+
+(a) Frequency (Hz) (b) Frequency (Hz) (c) Frequency (Hz) 
+Figure 14. Fast Fourier Transform performed on each of the time series in Figure 12. The flapping frequency 
+is f=9.52 Hz. The body pitch angle shares the same frequency as the flapping angle. Yaw angle has a lower 
+harmonic. Among the wing angles, the positional and the feathering angles have a matching frequency equal 
+to the flapping frequency, f, whereas the deviation angle has a higher frequency than the flapping frequency, 
+consistent with Figure 12(c). 
+
+15 
+American Institute of Aeronautics and Astronautics 
+
+
+In our earlier study54, the flapping frequency of Monarch butterflies was observed to be fairly uniform between 9 
+Hz and 11 Hz, which is close to the frequency found in this study: f=9.52 Hz. In the current study, data is recorded 
+at 200 Hz instead of 100 Hz as in our previous work, improving the accuracy. On the other hand, in the current work 
+we only considered a single flight, whereas in our previous work we reported a statistically significant value from 75 
+flights. Statistically significant data and analysis of the butterfly flight with the current improved experimental setup 
+will be reported in the future. Similar to our earlier finding that the frequency of the undulating motion of the body 
+was the same as the flapping frequency, current observations indicate that the wing motion and body motion are 
+closely coupled to each other. The body of the butterfly pulls up during the downstroke and undulates with a phase 
+lag with respect to the wing motion as is clearly seen in Figure 1. Most flight dynamics models of flapping wing 
+insects neglect the influence of wing mass and inertia on the body motion55,64 by assuming that the flapping 
+frequency is much higher than that of body oscillation and that wing mass is much smaller than the body mass. 
+However, for Monarch butterflies, the flapping and body frequencies are similar, and a simplified flight dynamics 
+models cannot be used to analyze the dynamics and stability of butterflies. 
+
+The trace of the RW3 marker in the body frame of reference during a full flapping cycle between t=0.105 s and 
+t=0.19 s is shown in Figure 15. The upstroke position of RW3 is shown in red and the downstroke in blue. The 
+stroke plane is identified as the plane formed by the T3 marker in green and the position of RW3 at the beginning of 
+upstroke and end of upstroke. By definition, the wing tip lies on the stroke plane at the ends of the stroke. It is 
+observed that during upstroke, the wing tip in body frame of reference does not cross the stroke plane and forms a 
+U-shaped trajectory. However, during the downstroke, the wing tip crosses the stroke plane twice: once just after the 
+beginning of the downstroke and once just before the end of the downstroke. The stroke plane makes a β=71.1 deg 
+angle with the horizontal during this stroke. Wing tip markers in the stroke plane reference frame will be reported in 
+the future. 
+
+-40 
+20 
+40 
+-20 
+-40 
+-60 
+-80 
+Upstroke 
+Downstroke 
+T3 
+β = 71.1 deg 
+Stroke 
+Plane 
+-40 
+-20 
+40 
+Start of upstroke,
+End of upstroke,
+-40 0 
+y(mm) 
+-20 -40 -60 -80-40 
+0 
+40x(mm) 
+T3 
+t=0.145 s
+
+20
+
+z (mm) 
+
+0 
+
+z (mm) 
+
+0 
+
+-20 
+
+0 
+
+t=0.015 s 
+
+0 
+
+-20 
+
+20 
+
+40 
+
+(a) (b) 
+Figure 15. Position of the right fore wing tip marker RW3 in the body reference frame during one complete 
+cycle. Red dots indicate upstroke and the blue dots are the position traced during downstroke. (a) Three-
+dimensional view of the stroke plane drawn by connecting three points: thorax marker T3, RW3 at the 
+beginning and end of upstroke. (b) Side view of the stroke plane seen as a line makes β=71.1 deg with the 
+horizontal. 
+D.􀀁Thorax and Abdomen Orientation 
+
+The relative orientation of the abdomen with respect to the thorax continuously changes during flight as seen in 
+Figure 1. Furthermore, the body orientation is closely coupled58 to the wing motion. In an earlier study54, we 
+reported on the undulating trajectory of the thorax whose frequency closely matched that of the flapping motion with 
+a slight phase lag. In the current study, we measure the individual orientation of the abdomen and the thorax motion 
+by calculating their respective pitch angles with the horizontal. 
+
+Figure 16(a) shows the evolution of the pitch angle of the thorax and the abdomen measured with the horizontal. 
+The thorax pitch angle, θ, is calculated as the pitch angle of the longitudinal axis of the thorax represented by 
+markers T1-T3. Abdomen pitch angle, χ, is calculated using A1-A2 markers as indicated in Figure 3(b). The 
+
+16 
+American Institute of Aeronautics and Astronautics 
+
+
+difference between the two angles is also shown in Figure 16(a) where a difference angle close to zero indicates that 
+the thorax and the abdomen are aligned. Abdomen, like thorax, shows an undulating motion with positive pitch 
+angle which varies between χ=22 deg and χ=56 deg during two flapping cycles. At the beginning of the upstroke, 
+the thorax and abdomen have nearly the same pitch angle of around θ=24 deg and χ=22 deg at t=0.105 s. During the 
+second half of the upstroke, the abdomen angle begins to increase and continues to increase during the following 
+downstroke reaching a peak at the middle of downstroke with χ=56 deg at t=0.165 s. During the same interval 
+between t=0.145 s and t=0.165 s, the thorax shows an opposite trend with decreasing pitch angle with θ=16.6 deg at 
+the middle of downstroke at t=0.165 s. The difference between the thorax-abdomen pitch angle is also the highest at 
+the middle of the downstroke. At the middle of the downstroke, the instantaneous lift is also at maximum (Figure 
+10(b)) and the butterfly has started to climb with the faster climb rate (Figure 10(a)). During the second half of the 
+downstroke, the abdomen pitches down whereas the thorax pitches up and at the end of the downstroke at t=0.19 s, 
+both the segments attain an aligned position with χ≈θ 
+≈36.4 deg. When the thorax and abdomen are aligned, the 
+butterfly is more or less in the faster climb rate regime (Figure 10(a)) with nearly zero or negative lift coefficient 
+(Figure 10(b)). 
+
+The markers T1-T3 and A1-A2 are shown in the YZ plane during the upstroke and downstroke in Figures 16(b) 
+and (c) respectively. The thorax and abdomen are represented as a pair of red and black dashed lines at each frame 
+with direction of climb indicated by an arrow. During upstroke, the relative orientation of the two segments remains 
+nearly aligned as shown by their corresponding pitch angles. During downstroke, the pitch up of the thorax during 
+the second half is noticeable and this corresponds to the climb rate of 1.09 m/s shown in Figure 10(a). 
+
+The above observations correspond to a single climbing flight. A more comprehensive description of the body 
+orientation and its possible relation to the climb rate will be reported in the future by considering a statistically 
+significant number of flight segments. 
+
+Body Angles (deg)
+0 
+20 
+40 
+60 
+-20 
+0.05 0.1 0.15 0.2 
+Thorax ( ) 
+Abdomen ( ) 
+( )-Upstroke Downstroke 
+(a) 
+
+t (s) 
+
+610 
+620 
+630 
+640 
+Upstroke 
+Thorax 
+Abdomen 
+t=0.135 s 
+t=0.105 s 
+T1 
+T3 
+A1 
+A2 
+600 
+z (mm) 
+Downstroke 
+t=0.19 s 
+t=0.15 s 
+620 
+640 
+660 
+680 
+z (mm) 
+(FreeText)
+660 640 620 600 600 580 560 540 
+
+y (mm) y (mm) 
+
+(b) (c) 
+Figure 16. (a) Thorax and abdomen pitch angles and their difference calculated with the horizontal. Thorax 
+orientation represented by markers T1-T3 and abdomen orientation represented by markers A1-A2 are shown 
+in the YZ plane during (b) Upstroke (c) Downstroke. The arrow indicates the direction of flight. 
+
+17 
+American Institute of Aeronautics and Astronautics 
+
+
+IV. 
+Concluding Remarks 
+
+Body motion and wing kinematics of a free flying Monarch butterfly (Danaus plexipus) in climbing trajectory 
+was analyzed using 12 high-resolution motion-tracking cameras in a capture volume of 1.2 m × 1.2 m × 1.5 m. We 
+developed the methodology and the tools needed to quantify the position and orientation of the thorax, abdomen, 
+and wings as well as the instantaneous lift coefficient and climb rate, which can be applied to a large number of 
+flights. 
+
+Lift coefficient was calculated using a force balance on the body. Downstroke created a positive CL with a peak 
+lift coefficient at the middle of downstroke of CL,max=10.8. Negative lift coefficient was observed during the 
+upstroke with a smaller magnitude of CL,min=-2.5 at the mid of upstroke. As a result of the large lift peak during the 
+downstroke and a relatively smaller minimum upstroke, the butterfly was able to climb with an average rate of 0.75 
+m/s. Climb rate consistently was higher during the second half of the downstroke until the first half of the upstroke, 
+when compared to climb rate during the other half. 
+
+The body and wing orientation angles were calculated with a 6-DOF representation. The abdomen orientation 
+with respect to the thorax changed during a flapping cycle with a pitched down abdomen observed during 
+downstroke. Relative orientation of the abdomen follows an undulating trajectory with higher pitch angles near the 
+first half of the downstroke. The thorax and the abdomen was aligned during the faster regime of the climb, whereas 
+the relative angle between the thorax and the abdomen was at maximum near the middle of the downstroke, 
+coinciding with the maximum CL and the end of the slower climb regime. 
+
+The undulating body pitch angle was found to be closely related to the flapping motion. The positional and 
+feather angles of the right forewing as well as the body pitch angle oscillated with a frequency of 9.52 Hz. The 
+frequency of the wing deviation angle was 2.5 times the flapping frequency, whereas the frequency of the yaw angle 
+of the body was half. The flapping angle of the fore wings was nearly sinusoidal with an amplitude of γ=151 deg. 
+The stroke plane during a flapping cycle was calculated by tracing the wing tip marker of the right forewing at the 
+ends of the stroke. The stroke plane orientation was found to be β=71.1 deg with the horizontal. 
+
+Although the presented experimental capability and reported results provide a detailed quantification of the 
+Monarch butterfly motion, we need to place the current results in the context that the current results are based on a 
+single butterfly flight. Main goal of this paper is to present the experimental methodology. Statistically significant 
+analysis of the additional flight tests will be reported in the future along with an analysis of the important physical 
+mechanisms involved in the closely coupled wing-body interaction. For example, the wing motion will be 
+considered in the stroke plane reference frame. 
+
+The insights obtained from analysis presented here can be used to identify optimum flight parameters as well as 
+provide an understanding of how butterflies use synchronized body-wing motion control their trajectory. 
+
+Acknowledgments 
+
+We thank the University of Alabama in Huntsville undergraduate students Jeffrey Boudreau, Brittany Greene, 
+Yusuke Nakamura and graduate student Jeremy Miller for their help with the butterfly measurements. We thank 
+University of Alabama in Huntsville’s Propulsion Research Center and Dr. David Lineberry for the high-speed 
+camera. This work is partly supported by NSF grant CBET-1335572. 
+
+References 
+
+1Shyy, W., Aono, H., Chimakurthi, S. K., Trizila, P., Kang, C., Cesnik, C. E. S., and Liu, H., “Recent Progress in Flapping 
+Wing Aerodynamics and Aeroelasticity,” Progress in Aerospace Sciences, Vol. 46, No. 7, 2010, pp. 284–327. 
+
+2Rizzetta, D. P., and Visbal, M. R., “Exploration of Plasma-based Control for Low-Reynolds Number Airfoil/gust 
+Interaction,” International Journal of Computational Fluid Dynamics, Vol. 25, 2011, pp. 509–533. 
+
+3Keennon, M., Klingebiel, K., Won, H., and Andriukov, A., “Development of the Nano Hummingbird: A Tailless Flapping 
+Wing Micro Air Vehicle,” AIAA-2012-0588, 50th AIAA Aerospace Sciences Meeting, 09 -12 January 2012, Nashville, 
+Tennessee, 2012. 
+
+4Lentink, D., “Biomimetics: Flying Like a Fly,” Nature, Vol. 498, No. 7454, 2013, pp. 306–307. 
+
+5Ma, K. Y., Chirarattananon, P., Fuller, S. B., and Wood, R. J., “Controlled Flight of a Biologically Inspired, Insect-Scale 
+Robot,” Science, Vol. 340, No. 6132, 2013, pp. 603–607. 
+
+6Shyy, W., Aono, H., Kang, C., and Liu, H., An Introduction to Flapping Wing Aerodynamics, Cambridge University Press, 
+New York, New York, 2013.
+
+7Magnan, A., Le vol des insectes, Hermann, Paris, 1934. 
+
+8Weis-fogh, T., “Quick Estimates of Flight Fitness in Hovering Animals, Including Novel Mechanisms for Lift Production,” 
+Journal of Experimental Biology, Vol. 59, No. 1, 1973, pp. 169–230. 
+
+18 
+American Institute of Aeronautics and Astronautics 
+
+
+9Ellington, C. P., van den Berg, C., Willmott, A. P., and Thomas, A. L. R., “Leading-edge Vortices in Insect Flight,” Nature, 
+Vol. 384, No. 6610, 1996, pp. 626–630. 
+Dickinson, M. H., Lehmann, F.-O., and Sane, S. P., “Wing Rotation and the Aerodynamic Basis of Insect Flight,” Science, 
+Vol. 284, No. 5422, 1999, pp. 1954–1960. 
+11Birch, J. M., and Dickinson, M. H., “The Influence of Wing-wake Interactions on the Production of Aerodynamic Forces in 
+Flapping Flight,” Journal of Experimental Biology, Vol. 206, No. 13, 2003, pp. 2257–2272. 
+12Sane, S. P., and Dickinson, M. H., “The Aerodynamic Effects of Wing Rotation and a Revised Quasi-Steady Model of 
+
+Flapping Flight,” Journal of Experimental Biology, Vol. 205, No. 8, 2002, pp. 1087–1096. 
+
+13Vogel, S., Comparative Biomechanics, Life’s Phy ed., Princeton University Press, New Jersey, 2013. 
+
+14Srygley, R. B., and Thomas, A. L. R., “Unconventional Lift-generating Mechanisms in Free-Flying Butterflies.,” Nature, 
+
+Vol. 420, No. 6916, 2002, pp. 660–4. 
+Muijres, F. T., Elzinga, M. J., Melis, J. M., and Dickinson, M. H., “Flies Evade Looming Targets by Executing Rapid 
+Visually Directed Banked Turns,” Science, Vol. 344, No. 6180, 2014, pp. 172–177. 
+16Dillon, M. E., and Dudley, R., “Surpassing Mt. Everest: Extreme Flight Performance of Alpine Bumble-bees.,” Biology 
+letters, Vol. 10, 2014, p. 20130922. 
+17Mountcastle, A. M., and Combes, S. A., “Wing Flexibility Enhances Load-Lifting Capacity in Bumblebees,” Proceedings 
+
+of the Royal Society B: Biological Sciences, Vol. 280, No. 1759, 2013, pp. 20130531–20130531. 
+
+18Wang, Z. J., “Dissecting Insect Flight,” Annual Review of Fluid Mechanics, Vol. 37, No. 1, 2005, pp. 183–210. 
+
+19Jongerius, S. R., and Lentink, D., “Structural Analysis of a Dragonfly Wing,” Experimental Mechanics, Vol. 50, No. 9, 
+
+2010, pp. 1323–1334. 
+Wang, Z. J., and Russell, R. D., “Effect of Forewind and Hindwing Interactions on Aerodynamic Forces and Power in 
+Hovering Dragonfliy Flight,” Physical Review Letters, Vol. 99, 2007, p. 148101. 
+21Alexander, D. E., “Unusual Phase Relationships Between the Forewing and Hindwings in Flying Dragonflies,” Journal of 
+Experimental Biology, Vol. 109, 1984, pp. 379–383. 
+22Wang, J. K., and Sun, M., “A Computational Study of the Aerodynamics and Forewing-hindwing Interaction of a Model 
+Dragonfly in Forward Flight,” Journal of Experimental Biology, Vol. 208, No. 19, 2005, pp. 3785–3804. 
+23Dudley, R., “Biomechanics of Flight in Neotropical Butterflies: Aerodynamics and Mechanical Power Requirements,” 
+Journal of experimental biology, Vol. 357, No. 1, 1991, pp. 335–357. 
+
+24Thomas, A. L. R., Taylor, G. K., Srygley, R. B., Nudds, R. L., and Bomphrey, R. J., “Dragonfly Flight: Free-Flight and 
+Tethered Flow Visualizations Reveal a Diverse Array of Unsteady Lift-generating Mechanisms, Controlled Primarily via Angle 
+of Attack,” Journal of Experimental Biology, Vol. 207, No. 24, 2004, pp. 4299–4323. 
+
+Srygley, R. B., “Locomotor Mimicry in Butterflies? The Associations of Positions of Centres of Mass among Groups of 
+Mimetic, Unprofitable Prey,” Philosophical Transactions of the Royal Society of London B: Biological Sciences, Vol. 343, No. 
+1304, 1994, pp. 145–155. 
+
+26Dudley, R., and Srygley, R., “Flight Physiology of Neotropical Butterflies: Allometry of Airspeeds During Natural Free 
+Flight,” The Journal of experimental biology, Vol. 191, No. 1, 1994, pp. 125–39. 
+27Lin, T., Zheng, L., Hedrick, T., and Mittal, R., “The Significance of Moment-of-inertia Variation in Flight Manoeuvres of 
+Butterflies,” Bioinspiration & Biomimetics, Vol. 7, No. 4, 2012, p. 044002. 
+28Carpenter, G. D. H., “Further Evidence that Birds do Attack and Eat Butterflies,” Proceedings Zoology Society London A, 
+1937, pp. 223–247. 
+29Dudley, R., The Biomechanics of Insect Flight: Form, Function, Evolution, Princeton University Press, New Jersey, 2002. 
+Srygley, R. B., and Dudley, R., “Correlations of the Position of Center of Body Mass With Butterfly Escape Tactics,” The 
+Journal of Experimental Biology, Vol. 174, 1993, pp. 155–166. 
+31Brower, L., “Monarch Butterfly Orientation: Missing Pieces of a Magnificent puzzle,” The Journal of experimental biology, 
+Vol. 199, 1996, pp. 93–103. 
+32Masters, A. R., Malcolm, S. B., and Brower, L. P., “Monarch Butterfly (Danaus Plexippus) Thermoregulatory Behavior and 
+Adaptations for Overwintering in Mexico,” Ecology, Vol. 69, No. 2, 1988, p. 458. 
+33Merlin, C., Gegear, R. J., and Reppert, S. M., “Antennal Circadian Clocks Coordinate Sun Compass Orientation in 
+Migratory Monarch Butterflies,” Science, Vol. 325, No. 5948, 2009, pp. 1700–1704. 
+34Brower, L. P., Fink, L. S., and Walford, P., “Fueling the Fall Migration of the Monarch Butterfly,” Integrative and 
+Comparative Biology, Vol. 46, No. 6, 2006, pp. 1123–1142. 
+
+Slayback, D. a., Brower, L. P., Ramirez, M. I., and Fink, L. S., “Establishing the Presence and Absence of Overwintering 
+Colonies of the Monarch Butterfly in Mexico by the Use of Small Aircraft,” American Entomologist, Vol. 53, No. 1, 2007, pp. 
+28–40. 
+
+36Gibo, D. L., “Altitudes Attained By Migrating Monarch Butterflies, Danaus P. Plexippus (Lepidoptera: Danainae), as 
+Reported By Glider Pilots,” Canadian Journal of Zoology, Vol. 59, 1981, pp. 571–572. 
+
+37Taylor, L. R., “Insect Migration, Flight Periodicity and the Boundary Layer,” The Journal of Animal Ecology, Vol. 43, No. 
+1, 1974, p. 225.
+
+38Gibo, D. L., and Pallett, M. J., “Soaring Flight of Monarch Butterflies, Danaus plexippus (Lepidoptera: Danaidae), during 
+the late summer migration in southern Ontario,” Canadian Journal of Zoology, Vol. 57, No. 7, 1979, pp. 1393–1401. 
+
+19 
+American Institute of Aeronautics and Astronautics 
+
+
+39Kovac, M., Vogt, D., Ithier, D., Smith, M., and Wood, R., “Aerodynamic Evaluation of Four Butterfly Species for the 
+Design of Flapping-gliding Robotic Insects,” IEEE International Conference on Intelligent Robots and Systems, 2012, pp. 1102– 
+1109. 
+
+40Paoletti, P., and Mahadevan, L., “Intermittent Locomotion as an Optimal Control Strategy,” Proceedings of the Royal 
+Society A: Mathematical, Physical and Engineering Sciences, Vol. 470, No. 2164, 2014, pp. 20130535–20130535. 
+
+41Guerra, P. A., Gegear, R. J., and Reppert, S. M., “A Magnetic Compass Aids Monarch Butterfly Migration,” Nature 
+Communications, Vol. 5, No. May, 2014, p. 4164. 
+
+42Dudley, R., and Ellington, C. P., “Mechanics of Forward Flight in Bumblebees I. Kinematics and Morphology,” Journal of 
+Experimental Biology, Vol. 52, 1990, pp. 19–52. 
+
+43Scoble, M. J., The Lepidoptera, Oxford University Press, New York, 1992. 
+
+44Betts, C. R., and Wootton, R. J., “Wing Shape and Flight Behaviour in Butterflies (Lepidoptera: Papilionoidea and 
+Hesperioidea): A Preliminary Analysis,” Journal of Experimental Biology, Vol. 138, No. 1, 1988, pp. 271–288. 
+
+45Tanaka, H., and Shimoyama, I., “Forward Flight of Swallowtail Butterfly with Simple Flapping Motion.,” Bioinspiration & 
+biomimetics, Vol. 5, No. 2, 2010, p. 026003. 
+
+46Steppan, S., “Flexural Stiffness Patterns of Butterfly Wings (Papilionoidea),” J. Res. Lepid, Vol. 1996, No. May 1998, 
+1996, pp. 61–77. 
+
+47Tanaka, H., Whitney, J. P., and Wood, R. J., “Effect of Flexural and Torsional Wing Flexibility on Lift Generation in 
+Hoverfly Flight.,” Integrative and comparative biology, Vol. 51, No. 1, 2011, pp. 142–50. 
+
+48Willmott, A. P., and Ellington, C. P., “The Mechanics of Flight in the Hawkmoth Manduca Sexta,” Journal of Experimental 
+Biology, Vol. 2722, 1997, pp. 2705–2722. 
+
+49Ristroph, L., Berman, G. J., Bergou, A. J., Wang, Z. J., and Cohen, I., “Automated Hull Reconstruction Motion Tracking 
+(HRMT) Applied to Sideways Maneuvers of Free-flying Insects.,” The Journal of experimental biology, Vol. 212, 2009, pp. 
+1324–1335. 
+
+50Walker, S. M., Thomas, A. L. R., and Taylor, G. K., “Photogrammetric reconstruction of high-resolution surface 
+topographies and deformable wing kinematics of tethered locusts and free-flying hoverflies.,” Journal of the Royal Society 
+Interface, Vol. 6, No. 33, 2009, pp. 351–66. 
+
+51Zheng, L., Hedrick, T. L., and Mittal, R., “Time-varying Wing-twist Improves Aerodynamic Efficiency of Forward Flight 
+in Butterflies.,” PloS one, Vol. 8, No. 1, 2013, p. e53060. 
+
+52Zheng, L., Wang, X., Khan, A., Vallance, R., and Mittal, R., “A Combined Experimental-Numerical Study of the Role of 
+Wing Flexibility in Insect Flight,” AIAA 2009-382, 47th AIAA Aerospace Science Meeting, 5 -8 January 2009, Orlando, Florida, 
+2009. 
+
+53Koehler, C., Liang, Z., Gaston, Z., Wan, H., and Dong, H., “3D Reconstruction and Analysis of Wing Deformation in Free-
+Flying Dragonflies.,” The Journal of experimental biology, Vol. 215, No. Pt 17, 2012, pp. 3018–27. 
+
+54Cranford, J., Kang, C., Landrum, D. B., and Slegers, N., “Experimental Characterization of Butterfly in Climbing Flight,” 
+AIAA Aviation, Dallas, TX, 22-26 June 2015, 2015, pp. AIAA–2015–2328. 
+
+55Sun, M., “Insect flight dynamics: Stability and Control,” Reviews of Modern Physics, Vol. 86, No. 2, 2014, pp. 615–646. 
+
+56Kim, E. J., Wolf, M., Ortega-Jimenez, V. M., Cheng, S. H., and Dudley, R., “Hovering Performance of Anna’s 
+hummingbirds (Calypte anna) in Ground Effect,” Journal of The Royal Society Interface, Vol. 11, No. 98, 2014, pp. 20140505– 
+20140505. 
+
+57Dudley, R., “Biomechanics of Flight in Neotropical Butterflies: Morphometrics and Kinematics,” Journal of Experimental 
+Biology, Vol. 150, 1990, pp. 37–53. 
+
+58Sunada, S., and Kawachi, K., “Performance of a Butterfly in Take-Off Flight,” Journal of experimental Biology, Vol. 277, 
+No. 183, 1993, pp. 249–277. 
+
+59Fei, Y.-H. J., and Yang, J.-T., “Importance of Body Rotation During the Flight of a Butterfly,” Physical Review E, Vol. 93, 
+No. 3, 2016, p. 033124.
+
+60Ellington, C. P., “The Aerodynamics of Hovering Insect Flight. III. Kinematics,” Philosophical Transactions of the Royal 
+Society B: Biological Sciences, Vol. 305, No. 1122, 1984, pp. 41–78. 
+
+61Vicon Motion Systems, Vicon Nexus 1 Manual, 2014. 
+
+62Alonso-Mejía, A., Rendon-Salinas, E., Montesinos-Patiño, E., and Brower, L. P., “Use of Lipid Reserves by Monarch 
+Butterflies Overwintering in Mexico: Implications for Conservation,” Ecological Applications, Vol. 7, No. 3, 1997, pp. 934–947. 
+
+63Tennekes, H., The Simple Science of Flight: From Insects to Jumbo Jets, 2009. 
+
+64Orlowski, C. T., and Girard, A. R., “Modeling and Simulation of Nonlinear Dynamics of Flapping Wing Micro Air 
+Vehicles,” AIAA Journal, Vol. 49, No. 5, 2011, pp. 969–981. 
+
+65Combes, S. A., and Daniel, T. L., “Flexural Stiffness in Insect Wings II. Spatial Distribution and Dynamic Wing Bending,” 
+Journal of Experimental Biology, Vol. 206, No. 17, 2003, pp. 2989–2997. 
+
+66Wootton, R. J., “Leading Edge Section and Asymmetric Twisting in the Wings of Flying Butterflies,” Journal of 
+Experimental Biology, Vol. 180, 1993, pp. 105–117. 
+
+67Nakata, T., and Liu, H., “Aerodynamic Performance of a Hovering Hawkmoth with Flexible Wings: A Computational 
+Approach,” Proceedings of the Royal Society B: Biological Sciences, Vol. 279, No. 1729, 2012, pp. 722–731. 
+
+20 
+American Institute of Aeronautics and Astronautics 
+
+

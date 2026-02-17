@@ -1,0 +1,68 @@
+CIS 6600: Advanced Topics in Computer Graphics and Animation 
+
+ 
+
+Authoring Tool Project (Spring 2026) 
+
+Instructor: Dr. Stephen H. Lane 
+
+University of Pennsylvania 
+
+The goal of this project is to review state-of-the art research in the fields of computer graphics and 
+animation as well as provide students with working knowledge of how to convert theory to practice by 
+developing an associated graphics/animation authoring tool. Working in teams of two, students will design 
+and develop an authoring tool that that facilitates the creation of a new type of user interaction, 
+animation/simulation capability or 3D graphics special effect. Research papers published in the SigGraph 
+Conference proceedings over the period 2015-2025 will provide the basis for the 
+features/functionality/special effects that can be selected for implementation in the authoring tool. Each 
+group will analyze the need and user requirements for the tool they plan to develop, prepare a formal 
+software design document, construct a project work plan, develop the authoring tool functionality and user 
+interface, test the design and demonstrate the authoring of associated content. A plug-in to standard 
+authoring tools such as Maya or Houdini must also be developed to enable importing of appropriate assets 
+and/or exporting of results. 
+
+DELIVERABLES 
+
+The authoring tool project includes the following deliverables: 
+
+ 
+
+1. High Concept doc for the Authoring Tool – Due Wed., Feb. 11th 
+
+ Please use the template provided for your High Concept Doc 
+
+
+2. Literature Survey for your Authoring Tool Design Doc – Due Wed, Feb. 18th 
+
+ In order to create the Literature Survey, you will need to read the papers referenced in the paper 
+you have chosen to implement, then chain backwards through a number of levels of references 
+until you identify/reach the seminal work(s). Once the seminal work(s) have been identified, you 
+can then chain forward to trace the evolution of the research. In this document you need to include 
+a tree-like graph showing the evolution of the research from the seminal work to the paper you 
+have chosen to implement along with descriptions of the enhancements/improvements/ 
+contributions made by each of the subsequent works. Examples of the Literature Survey can be 
+found in the Modules/Authoring Tool/Literature Survey Example section of the CIS6600 Canvas 
+site 
+
+
+3. Authoring Tool Design Doc – Due Wed, Feb. 25th 
+
+ Please use the template provided for your Authoring Tool Design Doc. Examples of the past 
+Authoring Tool Design Docs can be found in the Modules/Authoring Tool/Design Doc Examples 
+section of the CIS6600 Canvas site 
+
+
+4. Version Due Dates and Design Reviews 
+
+ Preliminary Design Review – Wed, Feb. 25th 
+ Alpha Version/Design Review – Wed., Mar. 25th 
+ Beta Version/Design Review – Wed., April 15th 
+ Final Version Demo – Wed, May 5th 
+
+
+5. Final Version 
+
+ Final Version Project Code and Videos Due – May 11th 
+
+
+

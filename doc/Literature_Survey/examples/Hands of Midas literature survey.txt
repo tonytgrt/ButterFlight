@@ -1,0 +1,736 @@
+
+
+Literature Survey 
+
+
+F
+or Hand of Midas 
+
+
+ 
+
+
+By: Xing Du, Songhe Yu 
+
+
+ 
+
+
+ 
+
+
+ 
+
+
+ 
+
+
+ 
+
+
+ 
+
+
+ 
+
+
+ 
+
+
+ 
+
+
+ 
+
+
+ 
+
+
+ 
+
+
+ 
+
+
+CIS 660 
+Advanced Topics in Computer 
+
+
+Graphics and Animation 
+
+
+Instructor 
+Dr.Stephen 
+Lane 
+
+
+ 
+
+
+ 
+
+
+ 
+
+
+ 
+
+
+
+Introduction 
+
+
+Physical simulation has been invested for more than two decades in computer 
+graphics
+: since Terzopoulos et. 
+a
+l
+’
+s seminal paper on elastically deformable 
+models[TPBF87], numerous researchers have partaken in the quest for the visually 
+and physically plausible animation of deformable objects. This inherently 
+interdisciplinary field 
+elegantly combines 
+Newtonian 
+dynamics, continuum 
+mechanics, numerical computation, differential geometry, vector calculus, 
+approximation theory and Computer Graphics into a vast and powerful toolkit, 
+which is being further explored and extended. The field 
+is inconstant flux, active 
+and fruitfu
+l.
+[NMK05] 
+
+
+Our authoring tool, Hand of 
+Midas
+, 
+is based on a new fast and robust method 
+to simulate various types of solid, proposed 
+by 
+Muller et. al [MC12]. 
+This approach 
+adopts oriented particles to solve the singulari
+ty problem of degenerate cases and 
+takes shape matching [MHTG05] into the framework of position based dynamics 
+[MHHR06], which allows us to create complex dynamic objects with only a small 
+number of simulation particles and makes turning a visual mesh into 
+a physical 
+object a simple task. 
+
+
+In this 
+literature survey
+, 
+we 
+t
+race 
+from the seminal work [TPBF87], mainly 
+through mesh free methods 
+of 
+particle systems, including 
+couple
+d 
+particle systems, 
+SPH, point
+-
+based animation, to the 
+novel 
+idea of shape matching, 
+position based 
+dynamics and finally solid simulation with oriented particles, which we plan to 
+implement. 
+
+
+
+Content 
+
+
+The research evolution is shown in the following graph: 
+
+
+ 
+
+
+ 
+
+
+[TPBF87] 
+In this seminal paper, Terzopoulos and his co
+-
+workers compute the 
+
+
+
+dynamics of deformable models from the potential energy stored in the elastically 
+deformed body. For volumetric objects, they define the deformation energy as the 
+weighted matrix norm of the difference between the metric tensors of the 
+deformed and 
+origina
+l shape, integrated over the entire continuum. The 
+continuous variational derivative of this energy functional is discretized using the 
+Method of Finite Differences, and the simulation is moved forward through time by 
+semi
+-
+implicit integration. This work i
+s further evolved in [TF88] and [TW88] where 
+the model is extended to cover plasticity and fracture. A hybrid mesh/particle 
+method for heating and melting deformable models is given in [TPF89]. 
+
+
+However, the contribution of [TPBF97] is not only to the FD me
+thod, but also 
+the whole field 
+of physically
+-
+based animation. 
+Before 
+the elastically deformable 
+model
+, most methods for computer graphics modeling are kinematic; that is. 
+T
+he 
+shapes are compositions of geometrically or algebraically defined primitives. 
+Kin
+ematic models are passive because they do not interact with each other or with 
+external forces. The models are either stationary or are subjected to motion 
+according to prescribed trajectories. Expertise is required to create natural and 
+pleasing dynamics 
+with passive models. Terzopoulos proposed models based on 
+elasticity theory which describes the shape and motion of deformable materials. 
+Elastically deformable models are active, they respond in a natural way to applied 
+forces, constraints, ambient media, 
+and impenetrable obstacles. The models are 
+fundamentally dynamic and realistic animation is created by numerically solving 
+their underlying 
+differential 
+equations. Thus, the description of shape and the 
+
+
+
+description of motion are unified. 
+
+
+ 
+
+
+ 
+Since Terzopoul
+ous
+’ 
+pioneering 
+work on simulating deformable objects in the 
+context of computer graphics, many deformable models have been proposed. 
+A 
+large number of mesh based methods for both off
+-
+line and interactive simulation of 
+deformable objects have been proposed
+. Examples are mass
+-
+spring systems, the 
+Boundary Element Method(BEM) and the Finite Element Method(FEM). 
+
+
+ 
+
+
+[NTVR92] 
+This paper gives 
+rise to mesh
+-
+free methods for the solution of partial 
+differential equations. 
+It describes the new 
+“
+diffuse approximation
+” 
+method, 
+which may be presented as a generalization of the widely used 
+“
+finite element 
+approximation
+” 
+method. It removes some of the limitations of the finite element 
+approximation related to the regularity of approximations functions, and to mesh 
+generatio
+n requirements. The diffuse approximation method may be used for 
+generating smooth approximations of functions known at given sets of points and 
+for accurately estimating (DEM), which presents several advantages compared to 
+the 
+“
+finite element method
+”
+(FEM)
+, specially for evaluating the derivatives of the 
+unknown functions. 
+
+
+ 
+
+
+[Ton91] 
+[Ton98] 
+Particle systems were first defined in computer graphics as sets 
+of moving points, without interaction between them[Ree83]. Later on particle 
+systems have been wide
+ly used for simulating inelastic deformations, using 
+
+
+
+attraction
+-
+repulsion force, which derives from the Lennard
+-
+Jones potential, 
+proposed for modeling pairwise microscopic interactions between atoms in a liquid. 
+Tonnesen 
+proposed 
+that 
+particles which inter
+act with each other depending on 
+their spatial relationship are referred to as s
+pa
+tially coupled particle systems. The 
+interactions between 
+particles evolve dynamically over time, thus, complex 
+geometry and topological changes can be easily modeled using t
+his approach. 
+Tonnesen presented a framework for physically based animation of solids and 
+liquids based on dynamically coupled particles which represent the volume of an 
+object [Ton91] [Ton98]. 
+In [Ton91], an iso
+-
+surface of some 
+“
+implicit 
+function” 
+contro
+lled by the particles is used to compute a smooth surface, essential for 
+interfacing particles with other models. 
+In [Ton98], Tonnesen 
+introduc
+ed oriented 
+particles for deformable surface modeling, where each particle represents a small 
+surface element (ca
+lled surfel). Each surfel has a local coordinate frame, given by 
+the position of the particle, a normal vector and a local tangent plane to the surface. 
+To 
+arrange the particles into surface
+-
+like arrangements, interaction potentials are 
+defined which favor 
+locally plannar or locally spherical arrangements. 
+
+
+ 
+
+
+[DC96] 
+Descrun and Cani were among the first to use mesh free models in 
+computer graphics. In 
+[DC95]
+, soft , inelastic substances that can split and merge 
+are animated by combining particle systems with 
+simple inter
+-
+particle forces and 
+implicit surfaces for collision detection and rendering. The Smoothed Particle 
+Hydrodynamics (SPH) method [Mon92] is applied in [DC96].The smoothed particles 
+
+
+
+defined in this paper can be viewed either as matter elements, o
+r sample points 
+scattered in a soft substance. Each of them represents a small volume of inelastic 
+material that moves over time. In practice, smoothed particles are used to 
+approximate the values and derivatives of continuous physical quantities, such as 
+local mass density or pressure, that need 
+to be computed during the simulation. 
+Smoothed particles ensure valid and stable simulation of a state equation 
+describing the physical behavior of the material. They also use them for defining 
+the surface of the s
+ubstance in a coherent way using the level sets 
+of the 
+mass 
+density function. 
+Furthermore, as a particle based Lagrangian approach, it has the 
+advantage that mass is trivially conserved and convection is dispensable. This 
+reduces both the programming and c
+omputational complexity and is therefore 
+suitable for interactive applications. 
+
+
+ 
+
+
+[
+MKN04
+] 
+Muller et al. introduced to the graphics community a mesh
+-
+free 
+continuum mechanics
+-
+based framework for modeling and animating a wide 
+spectrum of volumetric objects, wi
+th material properties anywhere in the range 
+from stiff elastic to highly plastic. Both the volume and the surface representation 
+are point based, which allows arbitrarily large deviations from the original shape. In 
+each step, 
+the spatial derivatives of t
+he discrete displacement field using a Moving 
+Least Squares (MLS) procedure is 
+computed
+, from where strains, stresses and 
+elastic forces at each simulated point can be obtained. And finally, based on these 
+forces, the equations of motions can be solved. 
+In 
+addition, this paper proposes 
+
+
+
+techniques for modeling and animating a point
+-
+sampled surface 
+that 
+dynamically 
+adapts to deformations of the underlying volumetric model. 
+
+
+ 
+The material properties ranging from stiff elastic to highly 
+plastic are 
+extended 
+to 
+viscous materials such as fluids by merging 
+the solid mechanics equation with 
+the Navier
+-
+Stokes equations in [KAG 05] and 
+t
+he framework is extended in 
+[PKA 05] 
+to cope with fracturing. 
+
+
+ 
+
+
+[MHTG05] 
+related to modal analysis approaches, this paper 
+proposes 
+ge
+ometrically motivated approach for simulating deformable objects. The main 
+idea is to replace energies in point based animation by geometric constraints and 
+forces by distances of current positions to goal positions. These goal positions are 
+determined via 
+a generalized shape matching of an undeformed rest state with the 
+current deformed state of the point cloud. 
+Since points are always drawn towards 
+well
+-
+defined locations, the overshooting problem of explicit integration schemes is 
+eliminated. The versatil
+ity of the approach in terms of object representations that 
+can be handled
+, 
+the efficiency in terms of memory and computational complexity, 
+and the unconditional stability of the dynamic simulation make the approach 
+particularly interesting for games. 
+
+
+ 
+
+
+[MH
+HR
+06] 
+This paper introduced the Position Based Dynamics approach, 
+which 
+omits the velocity layer and immediately 
+works on the positions. It generalizes and 
+extends the method proposed by [Jak01]. A Verlet
+-
+based integrator is used which 
+
+
+
+bypasses the force a
+nd velocity layers and directly modifies the positions of 
+particles or vertices of a mesh. The main advantage of a position based approach is 
+its controllability. Overshooting problems of 
+expli
+cit integration schemes in force 
+based systems can be avoided. 
+In addition, collision constraints can be handled 
+easily and penetrations can be resolved completely by projecting to valid locations. 
+
+
+ 
+The simplicity of the method is due to the fact that the solver processes the 
+constraints one by one in a Gauss
+-
+Se
+idel type manner. In contrast to global 
+Newton
+-
+Raphson solvers, the local solver can easily handle non
+-
+linear constrains as 
+well as constrains based on inequalities. Unfortunately, this advantage comes at the 
+price of much slower convergence. [M07]
+propose 
+a multi
+-
+grid based process to 
+speed up the convergence of PBD significantly while keeping the power of the 
+method to process general non
+-
+linear constraints. 
+
+
+ 
+
+
+[MKBG10] 
+In[MKN04], MLS is only stable if local particle neighborhoods are in 
+non
+-
+degenerate conf
+igurations. This problem was fixed by Marin et al. who 
+introduced the concept of elastons. In addition to the deformation field, the elaston 
+approach also stores derivatives. This way, particles in zero, one, two and 
+three
+-
+dimensional configurations can be 
+simulated robustly using generalized MLS 
+(GMLS). 
+
+
+ 
+
+
+[MC12] 
+Based on 
+[MHHR06] 
+and [MHTG05], this paper proposes a new fast and 
+robust method to simulate various types of solid including rigid, plastic and soft 
+
+
+
+bodies as well as one, two and three dimensional 
+structures such as ropes, cloth 
+and volumetric objects. The underlying idea is to use oriented particles that store 
+rotation and spin, along with the usual linear attributes, i.e. position and velocity. 
+This additional information adds substantially to tr
+aditional particle methods. First, 
+particles can be represented by anisotropic shapes such as ellipsoids, which 
+approximate surfaces more accurately than spheres. Second, shape matching 
+becomes robust for sparse structures such as chains of particles or ev
+en single 
+particles because the undefined degrees of freedom are captured in the rotational 
+states of the particles. Third, the full transformation stored in the particles, 
+including translation 
+and 
+rotation, can be used for robust 
+skinning 
+of graphical 
+me
+shes and for transforming plastic deformations back into the rest state. 
+
+
+ 
+
+
+References 
+
+
+[DC95] 
+DESBRUN M., CANI M., 
+-
+P.: Animating soft substances with implicit 
+surfaces. In Computer Graphics Proceedings(1995), ACM SIGGRAPH, 
+pp. 287
+-
+290. 
+
+
+[DC96] 
+DESBRUN M.
+, CANI M., 
+-
+P: Smoothed particles: A new paradigm for 
+animating highly deformable bodies. In 6
+th 
+Eurographics Workshop on 
+Computer Animation and Simulation 
+‘
+96(1996), pp. 61
+-
+76. 
+
+
+[KAG 05] 
+KEISER R., ADAMS B., GASSER D., BAZZI P., DUTRE P., GROSS M.: A 
+uni
+fied lagrangian approach to solid
+-
+fluid animation. In Proceedings 
+
+
+
+of the Eurographics Symposium on Point
+-
+Based Graphics(2005)
+. 
+
+
+[MC12] 
+MULLER M., CHENTANEZ N.: Solid simulation with oriented particles. 
+Trans. 
+on 
+Graphics (Proc: SIGGRAPH) 30, 4, 92:1
+-
+92:
+10 
+
+
+[MHHR06] 
+MULLER M., HEIDELBERGER B., HENNIX M., RATCLIFF J.: Position based 
+dynamics. 3
+rd 
+Workshop in Virtual Reality Interactions and Physical 
+Simulation
+”
+VRIPHYS
+”
+(2006). 
+
+
+[MHTG05] 
+MULLER M., HEIDELBERGER B., TESCHER M., GROSS M.,
+: Meshless 
+de
+formation
+s based on shape 
+matching
+. Proceedings of ACM 
+Siggraph(2005), 471
+-
+478 
+
+
+ 
+
+
+[MKBG10] 
+MARTIN S., KAUFMANN P., BOTSCH M., GRINSPUN E.: Unified 
+simulation of elastic rods, shells, and solids. ACM Trans. 
+on 
+Graphics 
+(Proc: SIGGRAPH)29, 3. 39: 1
+-
+39:10. 
+
+
+[MKN04] 
+MULLER M., KEISER R., NEALEN A., PAULY M., GROSS M., ALEXA M.: 
+Point based animation of elastic, plastic and melting objects. 
+In 
+Proceedings of 2004 ACM SIGGRAPHI/Eurographics symposium on 
+Computer animation(2004), pp. 141
+-
+151 
+
+
+[NMK05] 
+NEALEN A., MULLER 
+M., KEISER R., BOXERMAN E., CARLSON M.: 
+Physically based deformable models in computer graphics. 
+Eurographics 2005 state of the art report(2005). 
+
+
+[NTVR92] 
+NAYOLES B., TOUZOT G., VILLON P., RICARD A.: Generalizing the 
+finite element method: diffuse app
+roximation and diffuse elements. 
+
+
+
+Computational Mechanics 10, 5(1992), 307
+-
+318. 
+
+
+[PKA 05] 
+PAULY M., KEISER R., ADAMS B., DUTRE P., GROSS M., GUIBAS L. J.: 
+Meshless animation of fracturing solids. In Proceedings of ACM 
+Siggraph(2005), 
+
+
+[Ree83] 
+REEVE
+S W.T.: Particle systems
+- 
+a technique for modeling a class of 
+fuzzy objects. ACM Trans. Graph. 2, 2(1983),91
+-
+108. 
+
+
+[TF88] 
+TERZOPOULOS D., FLEISCHER K.: Modeling inelastic deformation: 
+viscolelasticity, plasticity, fracture. In SIGGRAPH 
+‘
+88(1988), pp
+. 
+269
+-
+278. 
+
+
+[Ton91] 
+TONNESEN D.: Modeling liquids and solids using thermal particles. 
+In Graphics Interface(June 1991), pp. 255
+-
+262. 
+
+
+[Ton98] 
+TONNESEN D.: Dynamically Coupled Particle Systems for Geometric 
+Modeling, Reconstruction, and Animatio
+n. PhD. 
+T
+hesis, University 
+of Toronto, November 1998. 
+
+
+[TPBF87] 
+TERZOPOULOS D., PLATT J., BARR A., FLEISCHER K.: Elastically 
+deformable models. In SIGGRAPH 
+‘
+87(1987), pp. 205
+-
+214. 
+
+
+[TPF89] 
+TERZOPOULOS D., PLATT J., FLEISCHER K.: Heating and melting 
+deformable models (from goop to glop ). In Graphics 
+Interface
+’
+89(1989), pp. 219
+-
+226. 
+
+
+[TW88] 
+TERZOPOULOS D., WITKIN A.: Physically based models with rigid 
+and deformable components. IEEE Computer Graphics and 
+Applications 8, 6(1988), 41
+-
+51. 
+
+
+

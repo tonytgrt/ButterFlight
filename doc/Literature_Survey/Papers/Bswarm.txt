@@ -1,0 +1,1410 @@
+BSwarm: Biologically-Plausible Dynamics Model of Insect Swarms 
+
+Xinjie Wang∗ 
+Jiaping Ren† 
+Xiaogang Jin‡ 
+Dinesh Manocha§ 
+State Key Lab of CAD&CG Department of Computer Science 
+Zhejiang University University of North Carolina at Chapel Hill 
+
+http://www.cad.zju.edu.cn/home/jin/sca2015/sca2015.htm 
+
+
+Figure 
+1: 
+A variety of insect swarms can be simulated by our approach: (left) a swarm of fruitflies in a huge glass box, (middle) a swarm of 
+male flies compete for a female (the green one), and (right) a large swarm of migratory locusts passes through a village. 
+
+Abstract 
+
+We present a biologically plausible dynamics model to simulate 
+swarms of flying insects. Our formulation, which is based on biological
+ conclusions and experimental observations, is designed to 
+simulate large insect swarms of varying densities. We use a hybrid 
+formulation that combines a force-based model to capture different 
+interactions between the insects with a data-driven noise model, and 
+computes collision-free trajectories. We introduce a quantitative 
+metric to evaluate the accuracy of such multi-agent systems and 
+model the inherent noise. We highlight the performance of our 
+dynamics model for simulating large flying swarms of midges, fruit 
+fly, locusts and moths. In practice, our approach can generate 
+many collective behaviors, including aggregation, migration, phase 
+transition, and escape responses, and we highlight the benefits over 
+prior methods. 
+
+CR 
+Categories: 
+I.3.7 [Computer Graphics]: Three-Dimensional 
+Graphics and Realism—Virtual Reality I.3.7 [Computer Graphics]: 
+Three-Dimensional Graphics and Realism—Animation; 
+
+Keywords: 
+insect swarm, validation, crowd simulation 
+
+1 Introduction 
+
+Collective biological behaviors are frequently observed in the real 
+world. Such behaviors are used to characterize the coordinated behavior
+ of large groups of similar animal. They have been well stud
+
+
+wangxinjie@zjucadcg.cn yrenjiaping@zjucadcg.cn zjin@cad.zju.edu.cn xdm@cs.unc.edu 
+
+ied in computer graphics and related areas, such as social networks, 
+artificial intelligence, sociology, and biology. Sociologists and 
+ethologists have proposed many models to understand collective 
+animal behaviors and these models are frequently used for character 
+AI in computer games, virtual reality, and animation [Reynolds 
+1987; Funge et al. 1999]. This includes creating intelligently 
+behaving non-player characters, generating special effects, and 
+modeling social dynamics in multi-player games. 
+
+In this paper, we address the problem of modeling the collective 
+behaviors and trajectories of swarms of flying insects. Insects are 
+among the most diverse groups of animals on the planet, and there 
+are more than a million described species representing more than 
+half of all known living organisms. Insect swarms exhibit many 
+collective behaviors that are different from other animals, such as 
+aggregation, phase transition, positive phototaxis, large migration, 
+escape response, etc. [Rauch et al. 1995; Rogers et al. 2003]. As a 
+result, a major challenge is to develop models that can generate all 
+these collective behaviors. 
+
+Research advances in capture technologies and high-speed imaging 
+have yielded experimental evidence that offers new insights on how 
+insect swarms dynamically form and evolve. It has been shown that 
+individual insects interact via forces [Couzin et al. 2002; Puckett 
+et al. 2014]. Another key swarm characteristic is inherent noise, 
+which corresponds to the random movement of insects in a swarm 
+[Buhl et al. 2006; Yates et al. 2009]. In addition, it has been shown 
+that the insect density within a swarm can vary considerably; for 
+example, mosquito swarms exhibit a very high density around the 
+swarm centroid. 
+
+Main 
+Results: 
+We present a biologically-motivated dynamics 
+model for insect swarms (BSwarm). Our approach is governed 
+by biological conclusions and experimental observations. We 
+describe a force-based model that can capture different interactions 
+between the insects and computes a collision-free trajectory for 
+each individual insect. We also present a novel quantitative metric 
+for evaluating such multi-agent systems that takes into account the 
+inherent noise in the dynamics model. The two novel components 
+include: 
+
+
+(a) (b) (c) (d) 
+Figure 
+2: 
+Competition for mates: (a) at first, males fly freely in a swarm; (b) the males close to the female chase her; (c) other males detect 
+the female neighbor movements; and (d) after a period of time, most of the males found the female. 
+
+1. 
+Dynamics 
+Model: 
+Our dynamics model is based on hybrid 
+formulation and consists of three components: interaction forces, 
+self-propulsion forces and inherent noise forces. Moreover, we use 
+a data-driven approach to model the induced-noise force as Curl 
+noise; our noise model is derived using our quantitative metric and 
+real-world datasets. We perform local collision avoidance using the 
+reciprocal velocity obstacles algorithm. The overall formulation is 
+stable and can simulate large swarms with varying densities. 
+2. 
+Model 
+Evaluation: 
+We present a quantitative metric that can 
+be used to evaluate the performance of multi-agent simulation 
+algorithms in relation to real-world trajectory datasets. We use 
+a statistical formulation that inherently accounts for noise in the 
+dynamics model. We use seven time-varying metrics to evaluate the 
+collective behaviors of insects and compute the optimal parameters 
+for our dynamics model using a genetic algorithm. We also use the 
+metric to evaluate the performance of different simulation models. 
+We have implemented the overall algorithm and have used it to 
+simulate the trajectories and collective behaviors of various insects 
+including midges, fruit fly, locusts, moths as well as bats (noninsects) 
+over large indoor and outdoor environments. Our dynamics 
+model can generate many collective behaviors including aggregation 
+at different scales, locust migration, competition for mates, 
+phase transition in terms of density passing a critical point, positive 
+phototaxis, and escape responses to predator-like objects. Our 
+approach can simulate very large swarms with tens of thousands 
+of insects and handle high swarm densities. We also validate our 
+model using two real-world datasets and highlight the benefits over 
+prior methods for simulating insect swarms. 
+
+2 Prior Work 
+
+In this section, we give a brief overview of agent-based models and 
+other techniques used to simulate insect behaviors. 
+
+2.1 Agent-Based Collective Behavior Models 
+Insect swarm simulation can be regarded as a type of simulation 
+for collective behaviors known as multi-agent simulation. Multi-
+agent simulation techniques have been widely studied in computer 
+graphics, robotics, artificial intelligence, and related areas. To 
+simulate swarming insects using these multi-agent techniques, we 
+treat each insect as one of the interacting intelligent agents within 
+an environment. 
+
+Many algorithms have been proposed to simulate the behavior 
+or compute the trajectory of each agent based on global path 
+planning, local navigation, collision avoidance, and motion synthesis. 
+The Boids model [Reynolds 1987] and other rule-based 
+approaches [Musse and Thalmann 2001] use simple rules to govern 
+the movement and behavior of different agents. Other techniques 
+are based on social forces [Helbing and Moln´ar 1995], the cellular 
+
+automata [Burstedde et al. 2001], velocity-based reasoning or optimization 
+[van den Berg et al. 2011], etc. Most of these techniques 
+have been used primarily for human-like crowd simulation, though 
+Reynolds’ Boids model has also been used to simulate movements 
+of birds and fishes. 
+
+Some recent work in computer graphics on insect simulation 
+includes a hybrid model based on noise function and potential 
+fields [Wang et al. 2014] and a data-driven model for visual simulation 
+[Li et al. 2015]. In contrast with these models, we propose 
+an agent-based model to describe the dynamics of each individual 
+and simulate the collective behaviors of the entire group. There is 
+large scientific literature on collective behaviors of animal groups 
+and many specific agent-based models have been proposed [Couzin 
+and Krause 2003]. Our dynamics model is different from these 
+methods and is able to generate many collective behaviors for 
+different insects. 
+
+2.2 Evaluation and Validation Techniques 
+Many techniques are proposed to evaluate the results or improve 
+the accuracy of multi-agent and crowd simulation algorithms. Most 
+of these techniques compare the algorithms’ output with real-
+world sensor data. Pettre´ et al. [2009] compute appropriate 
+parameters based on Maximum Likelihood Estimation. In order 
+to learn accurate parameters from real-world datasets, learning 
+techniques have also been used [Ju et al. 2010; Charalambous and 
+Chrysanthou 2010]. Wolinski et al. [2014] and Berseth et al. [2014] 
+present parameter optimization-approaches to make the simulated 
+trajectories matching real-world datasets. Guy et al. [2012] propose 
+an entropy-based evaluation approach to quantify the similarity 
+between real-world and simulated trajectories. But most of these 
+techniques have been designed for and applied to pedestrians or 
+human crowds. In contrast, our evaluation approach is designed for 
+insect swarm trajectory datasets, and robustly handle the inherent 
+noise to be found both in the trajectory data and in our model. 
+
+3 Background and Overview 
+
+In this section, we give an overview of our approach. We provide 
+some background on insects and insect behaviors, introduce the 
+notation, and finally highlight key aspects of our approach. 
+
+3.1 Insects and Insect Behaviors 
+An insect is a small autonomous entity flying in three dimensions 
+that can perceive other insects and the obstacles in the environment. 
+An insect swarm refers to a spatial aggregation of insects of similar 
+sizes with collective (but no cooperative) behaviors. In our paper, 
+we mainly deal with flying insects. 
+
+There is considerable research on studying actual behaviors of insect 
+swarms nature [Morse 1963; Rauch et al. 1995]. This research 
+is aimed at understanding the biological rules at the lower scale 
+
+
+(i.e. the insect level) which engenders the collective phenomena 
+at higher scale (i.e., the swarm) [Lukeman et al. 2010]. Many 
+researchers have analyzed experimental datasets to model or predict 
+the behaviors of insect swarms. During the past decade, many 
+researchers have argued that these behaviors or group patterns occur 
+due to simple individual rules; they agree that there are at least 
+three interaction rules for each individual in a group: a short-range 
+repulsion, an intermediate-range tendency for an insect to align its 
+motion with its neighbors, and a long-range attraction [Couzin et al. 
+2002]. 
+3.2 Overview 
+Our goal is to develop an agent-based mathematical model to 
+describe the dynamics of each individual insect and use them to 
+simulate the collective behavior of insect swarms. In our force-
+based model, we regard insects as identical self-driven agents with 
+mutual interactions. A swarm consists of N 
+agents with unit mass 
+(i.e., the mass is 1). We use the symbol Fi 
+to represent forces 
+for a given insect i 
+(i 
+=1;:::;N). Our dynamics formulation 
+uses a force-based model to generate a preferred velocity for each 
+insect. This includes different type of forces. We also use reciprocal 
+velocity obstacles to compute each insect’s actual velocity to avoid 
+collisions with other insects and the obstacles [Li et al. 2015]. As 
+shown in Figure 3, the equation to describe the dynamics of each 
+insect in the swarm is given as: 
+
+v˙ 
+i;pref 
+= 
+ai 
+= 
+Fi;int 
++ 
+Fi;pro 
++ 
+Fi;. 
+(1) 
+
+As described in Section 3.1, we model two types of forces for each 
+insect. The first type of force in Equation 1 is the interaction force 
+Fi;int, which consists of a short-range repulsion, an intermediate-
+range tendency for an insect to align its motion with its neighbors, 
+and a long-range attraction. Lumen et al. [2010] suggest that Fi;int 
+can also be fitted into a concentric zonal model (i.e., individual-
+based concentric zones of forces; see the leftmost side of Figure 3), 
+in which an insect interacts with all neighbors within a certain 
+distance. 
+
+The second type of force is called self-propulsion force Fi;pro. This 
+force represents all external factors that contribute to the insect’s 
+trajectory. Fi;pro 
+is formulated as: 
+
+Fi;pro 
+= 
+Fi;fric 
++ 
+Fi;res, 
+(2) 
+where Fi;fric 
+is the friction force corresponding to the drag on 
+the movement of an insect, Fi;res 
+is the response forces that 
+arises when an insect senses danger or things of interest in the 
+environment. 
+
+Insects also exhibit noise-induced behaviors and instinct responses 
+to the environment. In other words, these forces are exerted on each 
+insect even if it is the only individual insect present in a swarm. 
+The force exerted by inherent noise, an important characteristic 
+of insect swarms, is represented here by the term, Fi;. In order 
+to model the noise function, we consider different choices for the 
+stochastic term, including white noise (W), Gaussian white noise 
+(G), Perlin noise (P), and curl noise (C) [Bridson et al. 2007]. Our 
+experimental results, based on our evaluation metric (see Section 
+5), indicate that curl noise provides us the best result. The noise 
+term is represented as: 
+
+Fi;ξ 
+= 
+C(ri), 
+(3) 
+where C(ri) 
+denotes the curl noise function we used. 
+
+It is important to prevent collisions, both between insects in the 
+swarm and with obstacles in the environment. One key issue 
+is to ensure that our approach can deal with large and dense 
+simulations of swarms. There are some widely-used collision 
+avoidance algorithms used for multi-agent simulation and human 
+crowds, such as the ones based on social forces [Helbing and 
+Moln´ar 1995] and reciprocal velocity obstacles (RVOs) [van den 
+
+Berg et al. 2011]. However, algorithms based on social forces 
+can have stability problems in dense scenarios and the resulting 
+simulation needs to take very small time steps. Therefore, we use 
+the geometric optimization algorithm based on RVOs to compute 
+collision free trajectories for each insect. The underlying collision 
+avoidance algorithm fR 
+is stable, in terms of using large time steps, 
+and also works well in dense situations. The preferred velocity 
+Vpref 
+= 
+fvi;pref 
+ji 
+=1 
+:::N} 
+for each insect is generated by 
+Equation (1), and is used as an input to fR. We use RVOs to obtain 
+the actual velocity V 
+= 
+fviji 
+=1 
+:::Ng: 
+
+V 
+= 
+fR(Vpref 
+). 
+
+
+Finally, we use the actual velocities V 
+to update insects’ positions 
+at each time step: r_i 
+= 
+vi. 
+
+
+4 Insect Dynamics Model 
+
+In this section, we give details of our dynamics model that is 
+inspired by biological observations. As introduced in Section 3.2, 
+insect behaviors are dominated by three type of forces: interaction 
+force, self-propulsion force, and inherent-noise force. 
+
+4.1 Interaction Force 
+Interaction force depends on an insect’s neighbors and on the 
+transition zones depicted by concentric circles (or the spheres in 
+3D). The borders of zones for repulsion, alignment, or attraction 
+for a given insect are defined by the radii rrep, rali, and ratt 
+with 
+the conditions ratt 
+> 
+rali 
+> 
+rrep 
+> 
+0 
+[Couzin et al. 2002], as 
+shown in Figure 3. For a given insect i 
+, if another insect j 
+is within 
+its range ratt, then j 
+is classified as a neighbor of i. The interaction 
+force of i 
+is computed as an average of the influences exerted by 
+neighbors: 
+
+Nk
+
+XX
+
+k
+
+Fi;int 
+= 
+Fi;k, 
+Fi;k 
+=(g(rji)^rji 
++ 
+(1 
+􀀀jg(rji)j)^vji). 
+(4)
+Nk
+
+kj=1 
+
+
+In this equation, repulsion force Fi;rep, alignment force Fi;ali, 
+and attraction force Fi;att 
+are represented as Fi;k 
+with k 
+= 
+frep, 
+ali, 
+attg; k 
+> 
+0 
+stands for weighting parameters for each 
+force, respectively; Nk 
+is the number of neighbors located in the 
+corresponding zone for that function. Other notations are described 
+as follows: rji 
+= 
+krj 
+− 
+rik2, ^rji 
+=(rj 
+− 
+ri)=rji, v^ji 
+= 
+(vj 
+− 
+vi)=kvj 
+− 
+vik2. The piecewise function g(x) 
+is used to 
+distinguish these zones:
+
+⎧ 
+
+
+⎨ 
+􀀀1; 
+0 
+6 
+x<rrep, 
+g(x)= 
+0; 
+rrep 
+6 
+x<rali;
+
+⎩ 
+
+
+1; 
+rali 
+6 
+x 
+6 
+ratt. 
+
+
+4.2 Self-propulsion Force 
+The self-propulsion force Fi;pro, introduced in Equation (2), is 
+based on real observations. “Self-propulsion” means that the 
+external forces arise from the insect’s reaction to the environment or 
+other factors, not from its neighbors. Fi;pro 
+is composed by Fi;fric 
+and Fi;res. 
+
+The friction function is expressed as Fi;fric 
+= 
+􀀀γ 
+k 
+vi 
+k 
+vi, where γ 
+is the friction coefficient. The second term Fi;res 
+denotes the response to environmental stimuli, such as predators 
+approaching or prey passing by. In general, there are two types 
+of stimuli for insects: predator-like objects, which create escape 
+behaviors, and food/females, which create pursuit behaviors in 
+male insects. According to the experimental results presented 
+in [Domenici et al. 2011], insects usually escape away from the 
+threat with relatively high variability and a limited angular sector 
+(mainly 90 
+− 
+180). On the other hand, the pursuit behavior of 
+insects is simple; they just directly fly towards the target [Lukeman 
+et al. 2010]. Since there is little chance that insects will engage 
+in escape and pursuit behaviors at the same time, we assume that 
+the insects are responding to only one type of stimulus at any given 
+
+
+Friction Force
+Response Force+
+Self-propulsionForceInteraction Force 
+erent Zones
+Figure 
+3: 
+Our 
+Model: 
+Overview of our biologically-driven insect swarm model (illustrated in 2D view). We highlight different components 
+of our algorithm used to calculate the position of each insects at each time step, including two sets of forces: interaction forces and self-
+propulsion forces. Interaction forces are represented by individual-based zones: insects follow forces that are represented in concentric zones 
+of repulsion, alignment, and attraction to their neighbors. We use these forces to compute the acceleration and preferred velocity for each 
+insect, and use velocity obstacles to perform collision avoidance and compute the actual velocity. The parameter estimation step is performed 
+to compute the optimal parameters for our model. 
+
+time. Let re 
+denotes the position of an environmental stimulus, rres 
+denotes the visual range of all insects. Fi;res 
+is defined as: 
+
+Fi;res 
+= 
+resH(rres 
+− 
+rie)(se^rieR(n;) 
+− 
+(1 
+− 
+se)^rie). 
+
+
+Here res 
+> 
+0 
+is the weighting parameter. H(x) 
+is the Heaviside 
+step function, which reflects whether an insect “sees” the stimuli. 
+The rotation matrix R(n;) 
+is adopted to generate an escape 
+direction, where n 
+= 
+(0, 
+1, 
+0) 
+is a rotation axis and θ 
+is a random 
+angle perturbation that obeys uniform distribution on [− 
+π 
+2 
+, 
+0]. The 
+symbol variable se 
+reflects the type of stimuli. se 
+=1 
+denotes 
+the predator-like object and se 
+=0 
+denotes food or female to be 
+chased. 
+
+In Section 6, we evaluate the accuracy of each of these noise functions
+ into our dynamics model by plugging Fi;ξ 
+= 
+fW, 
+G, 
+P, 
+Cg. 
+We observed that the Curl noise function can provide us the most 
+accurate results both in simulation experiments and evaluation 
+results. 
+
+5 Model Evaluation 
+
+The simplest technique for evaluating a model is to render the 
+trajectories and observe the insect movements. However, it is 
+not sufficient to evaluate whether a given dynamics model can 
+capture all aspects of insects emergent behaviors based on visual 
+rendering [Puckett et al. 2014]. We present a novel quantitative 
+approach to evaluate our insect dynamics model by using real-
+world trajectory datasets. Our approach takes into account some 
+key aspects of insect behaviors and trajectories, based on seven 
+time-varying metrics. 
+
+Recent work in evaluating crowd simulation algorithms with respect
+ to real-world trajectories is based on statistical and optimization
+ methods [Guy et al. 2012; Wolinski et al. 2014; Berseth et al. 
+2014]. Due to the inherent noise formulation in insect swarms
+ [Wang et al. 2014], these methods are not directly applicable. 
+It is possible that two different swarms with noisy trajectories 
+may exhibit similar swarm behaviors even though their trajectory 
+positions are quite different. Our approach uses discrete probability 
+density distribution functions (PDFs), which are generated from 
+the time-varying metrics and it reflects the global characteristics 
+of insect swarm; as a result, the influence of a small amount of data 
+abnormality or noise can be ignored. 
+
+Our evaluation model is represented by the following equation 
+
+which contains seven energy terms:
+
+X 
+
+
+E 
+=1 
+− 
+wE. 
+(5) 2Φ 
+
+
+Inspired by the biological and physical research [Kelley and Ouellette
+ 2013; Flash and Hogan 1985; Buhl et al. 2006], we select 
+seven time-varying metrics for calculating energy terms in Eq. 5, 
+that is, = 
+fv, 
+a, 
+!, 
+, 
+, 
+d, 
+g. v 
+the velocity, a 
+the acceleration, 
+ω 
+the angular velocity, α 
+the angular acceleration, µ 
+the Cartesian 
+jerk, d 
+the shortest distance, and η 
+the velocity difference. We 
+propose two new metrics to characterize the insect swarm behavior: 
+
+v1􀀀v2
+
+Cartesian jerk µ 
+= 
+, where µ 
+is the magnitude of the 
+
+(t)2 
+2 
+second order differential of velocity, v1, v2 
+are the velocity 
+changes of one insect in neighboring time points; and velocity 
+
+jvnei􀀀vj
+
+difference η 
+= 
+d 
+, where vnei 
+denotes the magnitude of 
+velocity of the nearest neighbor. More details about these metrics 
+are given in [Ren et al. 2015]. Eφ 
+denotes the energy term about 
+the metric , and wφ 
+denotes the weight of E. 
+
+For a metric φ 
+in , Eφ 
+is the energy term which represents the 
+difference in discrete PDF between the real-world data and the 
+simulation data. We formulate Eφ 
+as 
+
+Qreal 
+􀀀Qsim
+
+Eφ 
+= 
+φ 
+, 
+(6) 
+
+1 
+
+
+where Qreal 
+denotes the discrete PDF of an insect swarm’s metrics 
+
+φ 
+from real-world captured data and Qsim 
+represents discrete PDF of 
+
+φ 
+
+
+an insect swarm’s metrics from our swarm simulation model. We 
+
+compute Eφ 
+in four steps as follows: 
+Step 
+1: 
+Sample the real data and the simulation data for the metric ; 
+
+Step 
+2: 
+Normalize the samples with the z-score method which is 
+
+refers to a mean shift followed by a standard deviation scaling; 
+Step 
+3: 
+Compute the discrete PDFs [Billingsley 2008] of the real-
+world data and the simulator’s data with normalized samples from 
+Step 2; 
+
+Step 
+4: 
+Compute the energy term E. 
+
+We normalize the energy terms in Equation 6: 
+
+Qreal 
+􀀀Qsim 
+φ 
+− 
+p1φ 
+
+
+Eφ 
+= 
+1 
+, 
+(7) p2φ 
+
+
+where p1φ 
+and p2φ 
+are normalization parameters. The computation Qreal 
+􀀀Qsim
+
+of φ 
+is the same as in Equation (6). 
+
+1 
+
+
+
+Err1Err2Err3...
+GeneticAlgorithmOptimalParameters
+EvaluationModelInputObjective FunctionEstimating Real DataMetric DistributionModel M(P)
+Metric Distribution
+Figure 
+4: 
+Parameter-estimation algorithm (Par-Est algorithm). 
+For a given real world trajectory data of insect swarm, we compute 
+the discrete PDFs of the seven time-varying metrics with that data. 
+Meanwhile, we use the parameterized dynamics model to simulate 
+insects and compute the discrete PDFs of the seven time-varying 
+metrics with the simulation data. Next, we evaluate the function 
+given in Equation (5) and use that as an objective function for the 
+genetic algorithm to compute the optimal parameters. 
+
+5.1 Model Evaluation with Entropy Weight 
+In this section, we describe our evaluation algorithm. The overall 
+evaluation has two components: optimizing the dynamics model 
+parameters and optimizing the weights of seven energy terms. 
+
+We evaluate our dynamics model of an insect swarm with estimated 
+optimal parameters (see Figure 4). The performance of our 
+dynamics model is sensitive to the choice of underlying parameters. 
+Therefore, we use a genetic algorithm to compute the optimal 
+parameters by maximizing the evaluation function in Equation 5. 
+However, when we use the evaluation model to evaluate different 
+simulation techniques for insect swarms, it may require assigning 
+a different weight to each energy term. Instead, we compute the 
+weights of all energy terms automatically, and then compute the 
+final weighted score to evaluate different insect simulation models 
+for fair comparisons. We use the entropy-based evaluation method 
+described in [Zou et al. 2006] to compute the weights of the 
+evaluation model in Equation 5, as they can provide reliable results. 
+More details are given in [Ren et al. 2015]. 
+
+6 Results and Analysis 
+
+In this section, we highlight the performance of our dynamics model
+ on different insect swarms. We also analyze the accuracy using 
+two real-world trajectory datasets and compare the performance 
+with other multi-agent algorithms. 
+
+6.1 Implementation 
+We have implemented our approach in C++ on a PC with Intel 2 
+Duo CPU E7500 and 4GB memory. Our current implementation 
+uses the fixed-radius nearest neighbors search algorithm [Dickerson 
+and Drysdale 1990] to accelerate spatial proximity queries to 
+calculate Fint). All the timing results reported in this paper 
+are generated using a single core. The results were rendered 
+using Autodesk Maya 2014. The supplementary video shows the 
+collective behaviors for different flying insects. We use the Curl 
+noise to model the noise force. We use the RVO2 library [van den 
+Berg et al. 2011] for local collision avoidance. We use our simulator 
+to generate collective behaviors for midget, fruitfly, and locust. 
+Furthermore, our dynamics model can also be used to simulate 
+collective behaiviors of non-insects, such as bats. 
+
+6.2 Real-World Datasets 
+We use two insect trajectory datasets to compute the appropriate 
+noise model and estimate the parameters of our dynamics models. 
+
+Both these datasets were captured in an indoor setting with state-
+of-the-art motion capture systems. The dataset-1 from [Kelley 
+and Ouellette 2013] was captured in a transparent 91cm 
+cubical 
+enclosure with laboratory swarms of the midge Chironomus riparius.
+ The total number of midges vary from 12 
+to 111 
+per frame. 
+The three other datasets, dataset-2, dataset-3, and dataset-4 were 
+captured in a cube of 2m 
+edge length with hundreds of Drosophila 
+(fruit fly) [Wu et al. 2011]. All these four datasets correspond 
+to time-resolved measurements of the positions, velocities, and 
+accelerations of individual insects, so we can compute the discrete 
+PDFs of the seven metrics easily. We choose 500 
+frames from each 
+of these four datasets. 
+
+Parameter 
+Estimation: 
+Our dynamics model, described in Section 
+4, can be regarded as a parameterized dynamics model. The 
+computation of different forces is governed by 11 
+parameters. 7 
+of them, including , rep, rrep, att, ratt, scale 
+and gain, are 
+estimated based on the real-world datasets. The other four parameters:
+ ali, rali, res 
+and rres, cannot be estimated since our real-
+world datasets do not exhibit significant alignment tendency [Kelley 
+and Ouellette 2013] or there is no specific external stimuli. As a 
+result, we estimate them based on empirical observations, including 
+alignment information [Lukeman et al. 2010] and the flying speeds 
+and the visual range of the insects. 
+
+Noise 
+Estimation: 
+Figure 5 shows the comparison results of the 
+models based on the four different noise types with four different 
+datasets. The Curl noise provides the most accurate results with 
+respect to our four datasets. 
+
+ 
+0
+0.1
+0.2
+0.3
+0.4
+0.5
+0.6
+0.7
+0.8
+0.9
+dataset 1dataset 2dataset 3dataset 4Evaluation Value 
+WHITE NOISE
+GAUSSIAN WHITE NOISE
+PERLIN NOISE
+CURL NOISE
+Figure 
+5: 
+The comparison results of our model with the four 
+different noise functions. The evaluation value is the value of Eq. 5. 
+
+The parameter estimation method is described in Section 5.1, and 
+the values of the parameters used to generate our results are given 
+in Table 1. 
+
+6.3 Collective Behaviors 
+(a) (b) (c) 
+Figure 
+6: 
+Aggregation: (a) and (b) simulated swarms of midges 
+moving in the environment with 500 
+and 3, 
+000 
+midges, respectively.
+ Other parameters are shown in Table 1; (c) a photo captured 
+using a camera. 
+
+Aggregation: 
+We generated aggregation behaviors of midges at 
+different scales. Figure 6(a) contains 500 
+midges and Figure 6(b) 
+
+
+Table 
+1: 
+Simulation performance and parameter settings of our results. In order to express the radii conveniently, we use the radii differences 
+
+∗ 
+
+
+ratt 
+= 
+ratt 
+− 
+rali, rali 
+= 
+rali 
+− 
+rrep 
+instead. 
+
+Midge Aggreagtion Fruitfly Mating Escape Bats Locust Phase Phototaxis 
+#insect 100 
+500 
+3, 
+000 
+100 
+100 
+100 
+500 
+2, 
+000 
+200, 
+000 
+20 
+∼ 
+200 
+20 
+∼ 
+80 
+γ 
+11:16 
+8:76 
+10:21 
+13:0 
+8:76 
+15:0 
+scale 
+2:20 
+2:75 
+2:20 
+1:72 
+0:72 
+3:42 
+gain 
+2:51 
+1:79 
+2:51 
+0:36 
+0:10 
+2:0 
+rep 
+5:61 
+1:74 
+8:0 
+3:0 
+5:0 
+3:0 
+rrep 
+0:17 
+1:48 
+2:0 
+0:45 
+0:2 
+0:2 
+att 
+14:29 
+10:39 
+25:0 
+5:0 
+7:0 
+8:0 
+∗ 
+ratt 
+5:12 
+4:49 
+10:0 
+5:0 
+9:2 
+10:0 
+ali 
+0 
+5:0 
+0 
+3:0 
+3:0 
+20:0 
+5:0 
+10:0 
+0 
+∗ 
+rali 
+0 
+1:0 
+0 
+10:0 
+10:0 
+3:0 
+0 
+2:2 
+0 
+res 
+0 
+0 
+0 
+10:0 
+20:0 
+10:0 
+60:0 
+0 
+1:0 
+rres 
+0 
+0 
+0 
+2.0 8:0 
+10:0 
+25:0 
+0 
+5:0 
+Simulation 
+FPS 489:87 
+34:41 
+1:49 
+442:37 
+146:79 
+420:60 
+37:25 
+13:48 
+0:018 
+134:37 
+528:19 
+
+
+is simulated with 3, 
+000 
+midges in the same environment. The 
+swarm flies erratically (i.e., the swarm center hardly changes) 
+with different densities, 9, 
+469:7=m3 
+and 56, 
+818:2=m3 
+(with their 
+body length set to 0:01m), respectively. 
+
+
+(a) (b) (c) 
+Figure 
+7: 
+Locust Migration: (a) and (b) simulated migratory 
+locusts pass through a village. The number of locusts is 2, 
+000 
+and 200, 
+000, respectively; (c) a photo captured from a video camera. 
+
+Locust 
+Migration: 
+Figure 7 shows migratory locusts passing 
+through a village. The locusts formed in a cuboid shape with 24:0m 
+length, 5:0m 
+width and 0:5m 
+height. In this environment, we set a 
+large stimulus for locusts to pursue (e.g. crop) . The locust swarm 
+simulated has: (a) 2, 
+000 
+locusts with density 34:2=m3 
+(we set 
+locusts’ body length to 0:04m); (b) 200, 
+000 
+locusts with density 342=m3 
+in the same space. 
+
+Competition 
+for 
+mates: 
+Figure 2 shows a swarm of male flies 
+competing for a female (shown as glowing green). We generated 
+this behavior by regarding the female fly as a pursuit stimulus. The 
+collective behavior is generated based on known behaviors of males 
+and females [Dublon and Sumpter 2014]. 
+
+Phase 
+transition: 
+This behavior occurs when the increasing 
+density of a swarm passes through a critical point. Viscek et 
+al. [1995] generate such behaviors by continuously manipulating 
+the parameters. We model it by decreasing the noise force and 
+increasing the alignment component, ali. 
+
+Positive 
+phototaxis: 
+In this scenario, a succession of moths gather 
+around a street lamp. We set the lamp holder as an external stimulus 
+to attract the moths towards it. We also mark the lamp as an obstacle 
+to avoid collisions with moths based on RVOs. 
+
+Startle/escape 
+response: 
+Figure 8 highlights the fly swarm’s 
+responses to a predator-like object. In this scenario, we use the 
+sphere as an external danger. When it approaches, each insect will 
+choose a determined direction in which to escape. 
+
+Swarm 
+of 
+bats 
+in 
+a 
+cave: 
+Although bats are not insects, bat swarms 
+often exhibit similar patterns as insect swarms. Bats have the ability 
+to respond rapidly due to echolocation. In Figure 9(b), we show a 
+
+
+(a) (b) 
+Figure 
+9: 
+Interior swarm of bats rapidly responding due to 
+echolocation simulated using our dynamics model: (a) a snapshot 
+of the simulated bats by our model; (b) a real photo of bats. 
+
+real-world image of a bat swarm flying as a ring-shape in a dark 
+cave. We simulate echolocation behavior by setting a changing 
+stimulus in front of each bat (Figure 9(a)). 
+
+6.3.1 Comparisons and Benefits 
+We have compared 4 parameterized multi-agent simulation models 
+based on the algorithm described in Section 5.1: RVO model
+ [van den Berg et al. 2011], the Boids model [Reynolds 1987], 
+the Noise-aware model for simulating insects [Wang et al. 2014], 
+and a Brownian dynamics model [Schweitzer et al. 1998]. For each 
+model, we used our parameter estimation algorithm to compute the 
+optimal parameters. Figure 10 shows results comparing the five 
+models with four different ground truth datasets, and highlight the 
+relative benefits of our approach. 
+
+All the forces in our model are useful. If we remove the RVOs, 
+insects can have collisions. If we remove F, insects will not 
+exhibit noise-induced behaviors. If we remove Fpro, we cannot 
+simulate bats, mating behaviors of flies, and the escape responses. 
+
+As compared to prior methods, our model has many advantages. 
+Some recent methods [Wang et al. 2014; Li et al. 2015] cannot 
+simulate phase transitions and escape behaviors due to lack of 
+interaction forces and escape forces; Vicsek et al. [1995] cannot 
+simulate mating and escape behavior, due to lack of response 
+forces; Boids model [Reynolds 1987] cannot generate positive 
+phototaxis and phase transitions due to lack of noise forces and 
+can result in collisions in dense simulations. Moreover, none of the 
+prior methods can simulate the bats behaviors and mosquito swarms 
+(with a very high density around the centroid), as shown in video. 
+
+Our approach is complimentary to [Li et al. 2015]. Our formulation 
+of the dynamics model (Section 4) is driven by observed biological 
+behaviors. Our approach for using a data-driven noise model uses 
+
+
+(a) (b) (c) (d) 
+Figure 
+8: 
+Startle/escape response: When a predator-like object (the sphere) approaches the swarm, insects escape and disperse quickly to 
+avoid it. They aggregate again after the danger disappears. 
+
+ 
+0
+0.1
+0.2
+0.3
+0.4
+0.5
+0.6
+0.7
+0.8
+dataset 1dataset 2dataset 3dataset 4Evaluation Value 
+BSWARM
+NOISE-AWARE
+RVO
+BOIDS
+BROWNIAN
+Figure 
+10: 
+We compared different multi-agent simulation with the 
+real-world datasets. The evaluation value is the value of Eq. 5. Our 
+biologically-plausible dynamics model provides higher accuracy 
+with respect to the real-datasets as compared to other models. 
+
+parameter evaluation techniques, which have been used for crowd 
+and insect simulation. [Li et al. 2015] used density distribution to 
+compute the waypoints that are used to compute insect trajectories 
+to preserve their spatial swarming patterns. In contrast, our 
+metric takes into account discrete probability density distribution 
+functions, as explained in section 5. Moreover, our approach allows 
+us to intuitively change the parameters to generate different swarm 
+behaviors (Section 6.3.2). 
+
+6.3.2 Generating Different Swarm Behaviors 
+As mentioned above, our model has 11 
+parameters. These parameters 
+can be modified to generate different swarm behaviors. For 
+example, Increase the value of rrep 
+will make insects fly apart 
+away from each other so the swarm will result in a lower density. 
+if we increase the value of rali, insects will tend to follow its 
+neighbors’ purposes (e.g., exhibiting the mating behavior). Larger 
+ratt 
+will bring more dense swarms and results in mosquitoes-like 
+aggregation (see the video). Please refer to [Ren et al. 2015] for 
+more details. Increasing rres 
+will expand the visual range of all 
+insects, and make them escape much before the predator arrives 
+close to them. 
+
+If we increase the weighting variables frep;ali;att;resg, the corresponding 
+forces applied on insects will increase (and vice-versa). 
+i.e., insects will accelerate faster to move away from (or close to) 
+others when rep 
+(or att) increases, or escape quickly when res 
+is large (the escape behavior). Please refer to [Ren et al. 2015] for 
+more details. Decreasing the noise parameter scale 
+will result in 
+more noisy trajectories (and vice-versa), we can use it to generate 
+different insect swarms with different noise frequencies (e.g. midge 
+has a smaller scale 
+while moth has a larger one). Increase in the 
+
+gain 
+value will directly increase the noise speeds of the insects. If 
+we decrease gain 
+and increase ali, it will result in phase transition 
+behavior. Finally, the friction coefficient γ 
+is usually decided by 
+the type of insects. The animals with large wings (moths, bats) will 
+overcome more air drag, so they will be assigned to a larger value 
+of . 
+
+7 Limitations, Conclusions and Future Work 
+
+We have presented a biologically-plausible dynamics model (B-
+Swarm) to simulate insect swarms. We use a force-based model that 
+is based on biological conclusions and experimental observations. 
+We also present a novel evaluation metric for multi-agent simulation 
+algorithms that can take into account the inherent noise both 
+in the model and in the real world datasets. We use these datasets 
+for estimating the parameters of our dynamics model and use Curl 
+noise to model insect trajectories. We have used our model on 
+different flying insects and can generate many emergent behaviors 
+and trajectory patterns. 
+
+Limitations: 
+Our current approach is mainly designed for adult 
+flying insects, and may not be applicable to walking or swimming 
+insects. Furthermore, it is not applicable to some eusocial insects 
+
+(e.g. ants, bees), as the interaction rules may not be applicable. The 
+accuracy of our parameterized dynamics model is governed by the 
+accuracy and the different behaviors captured in real-world datasets. 
+For example, the two specific datasets did not exhibit alignment 
+tendency and had no major external stimuli. The evaluation model 
+is based on statistical assumptions about the noise, which may not 
+hold for all datasets. 
+Future 
+Work: 
+There are many avenues for future work. In addition 
+to overcoming the limitations, we would like to extend the model 
+to simulate some very large swarms (e.g. millions of locusts). As 
+we gather more outdoor datasets related to insect swarms, they can 
+be used to improve the accuracy of our parameterized dynamics 
+model. It would be useful to augment our metric with perpetual 
+factors. Moreover, we would like to extend our dynamics model to 
+other animal groups, and use them for computer games and special 
+effects. 
+
+Acknowledgments 
+
+Xiaogang Jin was supported by the National Natural Science 
+Foundation of China (Grant nos. 61272298, 61328204). Dinesh 
+Manocha is supported in part by ARO Contract W911NF-10-10506 
+and the National Thousand Talents Program of China. 
+
+References 
+
+BERSETH, G., KAPADIA, M., HAWORTH, B., AND FALOUTSOS, 
+
+P. 2014. SteerFit: Automated parameter fitting for steering 
+algorithms. In ACM SIGGRAPH/Eurographics Symposium on 
+
+Computer Animation, ACM, New York, NY, USA, SCA ’14, 
+ACM, 113–122. 
+
+BILLINGSLEY, P. 2008. Probability and measure. John Wiley & 
+Sons. 
+
+BRIDSON, R., HOURIHAM, J., AND NORDENSTAM, M. 2007. 
+Curl-noise for procedural fluid flow. ACM Trans. Graph. 26, 3, 
+1–4. 
+
+BUHL, J., SUMPTER, D. J. T., COUZIN, I. D., HALE, J. J., 
+DESPLAND, E., MILLER, E. R., AND SIMPSON, S. J. 2006. 
+From disorder to order in marching locusts. Science 312, 5778, 
+1402–1406. 
+
+BURSTEDDE, C., KLAUCK, K., SCHADSCHNEIDER, A., AND 
+ZITTARTZ, J. 2001. Simulation of pedestrian dynamics using 
+a two-dimensional cellular automaton. Physica A: Statistical 
+Mechanics and its Applications 295, 3, 507–525. 
+
+CHARALAMBOUS, P., AND CHRYSANTHOU, Y. 2010. Learning 
+crowd steering behaviors from examples. In Motion in Games. 
+Springer, 35–35. 
+
+COUZIN, I. D., AND KRAUSE, J. 2003. Self-organization and 
+collective behavior in vertebrates. Advances in the Study of 
+Behavior 32, 1. 
+
+COUZIN, I. D., KRAUSE, J., JAMES, R., RUXTON, G. D., AND 
+FRANKS, N. R. 2002. Collective memory and spatial sorting in 
+animal groups. Journal of Theoretical Biology 218, 1, 1 – 11. 
+
+DICKERSON, M. T., AND DRYSDALE, R. 1990. Fixed-radius near 
+neighbors search algorithms for points and segments. Information
+ Processing Letters 35, 5, 269 – 273. 
+
+DOMENICI, P., BLAGBURN, J. M., AND BACON, J. P. 2011. 
+Animal escapology ii: escape trajectory case studies. The 
+Journal of experimental biology 214, 15, 2474–2494. 
+
+DUBLON, I. A. N., AND SUMPTER, D. J. T. 2014. Flying insect 
+swarms. Current Biology 24, 18, R828–R830. 
+
+FLASH, T., AND HOGAN, N. 1985. The coordination of arm 
+movements: an experimentally confirmed mathematical model. 
+The journal of Neuroscience 5, 7, 1688–1703. 
+
+FUNGE, J., TU, X., AND TERZOPOULOS, D. 1999. Cognitive 
+modeling: Knowledge, reasoning and planning for intelligent 
+characters. In Proceedings of ACM SIGGRAPH, SIGGRAPH 
+’99, ACM Press/Addison-Wesley Publishing Co., 29–38. 
+
+GUY, S. J., VAN DEN BERG, J., LIU, W., LAU, R., LIN, M. C., 
+AND MANOCHA, D. 2012. A statistical similarity measure for 
+aggregate crowd dynamics. ACM Trans. Graph. 31, 6, 190:1– 
+190:11. 
+
+HELBING, D., AND MOLN ´ AR, P. 1995. Social force model for 
+pedestrian dynamics. Phys. Rev. E 51, 5, 4282–4286. 
+
+JU, E., CHOI, M. G., PARK, M., LEE, J., LEE, K. H., AND 
+TAKAHASHI, S. 2010. Morphable crowds. ACM Trans. Graph. 
+29, 6, 140:1–140:10. 
+
+KELLEY, D. H., AND OUELLETTE, N. T. 2013. Emergent 
+dynamics of laboratory insect swarms. Sci. Rep. 3, 1073. 
+
+LI, W. P., WOLINSKI, D., PETTRE´
+, J., AND LIN, M. 2015. 
+Biologically-inspired visual simulation of insect swarms. In 
+Computer Graphics Forum, Wiley Online Library. 
+
+LUKEMAN, R., LI, Y.-X., AND EDELSTEIN-KESHET, L. 2010. 
+Inferring individual rules from collective behavior. Proceedings 
+of the National Academy of Sciences 107, 28, 12576–12580. 
+
+MORSE, R. A. 1963. Swarm orientation in honeybees. Science 
+141, 3578, 357–358. 
+
+MUSSE, S. R., AND THALMANN, D. 2001. Hierarchical model 
+for real time simulation of virtual human crowds. Visualization 
+and Computer Graphics, IEEE Transactions on 7, 2, 152–164. 
+
+PETTRE´
+, J., OND ˇREJ, J., OLIVIER, A.-H., CRETUAL, A., AND 
+DONIKIAN, S. 2009. Experiment-based modeling, simulation 
+and validation of interactions between virtual walkers. In 
+Proceedings of the 2009 ACM SIGGRAPH/Eurographics Symposium
+ on Computer Animation, ACM, 189–198. 
+
+PUCKETT, J. G., KELLEY, D. H., AND OUELLETTE, N. T. 
+2014. Searching for effective forces in laboratory insect swarms. 
+Scientific reports 4, 4766. 
+
+RAUCH, E. M., MILLONAS, M. M., AND CHIALVO, D. R. 1995. 
+Pattern formation and functionality in swarm models. Physics 
+Letters A 207, 3, 185–193. 
+
+REN, J., WANG, X., JIN, X., AND MANOCHA, D. 2015. Data-
+driven Noise Model for Simulating Swarms of Flying Insects. 
+Technical Report. 
+
+REYNOLDS, C. W. 1987. Flocks, herds and schools: A distributed 
+behavioral model. SIGGRAPH Comput. Graph. 21, 4, 25–34. 
+
+ROGERS, S. M., MATHESON, T., DESPLAND, E., DODGSON, T., 
+BURROWS, M., AND SIMPSON, S. J. 2003. Mechanosensoryinduced
+ behavioural gregarization in the desert locust schistocerca
+ gregaria. Journal of Experimental Biology 206, 22, 3991– 
+4002. 
+
+SCHWEITZER, F., EBELING, W., AND TILCH, B. 1998. Complex 
+motion of brownian particles with energy depots. Phys. Rev. Lett. 
+80, 23, 5044–5047. 
+
+VAN DEN BERG, J., GUY, S., LIN, M., AND MANOCHA, D. 
+2011. Reciprocal n-body collision avoidance. In Robotics 
+Research, C. Pradalier, R. Siegwart, and G. Hirzinger, Eds., 
+vol. 70 of Springer Tracts in Advanced Robotics. Springer Berlin 
+Heidelberg, 3–19. 
+
+VICSEK, T., CZIR ´OK, A., BEN-JACOB, E., COHEN, I., AND 
+SHOCHET, O. 1995. Novel type of phase transition in a system 
+of self-driven particles. Phys. Rev. Lett. 75, 6, 1226–1229. 
+
+WANG, X., JIN, X., DENG, Z., AND ZHOU, L. 2014. Inherent 
+noise-aware insect swarm simulation. Computer Graphics Forum
+ 33, 6, 51–62. 
+
+WOLINSKI, D., J GUY, S., OLIVIER, A.-H., LIN, M., 
+MANOCHA, D., AND PETTRE´
+, J. 2014. Parameter estimation 
+and comparative evaluation of crowd simulations. In Computer 
+Graphics Forum, vol. 33, Wiley Online Library, 303–312. 
+
+WU, H. S., ZHAO, Q., ZOU, D., AND CHEN, Y. Q. 2011. 
+Automated 3d trajectory measuring of large numbers of moving 
+particles. Optics express 19, 8, 7646–7663. 
+
+YATES, C. A., ERBAN, R., ESCUDERO, C., COUZIN, I. D., 
+BUHL, J., KEVREKIDIS, I. G., MAINI, P. K., AND SUMPTER, 
+
+D. J. T. 2009. Inherent noise can facilitate coherence in 
+collective swarm motion. Proceedings of the National Academy 
+of Sciences 106, 14, 5464–5469. 
+ZOU, Z.-H., YUN, Y., AND SUN, J.-N. 2006. Entropy method 
+for determination of weight of evaluating indicators in fuzzy 
+synthetic evaluation for water quality assessment. Journal of 
+Environmental Sciences 18, 5, 1020–1023. 
+
+
