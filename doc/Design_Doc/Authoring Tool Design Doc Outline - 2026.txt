@@ -1,0 +1,135 @@
+AUTHORING TOOL DESIGN DOCUMENT OUTLINE
+
+TITLE:  ( you need to come up with a good name for your authoring tool! )
+
+PROJECT SUMMARY
+Usually one page in length.  
+Include a 1 or 2 sentence descriptions of each of the following: the production/development need, design goals, target audience, tool functionality, implementation details and development schedule.
+
+
+1.  AUTHORING TOOL DESIGN
+1.1. Significance of Problem or Production/Development Need
+In this section you need to describe the significance of the problem and/or the production and/or development need for the functionality or special effect you plan to develop.
+1.2. Technology 
+* Provide a brief summary of the SigGraph paper you will be using as the basis for your tool.  
+* Also include an explanation for why you chose this paper  
+
+1.3. Design Goals
+Describe how your authoring tool will address the problem or need
+1.3.1 	Target Audience.  
+Who is the target audience for your tool?
+1.3.2	User Goals and Objectives
+What do you envision the user doing with your tool?
+1.3.3	Tool Features and Functionality
+List and describe the feature set of the tool.   
+1.3.4	Tool Input and Output
+Describe the type of data the tool requires as input and produces as an output.
+
+1.4. User Interface 
+In this section you need to describe what the user interface looks like and how will it be used. You also need to provide a mockup of the interface
+1.4.1	GUI Components and Layout
+o What are the main GUI features in terms of windows, property panels and menu items?  Show the physical layout of the GUI and describe the functionality of each of its components
+1.4.2	User Tasks
+o List the various commands and/or operations the user can select from the GUI and what they do.  
+o What does the user need to know (i.e. prior knowledge or experience either creatively or technically) in order to use the tool?
+1.4.3	Work Flow
+o Describe the work flow of the tool in terms of how it is used (i.e. steps, order of operations, etc.) within the Maya or Houdini authoring environment.  
+o Provide an example of a typical user session in terms of the sequence of operations
+o How does this work flow solve the problem or meet the production/development need.  
+o What does the tool require as input and what does it produce as output?
+
+
+
+2.   AUTHORING TOOL DEVELOPMENT
+2.1. Technical Approach
+2.1.1	Algorithm Details
+o Describe the main features and details of the algorithms you plan to implement.  
+o List any assumptions or simplifications you will be making.  
+2.1.2	Maya or Houdini Interface and Integration
+o Describe how you plan to implement the algorithms in the Maya or Houdini runtime environment.  
+o What features will be implemented in a scripting language such as MEL, Python, etc.?  
+o What features will be implemented in the C++ plug-in?  
+o Provide descriptions of Maya or Houdini objects, data structures and class hierarchies you plan to use, as appropriate.
+2.1.3	Software Design and Development
+o Spec out the objects, custom nodes, data structures and class hierarchies you plan to develop as part of the authoring tool implementation.  
+o Provide descriptions of each.  
+o Provide block diagrams/flow charts showing a detailed breakdown of the associated program structure, including functional sequences of operations
+o List any third party software you plan to use as part of your development effort.
+
+2.2. Target Platforms
+2.2.1	Hardware
+Minimum hardware configuration (i.e. processor speed, memory requirements, graphics card, etc.) required to run the tool and/or implement the effect.  
+2.2.2	Software
+Version of Windows, Maya, OpenGL, Direct3D, etc. required to implement the tool and/or effect.
+
+2.3. Software Versions
+2.3.1	Alpha Version Features (first prototype)
+o List the complete set of features to be included in the alpha version.  For example, algorithmic functionality, GUI features, MEL or standalone application implementations, etc.   
+o Describe the important development milestones.   
+o Describe the demo/test app you plan to create to show off the alpha features.
+2.3.2	Beta Version Features 
+o List the complete set of features to be included in the beta version.  
+o Describe the important development milestones.  
+o Describe the demo/test app you plan to create to show off the beta features.
+2.3.3	Description of any demos or tutorials
+o How will users know how to use your tool?  
+o Describe the demos and/or tutorials you plan to develop that will ship with the final version.
+
+
+
+
+3.  WORK PLAN 
+3.1. Tasks and Subtasks
+* List and number all the tasks and subtasks which are necessary to develop your authoring tool.   Each main task should be comprised of at least 3 subtasks.
+* Provide separate descriptions of each task and subtask, which members of the group are assigned to it, and the expected task duration.  Be as detailed as you can.  
+* Use the following format for each of your Work Plan tasks. 
+
+Task n ¨C Task Name
+		Duration: xx
+Describe what you plan to do in this task.  Should be of sufficient detail that the reader can understand exactly what you will be doing (at least 3 sentences).
+
+* Subtask n.1.  Use a descriptive Task Name
+In two or three sentences describe what you plan to do in this subtask.
+
+* Subtask n.2.  Use a descriptive Task Name
+In two or three sentences describe what you plan to do in this subtask.
+
+* Subtask n.3.  Use a descriptive Task Name
+In two or three sentences describe what you plan to do in this subtask.
+
+3.2. Milestones
+3.2.1	Alpha Version
+List the tasks and subtasks that must be completed for the alpha version.
+3.2.2	Beta Version
+¡¡¡¡¡¡List the tasks and subtasks that must be completed for the beta version.
+3.3. Schedule
+Using Microsoft Project (or another appropriate project software), organize your task schedule in the form of a Gantt chart.  List all the tasks (including durations) and the dates of each major milestone (e.g. alpha, beta, final).  
+
+
+
+
+
+Example Gantt Chart
+
+
+4.  RELATED RESEARCH 
+In order to prepare the Related Research section you will need to read the papers referenced in the paper you have chosen to implement, then chain backwards through a number of levels of references until you identify/reach the seminal work.? Once the seminal work has been identified, you can then chain forward to trace the evolution of the research.? In this section you need to include a tree-like graph showing the evolution of the research from the seminal work to the paper you have chosen to implement along with descriptions of the enhancements/improvements/contributions made by each of the subsequent works.   
+The Related Research section can be completed by including your Literature Survey here.
+
+CIS6600: Advanced Topics in Computer Graphics and Animation	
+
+
+
+
+
+3
+
+
+CIS6600: Advanced Topics in Computer Graphics and Animation	
+
+
+
+
+5
+
+

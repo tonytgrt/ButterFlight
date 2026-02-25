@@ -1,0 +1,743 @@
+// ============================================================
+// butterFlight_ui.mel
+// ButterFlight Maya Plugin UI
+// CIS 6600 Authoring Tool  --  Cecilia Chen & Yiding Tian
+//
+// Usage: source "butterFlight_ui.mel"; butterFlightUI;
+// ============================================================
+
+// ---- Global control-name variables --------------------------
+global string $bf_rigField;
+global string $bf_speciesMenu;
+global string $bf_modeMenu;
+
+// Path Following section
+global string $bf_pathFrame;
+global string $bf_pathField;
+
+// Wind section
+global string $bf_windEnableCheck;
+global string $bf_windDirXField;
+global string $bf_windDirYField;
+global string $bf_windDirZField;
+global string $bf_windMagSlider;
+global string $bf_windTimeCheck;
+
+// Force parameters
+global string $bf_vortexGainXField;
+global string $bf_vortexGainYField;
+global string $bf_vortexGainZField;
+global string $bf_etaField;
+global string $bf_maxSpeedField;
+global string $bf_windowKField;
+
+// Species parameters
+global string $bf_massField;
+global string $bf_wingAreaField;
+
+// Swarm section
+global string $bf_swarmFrame;
+global string $bf_agentCountField;
+global string $bf_spawnSpreadField;
+global string $bf_repulsionRadField;
+
+// Output settings
+global string $bf_startFrameField;
+global string $bf_durationField;
+global string $bf_fpsField;
+global string $bf_exportMenu;
+
+
+// ============================================================
+// Main window procedure
+// ============================================================
+global proc butterFlightUI()
+{
+    if (`window -exists butterFlightWin`)
+        deleteUI butterFlightWin;
+
+    window
+        -title "ButterFlight v0.1"
+        -widthHeight 360 720
+        -sizeable true
+        butterFlightWin;
+
+    string $scroll = `scrollLayout
+        -horizontalScrollBarThickness 0
+        -verticalScrollBarThickness 14`;
+
+    columnLayout -adjustableColumn true -rowSpacing 6 -columnOffset "both" 6;
+
+        // ---- Banner -------------------------------------------
+        text -label "ButterFlight" -font "boldLabelFont" -height 28;
+        text -label "Realistic Butterfly Flight Simulation" -font "smallPlainLabelFont";
+        separator -height 8 -style "in";
+
+
+        // ---- 1. Rig Assignment --------------------------------
+        frameLayout
+            -label "1  Rig Assignment"
+            -collapsable true
+            -collapse false
+            -marginWidth 6 -marginHeight 6;
+
+            columnLayout -adjustableColumn true -rowSpacing 4;
+
+                text -label "Butterfly Root Joint (BF_thorax):" -align "left";
+                global string $bf_rigField;
+                $bf_rigField = `textFieldButtonGrp
+                    -label ""
+                    -text ""
+                    -buttonLabel "Select"
+                    -buttonCommand "bfSelectRig"
+                    -placeholderText "Select BF_thorax joint"
+                    -columnWidth3 0 220 70`;
+
+            setParent ..;  // columnLayout
+        setParent ..;  // frameLayout
+
+
+        // ---- 2. Species Preset --------------------------------
+        frameLayout
+            -label "2  Species Preset"
+            -collapsable true
+            -collapse false
+            -marginWidth 6 -marginHeight 6;
+
+            columnLayout -adjustableColumn true -rowSpacing 4;
+
+                global string $bf_speciesMenu;
+                $bf_speciesMenu = `optionMenuGrp
+                    -label "Species"
+                    -changeCommand "bfUpdateSpecies"
+                    -columnWidth2 100 200`;
+                    menuItem -label "Monarch";
+                    menuItem -label "Swallowtail";
+                    menuItem -label "Custom";
+
+                global string $bf_massField;
+                $bf_massField = `floatFieldGrp
+                    -label "Body Mass (g)"
+                    -numberOfFields 1
+                    -value1 0.428
+                    -precision 4
+                    -columnWidth2 120 160`;
+
+                global string $bf_wingAreaField;
+                $bf_wingAreaField = `floatFieldGrp
+                    -label "Wing Area (cm^2)"
+                    -numberOfFields 1
+                    -value1 26.0
+                    -precision 3
+                    -columnWidth2 120 160`;
+
+            setParent ..;
+        setParent ..;
+
+
+        // ---- 3. Simulation Mode -------------------------------
+        frameLayout
+            -label "3  Simulation Mode"
+            -collapsable true
+            -collapse false
+            -marginWidth 6 -marginHeight 6;
+
+            columnLayout -adjustableColumn true -rowSpacing 4;
+
+                global string $bf_modeMenu;
+                $bf_modeMenu = `optionMenuGrp
+                    -label "Mode"
+                    -changeCommand "bfUpdateMode"
+                    -columnWidth2 100 200`;
+                    menuItem -label "Free Flight";
+                    menuItem -label "Path Following";
+                    menuItem -label "Swarm";
+
+            setParent ..;
+        setParent ..;
+
+
+        // ---- 4. Path Following Settings (conditional) ---------
+        global string $bf_pathFrame;
+        $bf_pathFrame = `frameLayout
+            -label "4  Path Settings"
+            -collapsable true
+            -collapse false
+            -visible false
+            -marginWidth 6 -marginHeight 6`;
+
+            columnLayout -adjustableColumn true -rowSpacing 4;
+
+                text -label "Guide Curve (NURBS):" -align "left";
+                global string $bf_pathField;
+                $bf_pathField = `textFieldButtonGrp
+                    -label ""
+                    -text ""
+                    -buttonLabel "Select"
+                    -buttonCommand "bfSelectPath"
+                    -placeholderText "Select NURBS curve"
+                    -columnWidth3 0 220 70`;
+
+                floatFieldGrp
+                    -label "Path Follow Strength"
+                    -numberOfFields 1
+                    -value1 1.0
+                    -precision 3
+                    -columnWidth2 140 140;
+
+            setParent ..;
+        setParent ..;
+
+
+        // ---- 5. Wind ------------------------------------------
+        frameLayout
+            -label "5  Wind"
+            -collapsable true
+            -collapse true
+            -marginWidth 6 -marginHeight 6;
+
+            columnLayout -adjustableColumn true -rowSpacing 4;
+
+                global string $bf_windEnableCheck;
+                $bf_windEnableCheck = `checkBoxGrp
+                    -label "Enable Wind"
+                    -value1 false
+                    -onCommand  "bfWindToggle 1"
+                    -offCommand "bfWindToggle 0"`;
+
+                global string $bf_windDirXField;
+                global string $bf_windDirYField;
+                global string $bf_windDirZField;
+
+                $bf_windDirXField = `floatFieldGrp
+                    -label "Direction X"
+                    -numberOfFields 1
+                    -value1 1.0
+                    -precision 3
+                    -enable false
+                    -columnWidth2 120 160`;
+
+                $bf_windDirYField = `floatFieldGrp
+                    -label "Direction Y"
+                    -numberOfFields 1
+                    -value1 0.0
+                    -precision 3
+                    -enable false
+                    -columnWidth2 120 160`;
+
+                $bf_windDirZField = `floatFieldGrp
+                    -label "Direction Z"
+                    -numberOfFields 1
+                    -value1 0.0
+                    -precision 3
+                    -enable false
+                    -columnWidth2 120 160`;
+
+                global string $bf_windMagSlider;
+                $bf_windMagSlider = `floatSliderGrp
+                    -label "Magnitude"
+                    -field true
+                    -minValue 0.0
+                    -maxValue 20.0
+                    -fieldMinValue 0.0
+                    -fieldMaxValue 100.0
+                    -value 5.0
+                    -enable false
+                    -columnWidth3 80 60 140`;
+
+                global string $bf_windTimeCheck;
+                $bf_windTimeCheck = `checkBoxGrp
+                    -label "Time-varying"
+                    -value1 false
+                    -enable false`;
+
+            setParent ..;
+        setParent ..;
+
+
+        // ---- 6. Force Parameters ------------------------------
+        frameLayout
+            -label "6  Force Parameters"
+            -collapsable true
+            -collapse true
+            -marginWidth 6 -marginHeight 6;
+
+            columnLayout -adjustableColumn true -rowSpacing 4;
+
+                text -label "Vortex Gain:" -align "left" -font "boldLabelFont";
+
+                global string $bf_vortexGainXField;
+                $bf_vortexGainXField = `floatFieldGrp
+                    -label "Gain X"
+                    -numberOfFields 1
+                    -value1 22.0
+                    -precision 3
+                    -columnWidth2 100 180`;
+
+                global string $bf_vortexGainYField;
+                $bf_vortexGainYField = `floatFieldGrp
+                    -label "Gain Y"
+                    -numberOfFields 1
+                    -value1 5.5
+                    -precision 3
+                    -columnWidth2 100 180`;
+
+                global string $bf_vortexGainZField;
+                $bf_vortexGainZField = `floatFieldGrp
+                    -label "Gain Z"
+                    -numberOfFields 1
+                    -value1 22.0
+                    -precision 3
+                    -columnWidth2 100 180`;
+
+                separator -height 6 -style "in";
+
+                global string $bf_etaField;
+                $bf_etaField = `floatFieldGrp
+                    -label "Eta"
+                    -numberOfFields 1
+                    -value1 3.66
+                    -precision 4
+                    -annotation "Curl-noise turbulence scale"
+                    -columnWidth2 100 180`;
+
+                global string $bf_maxSpeedField;
+                $bf_maxSpeedField = `floatFieldGrp
+                    -label "Max Speed (m/s)"
+                    -numberOfFields 1
+                    -value1 3.0
+                    -precision 3
+                    -columnWidth2 120 160`;
+
+                global string $bf_windowKField;
+                $bf_windowKField = `intFieldGrp
+                    -label "Smoothing Window k"
+                    -numberOfFields 1
+                    -value1 10
+                    -annotation "Sliding-window smoother width (frames)"
+                    -columnWidth2 140 140`;
+
+            setParent ..;
+        setParent ..;
+
+
+        // ---- 7. Swarm Settings (conditional) ------------------
+        global string $bf_swarmFrame;
+        $bf_swarmFrame = `frameLayout
+            -label "7  Swarm Settings"
+            -collapsable true
+            -collapse false
+            -visible false
+            -marginWidth 6 -marginHeight 6`;
+
+            columnLayout -adjustableColumn true -rowSpacing 4;
+
+                global string $bf_agentCountField;
+                $bf_agentCountField = `intFieldGrp
+                    -label "Agent Count"
+                    -numberOfFields 1
+                    -value1 10
+                    -columnWidth2 100 180`;
+
+                global string $bf_spawnSpreadField;
+                $bf_spawnSpreadField = `floatFieldGrp
+                    -label "Spawn Spread (m)"
+                    -numberOfFields 1
+                    -value1 2.0
+                    -precision 3
+                    -columnWidth2 120 160`;
+
+                global string $bf_repulsionRadField;
+                $bf_repulsionRadField = `floatFieldGrp
+                    -label "Repulsion Radius (m)"
+                    -numberOfFields 1
+                    -value1 0.5
+                    -precision 3
+                    -columnWidth2 120 160`;
+
+            setParent ..;
+        setParent ..;
+
+
+        // ---- 8. Output Settings -------------------------------
+        frameLayout
+            -label "8  Output Settings"
+            -collapsable true
+            -collapse false
+            -marginWidth 6 -marginHeight 6;
+
+            columnLayout -adjustableColumn true -rowSpacing 4;
+
+                global string $bf_startFrameField;
+                $bf_startFrameField = `intFieldGrp
+                    -label "Start Frame"
+                    -numberOfFields 1
+                    -value1 1
+                    -columnWidth2 100 180`;
+
+                global string $bf_durationField;
+                $bf_durationField = `intFieldGrp
+                    -label "Duration (frames)"
+                    -numberOfFields 1
+                    -value1 120
+                    -columnWidth2 120 160`;
+
+                global string $bf_fpsField;
+                $bf_fpsField = `intFieldGrp
+                    -label "Frame Rate (fps)"
+                    -numberOfFields 1
+                    -value1 24
+                    -columnWidth2 120 160`;
+
+                global string $bf_exportMenu;
+                $bf_exportMenu = `optionMenuGrp
+                    -label "Export Format"
+                    -columnWidth2 100 200`;
+                    menuItem -label "Maya Keyframes (default)";
+                    menuItem -label "Alembic (.abc)";
+                    menuItem -label "FBX (.fbx)";
+
+            setParent ..;
+        setParent ..;
+
+
+        // ---- Action Buttons -----------------------------------
+        separator -height 10 -style "in";
+
+        rowLayout
+            -numberOfColumns 3
+            -columnWidth3 112 112 112
+            -columnAlign3 "center" "center" "center"
+            -adjustableColumn 2;
+
+            button
+                -label "Simulate"
+                -backgroundColor 0.2 0.5 0.2
+                -command "bfSimulate"
+                -annotation "Run the butterfly flight simulation"
+                -width 108;
+
+            button
+                -label "Bake to Keys"
+                -backgroundColor 0.2 0.3 0.55
+                -command "bfBakeKeyframes"
+                -annotation "Bake simulation result to keyframe curves"
+                -width 108;
+
+            button
+                -label "Reset"
+                -backgroundColor 0.5 0.2 0.2
+                -command "bfReset"
+                -annotation "Clear simulation and restore defaults"
+                -width 108;
+
+        setParent ..;  // rowLayout
+
+        separator -height 6 -style "none";
+        text -label "Chen et al. 2022  |  CIS 6600" -font "tinyBoldLabelFont" -align "center";
+
+    setParent ..;  // columnLayout
+    setParent ..;  // scrollLayout
+
+    showWindow butterFlightWin;
+
+    // Apply initial species defaults
+    bfUpdateSpecies;
+}
+
+
+// ============================================================
+// Callback: Select rig root joint
+// ============================================================
+global proc bfSelectRig()
+{
+    global string $bf_rigField;
+    string $sel[] = `ls -selection -type joint`;
+    if (size($sel) == 0) {
+        confirmDialog
+            -title "ButterFlight"
+            -message "Please select the BF_thorax root joint first."
+            -button "OK";
+        return;
+    }
+    string $joint = $sel[0];
+    // Warn if naming convention not followed
+    if (!startsWith($joint, "BF_")) {
+        string $choice = `confirmDialog
+            -title "Naming Warning"
+            -message ("Joint \"" + $joint + "\" does not begin with BF_.\nButterFlight expects BF_thorax as the root.\nUse anyway?")
+            -button "Yes"
+            -button "Cancel"
+            -defaultButton "Cancel"`;
+        if ($choice == "Cancel") return;
+    }
+    textFieldButtonGrp -edit -text $joint $bf_rigField;
+}
+
+
+// ============================================================
+// Callback: Select path curve
+// ============================================================
+global proc bfSelectPath()
+{
+    global string $bf_pathField;
+    string $sel[] = `ls -selection -type nurbsCurve`;
+    if (size($sel) == 0) {
+        // Try transform that contains a nurbsCurve shape
+        string $shapes[] = `ls -selection -dagObjects -type nurbsCurve`;
+        if (size($shapes) == 0) {
+            confirmDialog
+                -title "ButterFlight"
+                -message "Please select a NURBS curve to use as the flight path."
+                -button "OK";
+            return;
+        }
+        $sel[0] = $shapes[0];
+    }
+    textFieldButtonGrp -edit -text $sel[0] $bf_pathField;
+}
+
+
+// ============================================================
+// Callback: Simulation mode changed
+// ============================================================
+global proc bfUpdateMode()
+{
+    global string $bf_modeMenu;
+    global string $bf_pathFrame;
+    global string $bf_swarmFrame;
+
+    int $idx = `optionMenuGrp -query -select $bf_modeMenu`;
+    // 1=Free Flight, 2=Path Following, 3=Swarm
+    frameLayout -edit -visible ($idx == 2) $bf_pathFrame;
+    frameLayout -edit -visible ($idx == 3) $bf_swarmFrame;
+}
+
+
+// ============================================================
+// Callback: Species preset changed
+// ============================================================
+global proc bfUpdateSpecies()
+{
+    global string $bf_speciesMenu;
+    global string $bf_massField;
+    global string $bf_wingAreaField;
+
+    int $idx = `optionMenuGrp -query -select $bf_speciesMenu`;
+
+    // Values from Chen et al. 2022 Tables 2 & 3
+    if ($idx == 1) {
+        // Monarch: mass 0.428 g, wing area 26 cm^2
+        floatFieldGrp -edit -value1 0.428 $bf_massField;
+        floatFieldGrp -edit -value1 26.0  $bf_wingAreaField;
+        floatFieldGrp -edit -enable false $bf_massField;
+        floatFieldGrp -edit -enable false $bf_wingAreaField;
+    } else if ($idx == 2) {
+        // Swallowtail: mass 0.34 g, wing area 28 cm^2
+        floatFieldGrp -edit -value1 0.34 $bf_massField;
+        floatFieldGrp -edit -value1 28.0 $bf_wingAreaField;
+        floatFieldGrp -edit -enable false $bf_massField;
+        floatFieldGrp -edit -enable false $bf_wingAreaField;
+    } else {
+        // Custom: user editable
+        floatFieldGrp -edit -enable true $bf_massField;
+        floatFieldGrp -edit -enable true $bf_wingAreaField;
+    }
+}
+
+
+// ============================================================
+// Callback: Wind enable toggle
+// ============================================================
+global proc bfWindToggle(int $state)
+{
+    global string $bf_windDirXField;
+    global string $bf_windDirYField;
+    global string $bf_windDirZField;
+    global string $bf_windMagSlider;
+    global string $bf_windTimeCheck;
+
+    floatFieldGrp   -edit -enable $state $bf_windDirXField;
+    floatFieldGrp   -edit -enable $state $bf_windDirYField;
+    floatFieldGrp   -edit -enable $state $bf_windDirZField;
+    floatSliderGrp  -edit -enable $state $bf_windMagSlider;
+    checkBoxGrp     -edit -enable $state $bf_windTimeCheck;
+}
+
+
+// ============================================================
+// Callback: Simulate button
+// ============================================================
+global proc bfSimulate()
+{
+    global string $bf_rigField;
+    global string $bf_modeMenu;
+    global string $bf_speciesMenu;
+    global string $bf_massField;
+    global string $bf_wingAreaField;
+    global string $bf_vortexGainXField;
+    global string $bf_vortexGainYField;
+    global string $bf_vortexGainZField;
+    global string $bf_etaField;
+    global string $bf_maxSpeedField;
+    global string $bf_windowKField;
+    global string $bf_startFrameField;
+    global string $bf_durationField;
+    global string $bf_fpsField;
+
+    // --- Validation ---
+    string $rig = `textFieldButtonGrp -query -text $bf_rigField`;
+    if ($rig == "") {
+        confirmDialog
+            -title "ButterFlight"
+            -message "No rig assigned. Please select the BF_thorax root joint."
+            -button "OK";
+        return;
+    }
+    if (!`objExists $rig`) {
+        confirmDialog
+            -title "ButterFlight"
+            -message ("Joint \"" + $rig + "\" does not exist in scene.")
+            -button "OK";
+        return;
+    }
+
+    // --- Gather parameters ---
+    int    $mode      = `optionMenuGrp -query -select $bf_modeMenu`;
+    float  $mass      = `floatFieldGrp  -query -value1 $bf_massField`;
+    float  $wingArea  = `floatFieldGrp  -query -value1 $bf_wingAreaField`;
+    float  $gainX     = `floatFieldGrp  -query -value1 $bf_vortexGainXField`;
+    float  $gainY     = `floatFieldGrp  -query -value1 $bf_vortexGainYField`;
+    float  $gainZ     = `floatFieldGrp  -query -value1 $bf_vortexGainZField`;
+    float  $eta       = `floatFieldGrp  -query -value1 $bf_etaField`;
+    float  $maxSpeed  = `floatFieldGrp  -query -value1 $bf_maxSpeedField`;
+    int    $k         = `intFieldGrp    -query -value1 $bf_windowKField`;
+    int    $startF    = `intFieldGrp    -query -value1 $bf_startFrameField`;
+    int    $duration  = `intFieldGrp    -query -value1 $bf_durationField`;
+    int    $fps       = `intFieldGrp    -query -value1 $bf_fpsField`;
+
+    print ("// ButterFlight: Starting simulation on rig: " + $rig + "\n");
+    print ("//   Mode:       " + $mode      + "\n");
+    print ("//   Mass:       " + $mass      + " g\n");
+    print ("//   Wing Area:  " + $wingArea  + " cm^2\n");
+    print ("//   Gain X/Y/Z: " + $gainX + " / " + $gainY + " / " + $gainZ + "\n");
+    print ("//   Eta:        " + $eta       + "\n");
+    print ("//   Max Speed:  " + $maxSpeed  + " m/s\n");
+    print ("//   Window k:   " + $k         + "\n");
+    print ("//   Frames:     " + $startF + " to " + ($startF + $duration - 1) + " @ " + $fps + " fps\n");
+
+    // TODO: Call the C++ plugin command once implemented, e.g.:
+    // butterFlightSimulate
+    //     -rig $rig -mode $mode -mass $mass -wingArea $wingArea
+    //     -gainX $gainX -gainY $gainY -gainZ $gainZ
+    //     -eta $eta -maxSpeed $maxSpeed -window $k
+    //     -startFrame $startF -duration $duration -fps $fps;
+
+    inViewMessage
+        -statusPosition "topCenter"
+        -message "ButterFlight: Simulation parameters collected. C++ plugin not yet connected."
+        -fade true -fadeOutTime 3000;
+}
+
+
+// ============================================================
+// Callback: Bake to Keyframes
+// ============================================================
+global proc bfBakeKeyframes()
+{
+    global string $bf_rigField;
+    global string $bf_startFrameField;
+    global string $bf_durationField;
+    global string $bf_exportMenu;
+
+    string $rig     = `textFieldButtonGrp -query -text $bf_rigField`;
+    int    $startF  = `intFieldGrp -query -value1 $bf_startFrameField`;
+    int    $duration = `intFieldGrp -query -value1 $bf_durationField`;
+    int    $endF    = $startF + $duration - 1;
+    int    $fmt     = `optionMenuGrp -query -select $bf_exportMenu`;
+
+    if ($rig == "") {
+        confirmDialog
+            -title "ButterFlight"
+            -message "No rig assigned. Run a simulation first."
+            -button "OK";
+        return;
+    }
+
+    print ("// ButterFlight: Baking keyframes " + $startF + " - " + $endF + "\n");
+
+    // TODO: Call bakeResults on the rig hierarchy
+    // select -hierarchy $rig;
+    // bakeResults -simulation true -t ($startF + ":" + $endF) -sampleBy 1;
+
+    if ($fmt == 2) {
+        print "// ButterFlight: Export as Alembic (.abc)\n";
+        // AbcExport -j ("-frameRange " + $startF + " " + $endF + " -root " + $rig + " -file output.abc");
+    } else if ($fmt == 3) {
+        print "// ButterFlight: Export as FBX (.fbx)\n";
+        // FBXExport -f "output.fbx" -s;
+    }
+
+    inViewMessage
+        -statusPosition "topCenter"
+        -message "ButterFlight: Bake stub executed. Connect C++ plugin to enable."
+        -fade true -fadeOutTime 3000;
+}
+
+
+// ============================================================
+// Callback: Reset / Clear
+// ============================================================
+global proc bfReset()
+{
+    global string $bf_rigField;
+    global string $bf_pathField;
+    global string $bf_speciesMenu;
+    global string $bf_modeMenu;
+    global string $bf_vortexGainXField;
+    global string $bf_vortexGainYField;
+    global string $bf_vortexGainZField;
+    global string $bf_etaField;
+    global string $bf_maxSpeedField;
+    global string $bf_windowKField;
+    global string $bf_startFrameField;
+    global string $bf_durationField;
+    global string $bf_fpsField;
+    global string $bf_windEnableCheck;
+    global string $bf_agentCountField;
+    global string $bf_spawnSpreadField;
+    global string $bf_repulsionRadField;
+
+    textFieldButtonGrp  -edit -text ""   $bf_rigField;
+    textFieldButtonGrp  -edit -text ""   $bf_pathField;
+
+    optionMenuGrp -edit -select 1        $bf_speciesMenu;
+    optionMenuGrp -edit -select 1        $bf_modeMenu;
+
+    floatFieldGrp -edit -value1 22.0     $bf_vortexGainXField;
+    floatFieldGrp -edit -value1 5.5      $bf_vortexGainYField;
+    floatFieldGrp -edit -value1 22.0     $bf_vortexGainZField;
+    floatFieldGrp -edit -value1 3.66     $bf_etaField;
+    floatFieldGrp -edit -value1 3.0      $bf_maxSpeedField;
+    intFieldGrp   -edit -value1 10       $bf_windowKField;
+    intFieldGrp   -edit -value1 1        $bf_startFrameField;
+    intFieldGrp   -edit -value1 120      $bf_durationField;
+    intFieldGrp   -edit -value1 24       $bf_fpsField;
+    intFieldGrp   -edit -value1 10       $bf_agentCountField;
+    floatFieldGrp -edit -value1 2.0      $bf_spawnSpreadField;
+    floatFieldGrp -edit -value1 0.5      $bf_repulsionRadField;
+
+    checkBoxGrp   -edit -value1 false    $bf_windEnableCheck;
+    bfWindToggle 0;
+
+    bfUpdateSpecies;
+    bfUpdateMode;
+
+    print "// ButterFlight: Panel reset to defaults.\n";
+}
+
+
+// ============================================================
+// Auto-launch when sourced
+// ============================================================
+butterFlightUI;
