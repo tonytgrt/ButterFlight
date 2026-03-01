@@ -232,9 +232,9 @@ With ButterFlight, a user should be able to accomplish the following:
     $\sim$100 at interactive rates) that fly with collision-free, divergence-free
     curl-noise trajectories and individually-computed wing-body motion.
 
-  \item \textbf{Parameter tuning.} Adjust species-specific physical parameters
+  \item \textbf{Parameter tuning.} Adjust physical parameters
     (wing area, body mass, flapping frequency range, vortex force gain) to
-    produce different butterfly species or stylized variants.
+    fine-tune the simulation behavior.
 
   \item \textbf{Keyframe bake and export.} Bake the simulation result to Maya
     keyframes on the input rig, ready for render or export via Alembic or FBX.
@@ -314,7 +314,7 @@ ButterFlight exposes the following features:
 ButterFlight's entire user-facing interface is a single floating panel window inside
 Maya, opened by sourcing the MEL script \texttt{butterFlight\_ui.mel} and calling
 \texttt{butterFlightUI}. The panel is implemented as a scrollable \texttt{columnLayout}
-containing eight collapsible \texttt{frameLayout} sections---one per logical parameter
+containing seven collapsible \texttt{frameLayout} sections---one per logical parameter
 group---followed by three color-coded action buttons at the bottom. No new menus are
 added to the main Maya menu bar; the tool is fully self-contained in the floating window.
 Figure~\ref{fig:gui} shows the panel as loaded in Maya 2026.
@@ -322,15 +322,15 @@ Figure~\ref{fig:gui} shows the panel as loaded in Maya 2026.
 \begin{figure}[H]
   \centering
   \includegraphics[width=0.52\textwidth]{img/GUI.png}
-  \caption{ButterFlight v0.1 UI panel running inside Maya 2026. Sections 4 (Path
-    Settings) and 7 (Swarm Settings) are hidden by default and become visible
+  \caption{ButterFlight v0.1 UI panel running inside Maya 2026. Sections 3 (Path
+    Settings) and 6 (Swarm Settings) are hidden by default and become visible
     when the corresponding simulation mode is selected.}
   \label{fig:gui}
 \end{figure}
 
 \subsubsection{GUI Components and Layout}
 
-The panel is divided into eight numbered, collapsible sections plus an action-button
+The panel is divided into seven numbered, collapsible sections plus an action-button
 row. Table~\ref{tab:gui} summarises each section; a detailed description follows.
 
 \begin{table}[H]
@@ -341,13 +341,12 @@ row. Table~\ref{tab:gui} summarises each section; a detailed description follows
 \textbf{\#} & \textbf{Section name} & \textbf{Key controls} \\
 \hline
 1 & Rig Assignment      & Text field + \textit{Select} button for \texttt{BF\_thorax} \\
-2 & Species Preset      & Drop-down (Monarch / Swallowtail / Custom); mass, wing area \\
-3 & Simulation Mode     & Drop-down (Free Flight / Path Following / Swarm) \\
-4 & Path Settings       & Curve picker + follow-strength slider {\small(conditional)} \\
-5 & Wind                & Enable check; direction XYZ; magnitude slider; time-varying \\
-6 & Force Parameters    & Vortex gain X/Y/Z; $\eta$; max speed; smoothing window $k$ \\
-7 & Swarm Settings      & Agent count; spawn spread; repulsion radius {\small(conditional)} \\
-8 & Output Settings     & Start frame; duration; fps; export format \\
+2 & Simulation Mode     & Drop-down (Free Flight / Path Following / Swarm) \\
+3 & Path Settings       & Curve picker + follow-strength slider {\small(conditional)} \\
+4 & Wind                & Enable check; direction XYZ; magnitude slider; time-varying \\
+5 & Force Parameters    & Vortex gain X/Y/Z; $\eta$; max speed; smoothing window $k$ \\
+6 & Swarm Settings      & Agent count; spawn spread; repulsion radius {\small(conditional)} \\
+7 & Output Settings     & Start frame; duration; fps; export format \\
 \hline
 \multicolumn{3}{|c|}{\textbf{Simulate} \quad \textbf{Bake to Keys} \quad \textbf{Reset}} \\
 \hline
@@ -363,46 +362,38 @@ node is a joint and that its name begins with the \texttt{BF\_} prefix, and writ
 into the field. A warning dialog is shown if the prefix check fails, allowing the user
 to override or cancel.
 
-\textbf{Section 2 --- Species Preset.}
-An \texttt{optionMenuGrp} offers three entries: \textit{Monarch}, \textit{Swallowtail},
-and \textit{Custom}. Selecting a named species auto-populates the body mass and wing-area
-fields with the values from Tables~2 and~3 of Chen et al.~\cite{Chen2022} (Monarch:
-0.428~g, 26~cm$^2$; Swallowtail: 0.34~g, 28~cm$^2$) and disables those fields to
-prevent accidental edits. Selecting \textit{Custom} re-enables both fields for free
-entry.
-
-\textbf{Section 3 --- Simulation Mode.}
+\textbf{Section 2 --- Simulation Mode.}
 An \texttt{optionMenuGrp} controls the overall simulation behavior. Switching modes
-triggers the \texttt{bfUpdateMode} callback, which shows or hides Sections~4 and~7:
-Section~4 (Path Settings) is visible only in \textit{Path Following} mode; Section~7
+triggers the \texttt{bfUpdateMode} callback, which shows or hides Sections~3 and~6:
+Section~3 (Path Settings) is visible only in \textit{Path Following} mode; Section~6
 (Swarm Settings) is visible only in \textit{Swarm} mode.
 
-\textbf{Section 4 --- Path Settings (conditional).}
+\textbf{Section 3 --- Path Settings (conditional).}
 A second \texttt{textFieldButtonGrp} with a \textit{Select} button lets the user pick
 an existing NURBS curve from the Maya scene to serve as the flight path. A
 \texttt{floatFieldGrp} sets the path-following strength (0--1).
 
-\textbf{Section 5 --- Wind.}
+\textbf{Section 4 --- Wind.}
 A \texttt{checkBoxGrp} enables the wind subsystem. When checked, three
 \texttt{floatFieldGrp} controls for the wind direction vector (X, Y, Z) and a
 \texttt{floatSliderGrp} for magnitude become active. An additional checkbox enables
 time-varying (sinusoidal) wind. All five controls are disabled when wind is off,
 preventing irrelevant input.
 
-\textbf{Section 6 --- Force Parameters.}
+\textbf{Section 5 --- Force Parameters.}
 Six numeric controls expose the aerodynamic and vortex parameters that are otherwise
 fixed inside the C++ solver. Vortex gain in each axis (\textit{gain}$_x = 22.0$,
 \textit{gain}$_y = 5.5$, \textit{gain}$_z = 22.0$) and the curl-noise turbulence
-scale $\eta = 3.66$ are pre-set to the Monarch defaults from the paper and are editable
+scale $\eta = 3.66$ are pre-set to the defaults from the paper and are editable
 for fine-tuning. Maximum flight speed (m/s) and sliding-window size $k$ (default 10
 frames) complete this section.
 
-\textbf{Section 7 --- Swarm Settings (conditional).}
+\textbf{Section 6 --- Swarm Settings (conditional).}
 Three \texttt{intFieldGrp} / \texttt{floatFieldGrp} controls set the number of
 simulated agents, their spatial spread at initialization (in metres), and the
 inter-agent repulsion radius used to keep butterflies from overlapping.
 
-\textbf{Section 8 --- Output Settings.}
+\textbf{Section 7 --- Output Settings.}
 Integer fields for start frame and simulation duration (in frames), an integer field for
 frame rate, and an \texttt{optionMenuGrp} for export format
 (\textit{Maya Keyframes}, \textit{Alembic (.abc)}, \textit{FBX (.fbx)}) define how the
@@ -417,8 +408,8 @@ Three full-width buttons occupy the bottom row:
     hierarchy across the simulated frame range, writing standard Maya keyframe curves.
     If an Alembic or FBX export format is selected, the appropriate export command is
     also triggered.
-  \item \textbf{Reset} (red): Restores all controls to their default values, clears
-    the rig and path fields, and re-applies the Monarch species preset.
+  \item \textbf{Reset} (red): Restores all controls to their default values and clears
+    the rig and path fields.
 \end{itemize}
 
 \subsubsection{User Tasks}
@@ -432,36 +423,31 @@ to one or more GUI controls described in Section~1.4.1.
     the naming prefix and records the joint handle. This operation must be performed before
     any simulation can run.
 
-  \item \textbf{Choose Species Preset.} The user picks \textit{Monarch},
-    \textit{Swallowtail}, or \textit{Custom} from the Section~2 drop-down. Named species
-    auto-fill body mass and wing area with paper-derived values and lock those fields;
-    \textit{Custom} leaves both fields editable.
-
-  \item \textbf{Select Simulation Mode.} The Section~3 drop-down switches between
+  \item \textbf{Select Simulation Mode.} The Section~2 drop-down switches between
     \textit{Free Flight}, \textit{Path Following}, and \textit{Swarm} modes. The selection
     controls which additional sections (4 or 7) are shown and which simulation code path
     is activated on \textit{Simulate}.
 
   \item \textbf{Set Path Curve (Path Following mode only).} The user selects an existing
-    NURBS curve in the viewport and clicks \textit{Select} in Section~4 to designate it
+    NURBS curve in the viewport and clicks \textit{Select} in Section~3 to designate it
     as the flight path. A follow-strength slider controls how tightly the butterfly tracks
     the curve.
 
   \item \textbf{Enable and Configure Wind.} Checking the \textit{Enable Wind} box in
-    Section~5 activates direction and magnitude controls. The user sets a world-space
+    Section~4 activates direction and magnitude controls. The user sets a world-space
     direction vector and a magnitude (m/s), and can optionally enable time-varying
     sinusoidal wind to simulate gusts.
 
-  \item \textbf{Tune Force Parameters.} Section~6 exposes the six low-level numerical
+  \item \textbf{Tune Force Parameters.} Section~5 exposes the six low-level numerical
     parameters of the simulation. Expert users or TDs may adjust vortex gains
     (\textit{gain}$_{x,y,z}$), the curl-noise scale $\eta$, maximum flight speed, and
     the sliding-window size $k$ to achieve different flight characters.
 
-  \item \textbf{Configure Swarm (Swarm mode only).} Section~7 lets the user specify the
+  \item \textbf{Configure Swarm (Swarm mode only).} Section~6 lets the user specify the
     number of agents, their spatial spread radius at spawn, and the inter-agent repulsion
     radius to prevent overlap.
 
-  \item \textbf{Set Output Settings.} Section~8 defines the simulation time range (start
+  \item \textbf{Set Output Settings.} Section~7 defines the simulation time range (start
     frame, duration in frames, and frame rate) and the desired export format (Maya
     keyframes, Alembic, or FBX).
 
@@ -476,8 +462,8 @@ to one or more GUI controls described in Section~1.4.1.
     command is triggered immediately after baking.
 
   \item \textbf{Reset.} The red \textit{Reset} button clears all input fields and
-    restores every control to its factory default, including re-applying the Monarch
-    species preset and hiding the conditional sections.
+    restores every control to its factory default, including hiding the conditional
+    sections.
 \end{itemize}
 
 \textbf{Prior knowledge required.} Users must be comfortable with standard Maya
@@ -485,7 +471,7 @@ operations: importing and referencing scene assets, selecting and naming joints,
 creating NURBS curves with the \textit{EP Curve} or \textit{CV Curve} tools, and
 exporting scenes via Alembic or FBX. No knowledge of aerodynamics, numerical integration,
 or MEL/Python programming is required to operate the tool; the force parameters in
-Section~6 carry sensible species-tuned defaults and need not be touched for typical use.
+Section~5 carry sensible defaults and need not be touched for typical use.
 
 \newpage
 \subsubsection{Work Flow}
@@ -522,7 +508,7 @@ visible and the bake step writing curves for all agents.
 \node[proc, below=of begin]         (import)  {Import rigged butterfly mesh into Maya scene};
 \node[proc, below=of import]        (open)    {Source \texttt{butterFlight\_ui.mel}; open panel};
 \node[proc, below=of open]          (assign)  {Assign \texttt{BF\_thorax} root joint (Select button)};
-\node[proc, below=of assign]        (params)  {Set species preset, simulation mode, and parameters};
+\node[proc, below=of assign]        (params)  {Set simulation mode and parameters};
 \node[proc, below=of params]        (simulate){Click \textbf{Simulate}};
 \node[proc, below=of simulate]      (bake)    {Click \textbf{Bake to Keyframes}};
 \node[proc, below=of bake]          (export)  {Render or export via Alembic\,/\,FBX};
@@ -540,7 +526,7 @@ visible and the bake step writing curves for all agents.
 
 \end{tikzpicture}
 \caption{ButterFlight workflow. After opening the panel and assigning a rig, the user
-  configures species, mode, and simulation parameters, runs the simulation, then
+  configures mode and simulation parameters, runs the simulation, then
   bakes the result to standard Maya keyframes and optionally triggers an Alembic or
   FBX export.}
 \label{fig:workflow}
@@ -730,8 +716,7 @@ Equations~2--3), and $k = 10$ is the sliding window size.
 
   \item \textbf{Empirical polynomial coefficients.} The lift and drag coefficient
     curves $C_l(\alpha)$ and $C_d(\alpha)$ are fitted from experimental data
-    and applied uniformly across both species. Species-specific coefficients
-    are not available in the paper and are not modeled.
+    and applied uniformly.
 
   \item \textbf{Vortex force at thorax CoM only.} Applying $\mathbf{F}_{\mathrm{vor}}$
     to the thorax rather than individual wing polygons avoids uncontrolled twisting.
@@ -783,7 +768,7 @@ via the standard \texttt{MFnPlugin} mechanism. It exposes one custom
 
 \begin{itemize}
   \item \textbf{\texttt{BFSimulateCmd} (subclass of \texttt{MPxCommand})}.
-    Parses all simulation flags (rig root, mode, species parameters, force
+    Parses all simulation flags (rig root, mode, physical parameters, force
     parameters, frame range), runs the per-frame simulation loop, and writes
     joint rotations and root translations directly to the scene using
     \texttt{MFnAnimCurve} and \texttt{MAnimControl}.
@@ -870,7 +855,7 @@ The C++ plugin layer is organized around six classes:
 
   \item \textbf{BFWingModel} --- Evaluates Equations~1--3 each frame to compute
     target joint angles given the current maneuvering inputs. Stores
-    species-specific parameters: mass, wing area, nominal flapping frequency,
+    physical parameters: mass, wing area, nominal flapping frequency,
     amplitude, and phase offsets for each joint.
 
   \item \textbf{BFAerodynamics} --- Computes quasi-steady lift and drag forces
@@ -880,7 +865,7 @@ The C++ plugin layer is organized around six classes:
 
   \item \textbf{BFCurlNoise} --- Generates the curl of a 3-D Perlin noise field
     (Equation~7) at a query position using a finite-difference curl approximation.
-    Applies the species-independent gain and $\eta$ constants to produce the vortex
+    Applies the gain and $\eta$ constants to produce the vortex
     force applied to the thorax centre of mass.
 
   \item \textbf{BFManeuverController} --- Implements the preferred-acceleration and
@@ -1017,9 +1002,9 @@ path-following locomotion. It targets the milestone date of \textbf{March 25}.
   \item \textbf{Single butterfly, path-follow mode} --- the user selects a NURBS
     curve as the flight path; the butterfly's thorax centre of mass tracks the
     curve while maneuvering control (Module 3) handles orientation and speed.
-  \item \textbf{Default species model (Monarch preset)} --- fixed mass $0.428\,$g,
-    wing area $26\,$cm$^2$, and nominal flapping parameters; no custom-species
-    input in this version.
+  \item \textbf{Fixed physical parameters} --- mass $0.428\,$g,
+    wing area $26\,$cm$^2$, and nominal flapping parameters derived from
+    Monarch butterfly data in Chen et al.
   \item \textbf{Full wing kinematics (Module 1)} --- all nine joints animated per
     frame using the maneuvering function (Eq.~1) with sigmoid frequency and
     amplitude (Eqs.~2--3).
@@ -1043,7 +1028,7 @@ reproduce.
 \subsubsection{Beta Version Features}
 
 The beta release extends the alpha with wind simulation, swarm locomotion, and
-custom species support. It targets the milestone date of \textbf{April 15} and
+export integration. It targets the milestone date of \textbf{April 15} and
 delivers a feature-complete tool ahead of the final demo.
 
 \paragraph{New features added upon alpha.}
@@ -1064,7 +1049,7 @@ delivers a feature-complete tool ahead of the final demo.
   \item \textbf{Alembic / FBX export integration} --- the Bake to Keys step is
     complemented by an \textit{Export Cache} button that fires Maya's built-in
     Alembic or FBX export after baking, writing a self-contained cache file.
-  \item \textbf{Full MEL UI panel} --- the Species Preset, Wind, and Swarm Settings
+  \item \textbf{Full MEL UI panel} --- the Wind and Swarm Settings
     sections (hidden in alpha) become active; mode-switching between Path and Swarm
     dynamically shows or hides the relevant control groups.
 \end{itemize}
@@ -1159,7 +1144,7 @@ is verified by scrubbing the timeline manually.
   \item \textbf{Subtask 2.2 --- Maneuvering Function (Eqs.~1--3)}: Implement
     \texttt{BFWingModel::update}, which computes target joint angles $\theta^*$ each
     frame using the cosine maneuvering function and the sigmoid frequency and
-    amplitude modifiers, seeded with the species-specific nominal values from
+    amplitude modifiers, seeded with the nominal values from
     Table~\ref{tab:params}.
   \item \textbf{Subtask 2.3 --- Joint-Rotation Applicator}: Write the helper that
     retrieves each named joint (\texttt{BF\_thorax}, \texttt{BF\_forewing\_L}, etc.)
@@ -1254,20 +1239,19 @@ stage is the primary acceptance criterion for the alpha milestone.
 \textbf{Duration:} 1 week \quad \textbf{Assigned:} Cecilia Chen
 
 This task completes \texttt{butterFlight\_ui.mel} with all eight collapsible
-frameLayout sections, species-preset auto-fill, mode-dependent section visibility,
+frameLayout sections, mode-dependent section visibility,
 and the three action buttons. The panel must correctly collect every parameter and
 forward it as a flag to the \texttt{bfSimulate} command, and the Bake to Keys button
 must invoke Maya's \texttt{bakeResults} on the correct joint set. This task also
 includes usability testing to ensure the panel behaves correctly on first load.
 
 \begin{itemize}
-  \item \textbf{Subtask 6.1 --- Full Control Layout}: Implement all eight
-    frameLayout sections (Rig Assignment, Species Preset, Simulation Mode, Path
+  \item \textbf{Subtask 6.1 --- Full Control Layout}: Implement all seven
+    frameLayout sections (Rig Assignment, Simulation Mode, Path
     Settings, Wind, Force Parameters, Swarm Settings, Output Settings) with correct
     control types, default values, and collapsible state.
   \item \textbf{Subtask 6.2 --- Callbacks}: Implement \texttt{bfUpdateMode}
-    (show/hide Path and Swarm sections), \texttt{bfUpdateSpecies} (auto-fill and
-    lock fields for named presets, unlock for Custom), and \texttt{bfWindToggle}
+    (show/hide Path and Swarm sections) and \texttt{bfWindToggle}
     (enable/disable gain sliders).
   \item \textbf{Subtask 6.3 --- Command Invocation and Bake}: Implement
     \texttt{bfSimulate} (collect all control values and call the C++ command with
@@ -1423,7 +1407,7 @@ plugin loaded.
 
 \textbf{Target date: April 15.} \quad
 The beta milestone extends the alpha with wind simulation, swarm locomotion,
-custom species support, and export. All alpha tasks remain complete; the following
+and export integration. All alpha tasks remain complete; the following
 additional tasks must also be finished:
 
 \begin{itemize}
@@ -1446,9 +1430,8 @@ In addition to all alpha criteria, an evaluator should be able to: (1)~enable Wi
 and observe visibly erratic trajectory deviation from the NURBS path in \\
 \texttt{scenes/beta\_wind\_demo.mb}; (2)~open \texttt{scenes/beta\_swarm\_demo.mb},
 run Simulate with five butterflies, and see loosely cohesive swarm behaviour with
-per-agent wing-motion variation; (3)~click \textit{Export Cache} and receive a
-valid \texttt{.abc} or \texttt{.fbx} file; and (4)~select the Swallowtail preset
-and observe different mass and wing-area values auto-filled in the panel.
+per-agent wing-motion variation; and (3)~click \textit{Export Cache} and receive a
+valid \texttt{.abc} or \texttt{.fbx} file.
 
 \subsection{Schedule}
 
