@@ -1,6 +1,6 @@
 # ButterFlight
 
-![](img/MonarchButterfly.jpg)
+![](img/thumb.png)
 
 **Team Members:** Cecilia Chen and Yiding Tian
 
