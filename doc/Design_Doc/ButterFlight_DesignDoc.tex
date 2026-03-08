@@ -1111,15 +1111,15 @@ round-trip. Completing this task unblocks parallel development of the simulation
 modules.
 
 \begin{itemize}
-  \item \textbf{Subtask 1.1 --- CMake Build Configuration}: Configure
+  \item \textbf{Subtask 1.1 --- CMake Build Configuration} \textit{(2 days --- Cecilia Chen, Yiding Tian)}: Configure
     \texttt{CMakeLists.txt} to locate the Maya 2026 devkit headers and import
     libraries, generate a Visual Studio 2022 solution, and produce a signed
     \texttt{butterFlight.mll} that loads cleanly in Maya's Plug-in Manager.
-  \item \textbf{Subtask 1.2 --- BFSimulateCmd Skeleton}: Implement and register a
+  \item \textbf{Subtask 1.2 --- BFSimulateCmd Skeleton} \textit{(2 days --- Cecilia Chen, Yiding Tian)}: Implement and register a
     minimal \texttt{BFSimulateCmd} (MPxCommand subclass) that accepts a
     \texttt{-startFrame}/\texttt{-endFrame} flag pair and prints a confirmation
     string to the Script Editor without performing any simulation.
-  \item \textbf{Subtask 1.3 --- MEL Round-Trip Verification}: Write the opening
+  \item \textbf{Subtask 1.3 --- MEL Round-Trip Verification} \textit{(1 day --- Cecilia Chen, Yiding Tian)}: Write the opening
     \texttt{butterFlight\_ui.mel} stub (window with a single Simulate button) and
     confirm that clicking it successfully invokes \texttt{bfSimulate} and reads the
     Script Editor output, proving the full MEL-to-C++ pipeline is functional.
@@ -1137,20 +1137,20 @@ Correct joint-rotation application via \texttt{MFnIkJoint} and \texttt{MFnTransf
 is verified by scrubbing the timeline manually.
 
 \begin{itemize}
-  \item \textbf{Subtask 2.1 --- BFState Struct and Joint Enum}: Define the
+  \item \textbf{Subtask 2.1 --- BFState Struct and Joint Enum} \textit{(2 days --- Yiding Tian)}: Define the
     \texttt{BFState} plain-old-data struct (position, velocity, nine joint angles,
     phase accumulator, sliding-window circular buffer) and a \texttt{BFJoint} enum
     mapping the nine skeleton joints to array indices.
-  \item \textbf{Subtask 2.2 --- Maneuvering Function (Eqs.~1--3)}: Implement
+  \item \textbf{Subtask 2.2 --- Maneuvering Function (Eqs.~1--3)} \textit{(3 days --- Yiding Tian)}: Implement
     \texttt{BFWingModel::update}, which computes target joint angles $\theta^*$ each
     frame using the cosine maneuvering function and the sigmoid frequency and
     amplitude modifiers, seeded with the nominal values from
     Table~\ref{tab:params}.
-  \item \textbf{Subtask 2.3 --- Joint-Rotation Applicator}: Write the helper that
+  \item \textbf{Subtask 2.3 --- Joint-Rotation Applicator} \textit{(2 days --- Yiding Tian)}: Write the helper that
     retrieves each named joint (\texttt{BF\_thorax}, \texttt{BF\_forewing\_L}, etc.)
     via \texttt{MFnDagNode} and sets its local rotation via \texttt{MFnTransform},
     enforcing the correct rotation order (XYZ) to match the paper's DOF conventions.
-  \item \textbf{Subtask 2.4 --- Visual Verification}: Manually scrub a 60-frame
+  \item \textbf{Subtask 2.4 --- Visual Verification} \textit{(3 days --- Yiding Tian)}: Manually scrub a 60-frame
     preview with the Monarch preset and confirm that forewing flap, feather, and
     sweep joints animate correctly, the hindwings follow in phase, and the abdomen
     rotates counter-phase to the thorax pitch.
@@ -1168,15 +1168,15 @@ resulting forces are accumulated into \texttt{BFState::velocity} via Newton's se
 law and the per-frame timestep.
 
 \begin{itemize}
-  \item \textbf{Subtask 3.1 --- Wing-Panel Normal Computation}: Approximate each
+  \item \textbf{Subtask 3.1 --- Wing-Panel Normal Computation} \textit{(2 days --- Cecilia Chen)}: Approximate each
     wing panel's outward normal from the cross product of the forewing joint's local
     X and Y axes in world space, providing the geometric input needed for
     angle-of-attack computation without querying \texttt{MFnMesh}.
-  \item \textbf{Subtask 3.2 --- Lift/Drag Polynomial Evaluation (Eqs.~4--6)}:
+  \item \textbf{Subtask 3.2 --- Lift/Drag Polynomial Evaluation (Eqs.~4--6)} \textit{(3 days --- Cecilia Chen)}:
     Implement the $C_l(\alpha)$ and $C_d(\alpha)$ empirical polynomial evaluators
     and the lift/drag force equations using air density $\rho=1.225\,\text{kg/m}^3$
     and per-wing panel area from \texttt{BFWingModel}.
-  \item \textbf{Subtask 3.3 --- Newton Integration}: Accumulate net aerodynamic
+  \item \textbf{Subtask 3.3 --- Newton Integration} \textit{(3 days --- Cecilia Chen)}: Accumulate net aerodynamic
     force across all four wings, divide by butterfly mass to obtain acceleration,
     and add it to \texttt{BFState::velocity} scaled by the per-frame timestep
     $\Delta t = 1/\text{fps}$.
@@ -1194,15 +1194,15 @@ closed-form derivative, keeping the implementation straightforward. Gain constan
 $\eta = 3.66$) are hardcoded as defaults and exposed through the MEL UI Wind section.
 
 \begin{itemize}
-  \item \textbf{Subtask 4.1 --- 3-D Gradient Perlin Noise}: Implement a
+  \item \textbf{Subtask 4.1 --- 3-D Gradient Perlin Noise} \textit{(2 days --- Cecilia Chen)}: Implement a
     gradient-based Perlin noise function suitable for three-dimensional queries,
     using a permutation table and quintic interpolation to match the smoothness
     properties required by the curl approximation.
-  \item \textbf{Subtask 4.2 --- Finite-Difference Curl (Eq.~7)}: Compute
+  \item \textbf{Subtask 4.2 --- Finite-Difference Curl (Eq.~7)} \textit{(2 days --- Cecilia Chen)}: Compute
     $\nabla \times (s_1/g_x,\, s_2/g_y,\, s_3/g_z)$ via forward finite differences
     with step size $\epsilon = 0.01$, then scale by $\eta$ to produce the vortex
     force vector applied to the thorax.
-  \item \textbf{Subtask 4.3 --- UI Integration}: Wire the Wind section of the MEL
+  \item \textbf{Subtask 4.3 --- UI Integration} \textit{(1 day --- Cecilia Chen)}: Wire the Wind section of the MEL
     panel (\textit{Enable Wind} checkbox and gain sliders) to flags on
     \texttt{bfSimulate}, and verify that toggling wind on and off produces
     noticeably different trajectory noise in a 100-frame test run.
@@ -1220,15 +1220,16 @@ each frame before joint angles are applied. Correct path-following behaviour at 
 stage is the primary acceptance criterion for the alpha milestone.
 
 \begin{itemize}
-  \item \textbf{Subtask 5.1 --- Preferred Acceleration (Eq.~8)}: Implement the
+  \item \textbf{Subtask 5.1 --- Preferred Acceleration (Eq.~8)} \textit{(3 days --- Yiding Tian)}: Implement the
     ramp function that computes preferred acceleration toward the next path CV or
     swarm centroid, clamped by the species maximum speed, and blended with a look-ahead
     distance to prevent overshooting sharp curves.
-  \item \textbf{Subtask 5.2 --- Local Acceleration Decoupling (Eqs.~10--11)}:
+  \item \textbf{Subtask 5.2 --- Local Acceleration Decoupling (Eqs.~10--11)}\\
+    \textit{(2 days --- Yiding Tian)}:
     Compute local aerodynamic acceleration from the net wing forces and subtract
     the component already accounted for by preferred acceleration, then integrate
     both into \texttt{BFState::velocity} and \texttt{position} per Eq.~11.
-  \item \textbf{Subtask 5.3 --- Sliding-Window Smoother (Eq.~12)}: Implement the
+  \item \textbf{Subtask 5.3 --- Sliding-Window Smoother (Eq.~12)} \textit{(3 days --- Yiding Tian)}: Implement the
     $k=10$ weighted circular buffer in \texttt{BFState} and apply the smoother to
     the body control-point position each frame, verifying that the resulting
     trajectory is smooth relative to a raw (unsmoothened) reference run.
@@ -1246,14 +1247,16 @@ must invoke Maya's \texttt{bakeResults} on the correct joint set. This task also
 includes usability testing to ensure the panel behaves correctly on first load.
 
 \begin{itemize}
-  \item \textbf{Subtask 6.1 --- Full Control Layout}: Implement all seven
+  \item \textbf{Subtask 6.1 --- Full Control Layout} \textit{(2 days --- Cecilia Chen)}: Implement all seven
     frameLayout sections (Rig Assignment, Simulation Mode, Path
     Settings, Wind, Force Parameters, Swarm Settings, Output Settings) with correct
     control types, default values, and collapsible state.
-  \item \textbf{Subtask 6.2 --- Callbacks}: Implement \texttt{bfUpdateMode}
+  \item \textbf{Subtask 6.2 --- Callbacks} \textit{(1 day --- Cecilia Chen)}:
+    Implement \texttt{bfUpdateMode}
     (show/hide Path and Swarm sections) and \texttt{bfWindToggle}
     (enable/disable gain sliders).
-  \item \textbf{Subtask 6.3 --- Command Invocation and Bake}: Implement
+  \item \textbf{Subtask 6.3 --- Command Invocation and Bake}\\
+    \textit{(2 days --- Cecilia Chen)}: Implement
     \texttt{bfSimulate} (collect all control values and call the C++ command with
     assembled flags) and \texttt{bfBakeKeyframes} (query the rig root, enumerate
     descendant joints, and call \texttt{bakeResults} over the simulation frame
@@ -1271,14 +1274,14 @@ end-to-end testing are resolved here. Completion of this task marks the
 \textbf{Alpha milestone (March 25)}.
 
 \begin{itemize}
-  \item \textbf{Subtask 7.1 --- End-to-End Integration Test}: Load the plugin and
+  \item \textbf{Subtask 7.1 --- End-to-End Integration Test} \textit{(1 day --- Cecilia Chen, Yiding Tian)}: Load the plugin and
     MEL panel, assign a rigged Monarch mesh to a NURBS path, run Simulate for
     200 frames, and confirm that joint animation curves are written correctly to the
     rig without Maya errors or crashes.
-  \item \textbf{Subtask 7.2 --- Integration Bug Fixes}: Resolve any discrepancies
+  \item \textbf{Subtask 7.2 --- Integration Bug Fixes} \textit{(1 day --- Cecilia Chen, Yiding Tian)}: Resolve any discrepancies
     between expected and observed joint motion (rotation-order mismatches, incorrect
     world-to-local transforms, frame-offset errors) identified during Subtask 7.1.
-  \item \textbf{Subtask 7.3 --- Alpha Scene Packaging}: Save the verified scene as
+  \item \textbf{Subtask 7.3 --- Alpha Scene Packaging} \textit{(1 day --- Cecilia Chen, Yiding Tian)}: Save the verified scene as
     \texttt{scenes/alpha\_demo.mb}, document the required plugin and MEL file in the
     README, and tag the Git repository at the alpha commit.
 \end{itemize}

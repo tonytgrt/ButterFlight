@@ -7,3 +7,4 @@ swigwin-4.0.1/
 *.synctex.gz
 *.log
 doc/Progress_Report
+.DS_Store
