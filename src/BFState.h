@@ -46,6 +46,13 @@ struct BFManeuverAngles {
     double thetaPhi   = 0.0;  // abdomen rotation
 };
 
+// ---- Per-species wing geometry (SI units) ------------------
+struct BFWingParams {
+    double forewingArea    = 0.00065;  // m²  (6.5 cm² per forewing, Monarch)
+    double hindwingArea    = 0.00065;  // m²  (6.5 cm² per hindwing, Monarch)
+    double meanChordRadius = 0.025;    // m   (mean distance from joint to center of pressure)
+};
+
 // ---- Per-butterfly simulation state ------------------------
 struct BFState {
     BFSkeleton       skeleton;
