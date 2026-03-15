@@ -41,7 +41,7 @@ MStatus BFSimulateCmd::readSkeleton(const MString& rootJointName,
                                     BFSkeleton&    outSkeleton)
 {
     MStatus status;
-    outSkeleton.valid = false;
+    outSkeleton.valid = false; 
 
     // ---- 1. Locate the root joint in the scene ---------------
     MSelectionList selList;
