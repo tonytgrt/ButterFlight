@@ -98,7 +98,26 @@ MStatus BFSimulateCmd::readSkeleton(const MString& rootJointName,
     // Store the thorax (root) joint
     outSkeleton.joints[kThorax] = rootPath;
 
-    // ---- 2. Build a name-to-index map for expected children --
+    // ---- 2. Walk up to the parent of BF_thorax ---------------
+    //  In the actual rig, BF_abdomen is a sibling of BF_thorax
+    //  (both children of BF_body), not a descendant.  Starting
+    //  the search from the parent ensures we find all joints.
+    MDagPath searchRoot = rootPath;
+    MFnDagNode rootDagFn(rootPath, &status);
+    if (status == MS::kSuccess && rootDagFn.parentCount() > 0) {
+        MObject parentObj = rootDagFn.parent(0, &status);
+        if (status == MS::kSuccess) {
+            MFnDagNode parentFn(parentObj, &status);
+            if (status == MS::kSuccess) {
+                MDagPath parentPath;
+                status = parentFn.getPath(parentPath);
+                if (status == MS::kSuccess)
+                    searchRoot = parentPath;
+            }
+        }
+    }
+
+    // ---- 3. Build a name-to-index map for expected joints ----
     struct JointMapping {
         const char* name;
         BFJointId   id;
@@ -116,19 +135,19 @@ MStatus BFSimulateCmd::readSkeleton(const MString& rootJointName,
     // Track which joints we still need to find
     bool found[kExpectedCount] = {};
 
-    // ---- 3. Depth-first traversal of the hierarchy -----------
-    //  MItDag iterates every DAG node under rootPath that passes
-    //  the MFn::kJoint filter, so we visit only joint nodes.
+    // ---- 4. Depth-first traversal from the parent ------------
+    //  Starting from the parent of BF_thorax (typically BF_body)
+    //  so we find both children (wings) and siblings (abdomen).
     MItDag dagIter(MItDag::kDepthFirst, MFn::kJoint, &status);
     if (status != MS::kSuccess) {
         MGlobal::displayError(
             "ButterFlight: Failed to create DAG iterator.");
         return MS::kFailure;
     }
-    status = dagIter.reset(rootPath, MItDag::kDepthFirst, MFn::kJoint);
+    status = dagIter.reset(searchRoot, MItDag::kDepthFirst, MFn::kJoint);
     if (status != MS::kSuccess) {
         MGlobal::displayError(
-            "ButterFlight: Failed to reset DAG iterator to root.");
+            "ButterFlight: Failed to reset DAG iterator to search root.");
         return MS::kFailure;
     }
 
@@ -218,13 +237,13 @@ static void applyAngles(const BFSkeleton&       skel,
             MEulerRotation::kXYZ));
     }
 
-    // Forewing R — mirror flap and sweep
+    // Forewing R — same angles (mirrorBehavior joints handle mirroring)
     MFnTransform fwrFn(skel.joints[kForewingR], &st);
     if (st == MS::kSuccess) {
         fwrFn.setRotation(MEulerRotation(
             deg2rad(ang.thetaZeta),
-            deg2rad(-ang.thetaPsi),
-            deg2rad(-ang.thetaGamma),
+            deg2rad(ang.thetaPsi),
+            deg2rad(ang.thetaGamma),
             MEulerRotation::kXYZ));
     }
 
@@ -236,11 +255,11 @@ static void applyAngles(const BFSkeleton&       skel,
             MEulerRotation::kXYZ));
     }
 
-    // Hindwing R — flap mirrored
+    // Hindwing R — same angle (mirrorBehavior)
     MFnTransform hwrFn(skel.joints[kHindwingR], &st);
     if (st == MS::kSuccess) {
         hwrFn.setRotation(MEulerRotation(
-            0.0, 0.0, deg2rad(-ang.thetaGamma),
+            0.0, 0.0, deg2rad(ang.thetaGamma),
             MEulerRotation::kXYZ));
     }
 
@@ -332,19 +351,19 @@ static void writeAllKeys(const BFSkeleton&       skel,
                        deg2rad(ang.thetaPsi),
                        deg2rad(ang.thetaGamma)), time);
 
-    // Forewing R (mirrored)
+    // Forewing R (same angles — mirrorBehavior joints handle mirroring)
     writeRotationKey(skel.joints[kForewingR],
         MEulerRotation(deg2rad(ang.thetaZeta),
-                       deg2rad(-ang.thetaPsi),
-                       deg2rad(-ang.thetaGamma)), time);
+                       deg2rad(ang.thetaPsi),
+                       deg2rad(ang.thetaGamma)), time);
 
     // Hindwing L
     writeRotationKey(skel.joints[kHindwingL],
         MEulerRotation(0.0, 0.0, deg2rad(ang.thetaGamma)), time);
 
-    // Hindwing R (mirrored)
+    // Hindwing R (same angle — mirrorBehavior)
     writeRotationKey(skel.joints[kHindwingR],
-        MEulerRotation(0.0, 0.0, deg2rad(-ang.thetaGamma)), time);
+        MEulerRotation(0.0, 0.0, deg2rad(ang.thetaGamma)), time);
 
     // Abdomen
     writeRotationKey(skel.joints[kAbdomen],

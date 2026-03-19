@@ -34,6 +34,7 @@ set(SOURCES
     src/BFCurlNoise.cpp
     src/BFManeuverController.cpp
     src/test/test_aerodynamics.cpp
+    src/test/test_integration.cpp
 )
 
 set(HEADERS
@@ -44,6 +45,7 @@ set(HEADERS
     src/BFCurlNoise.h
     src/BFManeuverController.h
     src/test/BFTestAeroCmd.h
+    src/test/BFTestIntegrationCmd.h
 )
 
 # ---- Plugin target ------------------------------------------------------------

@@ -70,13 +70,17 @@ struct BFState {
 
     // Per-angle current frequency (Hz) and amplitude (degrees),
     // held constant within one flapping cycle, recomputed at cycle boundaries.
-    // Indexed by BFAngleId (0..4).  Defaults are Monarch hovering values.
+    // Indexed by BFAngleId (0..4).
+    // Defaults are mid-range hovering values (approximately sigmoid at |u|/|u_max| ≈ 0.5).
+    // The sigmoid in BFWingModel::update() will adjust these at the first cycle
+    // boundary based on the actual velocity.
+    //                                        beta  gamma  zeta   psi    phi
     static constexpr int kNumAngles = 5;
-    double           perAngleFreq[kNumAngles] = { 3.0, 11.0, 11.0, 11.0, 11.0 };
-    double           perAngleAmp [kNumAngles] = { 30.0, 150.0, 10.0, 20.0, 35.0 };
+    double           perAngleFreq[kNumAngles] = { 1.5,  5.5,   5.5,   5.5,   5.5  };
+    double           perAngleAmp [kNumAngles] = { 15.0, 50.0,  5.0,   10.0,  17.0 };
 
-    // Legacy scalar frequency used for cycle-boundary detection (max of per-angle freqs)
-    double           frequency = 11.0;  // Hz  (Monarch default ~9-11 Hz)
+    // Master frequency used for cycle-boundary detection (max of per-angle freqs)
+    double           frequency = 5.5;  // Hz  (hovering default, ramps up with speed)
 
     // Sliding-window history for the smoother (Eq. 12, k = 10)
     // Each inner vector has kNumAngles entries per cycle snapshot.
