@@ -8,6 +8,7 @@
 
 #include "BFSimulateCmd.h"
 #include "test/BFTestAeroCmd.h"
+#include "test/BFTestIntegrationCmd.h"
 
 // ---- initializePlugin --------------------------------------
 MStatus initializePlugin(MObject obj)
@@ -24,12 +25,19 @@ MStatus initializePlugin(MObject obj)
         return status;
     }
 
-    // Register test command
+    // Register test commands
     status = plugin.registerCommand(
         BFTestAeroCmd::kCommandName,
         BFTestAeroCmd::creator);
     if (status != MS::kSuccess) {
         MGlobal::displayWarning("ButterFlight: Failed to register bfTestAero command.");
+    }
+
+    status = plugin.registerCommand(
+        BFTestIntegrationCmd::kCommandName,
+        BFTestIntegrationCmd::creator);
+    if (status != MS::kSuccess) {
+        MGlobal::displayWarning("ButterFlight: Failed to register bfTestIntegration command.");
     }
 
     MGlobal::displayInfo("ButterFlight v0.1 loaded.");
@@ -41,6 +49,7 @@ MStatus uninitializePlugin(MObject obj)
 {
     MFnPlugin plugin(obj);
 
+    plugin.deregisterCommand(BFTestIntegrationCmd::kCommandName);
     plugin.deregisterCommand(BFTestAeroCmd::kCommandName);
 
     MStatus status = plugin.deregisterCommand(BFSimulateCmd::kCommandName);
