@@ -68,11 +68,18 @@ struct BFState {
     double           phase     = 0.0;
     int              flapCycle = 0;
 
-    // Current frequency and amplitude (smoothed across cycles)
-    double           frequency = 9.0;  // Hz  (Monarch default ~9-11 Hz)
-    double           amplitude = 1.0;  // normalised
+    // Per-angle current frequency (Hz) and amplitude (degrees),
+    // held constant within one flapping cycle, recomputed at cycle boundaries.
+    // Indexed by BFAngleId (0..4).  Defaults are Monarch hovering values.
+    static constexpr int kNumAngles = 5;
+    double           perAngleFreq[kNumAngles] = { 3.0, 11.0, 11.0, 11.0, 11.0 };
+    double           perAngleAmp [kNumAngles] = { 30.0, 150.0, 10.0, 20.0, 35.0 };
+
+    // Legacy scalar frequency used for cycle-boundary detection (max of per-angle freqs)
+    double           frequency = 11.0;  // Hz  (Monarch default ~9-11 Hz)
 
     // Sliding-window history for the smoother (Eq. 12, k = 10)
-    std::vector<double> freqHistory;
-    std::vector<double> ampHistory;
+    // Each inner vector has kNumAngles entries per cycle snapshot.
+    std::vector<std::vector<double>> freqHistory;
+    std::vector<std::vector<double>> ampHistory;
 };

@@ -4,6 +4,7 @@
 // ============================================================
 
 #include "BFSimulateCmd.h"
+#include "BFWingModel.h"
 
 #include <maya/MGlobal.h>
 #include <maya/MSelectionList.h>
@@ -12,6 +13,22 @@
 #include <maya/MItDag.h>
 #include <maya/MFn.h>
 #include <maya/MArgList.h>
+#include <maya/MFnTransform.h>
+#include <maya/MEulerRotation.h>
+#include <maya/MAnimControl.h>
+#include <maya/MTime.h>
+#include <maya/MFnAnimCurve.h>
+#include <maya/MPlug.h>
+#include <maya/MPlugArray.h>
+#include <maya/MFnDependencyNode.h>
+
+#include <cmath>
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
+static inline double deg2rad(double d) { return d * M_PI / 180.0; }
 
 // ---- Command name registered with Maya ---------------------
 const char* BFSimulateCmd::kCommandName = "bfSimulate";
@@ -19,8 +36,14 @@ const char* BFSimulateCmd::kCommandName = "bfSimulate";
 // ---- Flag constants ----------------------------------------
 static const char* kRigFlag      = "-r";
 static const char* kRigFlagLong  = "-rigRoot";
-static const char* kModeFlag     = "-m";
-static const char* kModeFlagLong = "-mode";
+static const char* kModeFlag       = "-m";
+static const char* kModeFlagLong   = "-mode";
+static const char* kDurFlag        = "-d";
+static const char* kDurFlagLong    = "-duration";
+static const char* kFpsFlag        = "-f";
+static const char* kFpsFlagLong    = "-frameRate";
+static const char* kStartFlag      = "-s";
+static const char* kStartFlagLong  = "-startFrame";
 
 // ============================================================
 // newSyntax — declare accepted flags
@@ -29,7 +52,10 @@ MSyntax BFSimulateCmd::newSyntax()
 {
     MSyntax syntax;
     syntax.addFlag(kRigFlag,  kRigFlagLong,  MSyntax::kString);
-    syntax.addFlag(kModeFlag, kModeFlagLong, MSyntax::kLong);
+    syntax.addFlag(kModeFlag,  kModeFlagLong,  MSyntax::kLong);
+    syntax.addFlag(kDurFlag,   kDurFlagLong,   MSyntax::kLong);
+    syntax.addFlag(kFpsFlag,   kFpsFlagLong,   MSyntax::kDouble);
+    syntax.addFlag(kStartFlag, kStartFlagLong, MSyntax::kLong);
     // TODO: add remaining flags (mass, wingArea, gains, eta, etc.)
     return syntax;
 }
@@ -158,6 +184,174 @@ MStatus BFSimulateCmd::readSkeleton(const MString& rootJointName,
 }
 
 // ============================================================
+// applyAngles — set joint rotations from maneuvering angles
+//
+// Axis mapping (assumes Maya default Y-up, Z-forward rig):
+//   Thorax  (BF_thorax):     pitch = rotateX
+//   Forewing L/R:            flap  = rotateZ, feather = rotateX, sweep = rotateY
+//   Hindwing L/R:            flap  = rotateZ  (1 DOF only)
+//   Abdomen (BF_abdomen):    pitch = rotateX
+//
+// Left/right mirroring: flap (Z) and sweep (Y) are negated for
+// the right side so bilateral wings move symmetrically.
+// ============================================================
+static void applyAngles(const BFSkeleton&       skel,
+                        const BFManeuverAngles&  ang)
+{
+    MStatus st;
+
+    // Thorax pitch
+    MFnTransform thoraxFn(skel.joints[kThorax], &st);
+    if (st == MS::kSuccess) {
+        thoraxFn.setRotation(MEulerRotation(
+            deg2rad(ang.thetaBeta), 0.0, 0.0,
+            MEulerRotation::kXYZ));
+    }
+
+    // Forewing L — flap(Z), feather(X), sweep(Y)
+    MFnTransform fwlFn(skel.joints[kForewingL], &st);
+    if (st == MS::kSuccess) {
+        fwlFn.setRotation(MEulerRotation(
+            deg2rad(ang.thetaZeta),
+            deg2rad(ang.thetaPsi),
+            deg2rad(ang.thetaGamma),
+            MEulerRotation::kXYZ));
+    }
+
+    // Forewing R — mirror flap and sweep
+    MFnTransform fwrFn(skel.joints[kForewingR], &st);
+    if (st == MS::kSuccess) {
+        fwrFn.setRotation(MEulerRotation(
+            deg2rad(ang.thetaZeta),
+            deg2rad(-ang.thetaPsi),
+            deg2rad(-ang.thetaGamma),
+            MEulerRotation::kXYZ));
+    }
+
+    // Hindwing L — flap only (1 DOF)
+    MFnTransform hwlFn(skel.joints[kHindwingL], &st);
+    if (st == MS::kSuccess) {
+        hwlFn.setRotation(MEulerRotation(
+            0.0, 0.0, deg2rad(ang.thetaGamma),
+            MEulerRotation::kXYZ));
+    }
+
+    // Hindwing R — flap mirrored
+    MFnTransform hwrFn(skel.joints[kHindwingR], &st);
+    if (st == MS::kSuccess) {
+        hwrFn.setRotation(MEulerRotation(
+            0.0, 0.0, deg2rad(-ang.thetaGamma),
+            MEulerRotation::kXYZ));
+    }
+
+    // Abdomen rotation (opposite phase to wings, encoded in phi_p = -180)
+    MFnTransform abdFn(skel.joints[kAbdomen], &st);
+    if (st == MS::kSuccess) {
+        abdFn.setRotation(MEulerRotation(
+            deg2rad(ang.thetaPhi), 0.0, 0.0,
+            MEulerRotation::kXYZ));
+    }
+}
+
+// ============================================================
+// ensureAnimCurve — find or create an animCurveTL/TA on a plug
+// ============================================================
+static MFnAnimCurve::AnimCurveType curveTypeForRotate()
+{
+    return MFnAnimCurve::kAnimCurveTA;  // time → angular
+}
+
+static MObject ensureAnimCurve(const MDagPath& joint,
+                               const char*     attrName,
+                               MStatus&        outStatus)
+{
+    MFnDependencyNode depFn(joint.node(), &outStatus);
+    if (outStatus != MS::kSuccess) return MObject::kNullObj;
+
+    MPlug plug = depFn.findPlug(attrName, true, &outStatus);
+    if (outStatus != MS::kSuccess) return MObject::kNullObj;
+
+    // If the plug is already connected to an anim curve, reuse it
+    if (plug.isConnected()) {
+        MPlugArray conns;
+        plug.connectedTo(conns, true, false);
+        if (conns.length() > 0) {
+            MObject curveObj = conns[0].node();
+            if (curveObj.hasFn(MFn::kAnimCurve)) {
+                outStatus = MS::kSuccess;
+                return curveObj;
+            }
+        }
+    }
+
+    // Create a new anim curve
+    MFnAnimCurve curveFn;
+    MObject curveObj = curveFn.create(plug, curveTypeForRotate(), nullptr, &outStatus);
+    return curveObj;
+}
+
+// ============================================================
+// writeRotationKey — set one (X,Y,Z) rotation keyframe
+// ============================================================
+static void writeRotationKey(const MDagPath&        joint,
+                             const MEulerRotation&  rot,
+                             const MTime&           time)
+{
+    MStatus st;
+    const char* attrs[3] = { "rotateX", "rotateY", "rotateZ" };
+    double      vals [3] = { rot.x,     rot.y,     rot.z     };  // already in radians
+
+    for (int i = 0; i < 3; ++i) {
+        MObject curveObj = ensureAnimCurve(joint, attrs[i], st);
+        if (st != MS::kSuccess || curveObj.isNull()) continue;
+
+        MFnAnimCurve curveFn(curveObj, &st);
+        if (st != MS::kSuccess) continue;
+
+        // addKey uses the curve's angle unit; TA curves expect radians
+        unsigned int idx;
+        curveFn.addKey(time, vals[i], MFnAnimCurve::kTangentAuto,
+                       MFnAnimCurve::kTangentAuto, nullptr, &st);
+    }
+}
+
+// ============================================================
+// writeAllKeys — write keyframes for all joints at one frame
+// ============================================================
+static void writeAllKeys(const BFSkeleton&       skel,
+                         const BFManeuverAngles&  ang,
+                         const MTime&             time)
+{
+    // Thorax
+    writeRotationKey(skel.joints[kThorax],
+        MEulerRotation(deg2rad(ang.thetaBeta), 0.0, 0.0), time);
+
+    // Forewing L
+    writeRotationKey(skel.joints[kForewingL],
+        MEulerRotation(deg2rad(ang.thetaZeta),
+                       deg2rad(ang.thetaPsi),
+                       deg2rad(ang.thetaGamma)), time);
+
+    // Forewing R (mirrored)
+    writeRotationKey(skel.joints[kForewingR],
+        MEulerRotation(deg2rad(ang.thetaZeta),
+                       deg2rad(-ang.thetaPsi),
+                       deg2rad(-ang.thetaGamma)), time);
+
+    // Hindwing L
+    writeRotationKey(skel.joints[kHindwingL],
+        MEulerRotation(0.0, 0.0, deg2rad(ang.thetaGamma)), time);
+
+    // Hindwing R (mirrored)
+    writeRotationKey(skel.joints[kHindwingR],
+        MEulerRotation(0.0, 0.0, deg2rad(-ang.thetaGamma)), time);
+
+    // Abdomen
+    writeRotationKey(skel.joints[kAbdomen],
+        MEulerRotation(deg2rad(ang.thetaPhi), 0.0, 0.0), time);
+}
+
+// ============================================================
 // doIt — entry point when the MEL layer calls "bfSimulate"
 // ============================================================
 MStatus BFSimulateCmd::doIt(const MArgList& args)
@@ -167,7 +361,7 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
     if (status != MS::kSuccess) {
         MGlobal::displayError("ButterFlight: Failed to parse command flags.");
         return status;
-    }
+    } 
 
     // ---- Read the rig root joint name ------------------------
     MString rigName;
@@ -177,13 +371,54 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
         MGlobal::displayError("ButterFlight: -rig flag is required.");
         return MS::kInvalidParameter;
     }
-
+     
     // ---- Resolve skeleton ------------------------------------
     status = readSkeleton(rigName, m_state.skeleton);
     if (status != MS::kSuccess) return status;
 
-    // TODO: parse remaining flags, run simulation loop, write keyframes
-    MGlobal::displayInfo("ButterFlight: Skeleton ready. Simulation not yet implemented.");
+    // ---- Parse optional simulation flags -----------------------
+    int duration   = 60;
+    double fps     = 24.0;
+    int startFrame = 1;
+
+    if (argData.isFlagSet(kDurFlag))
+        argData.getFlagArgument(kDurFlag, 0, duration);
+    if (argData.isFlagSet(kFpsFlag))
+        argData.getFlagArgument(kFpsFlag, 0, fps);
+    if (argData.isFlagSet(kStartFlag))
+        argData.getFlagArgument(kStartFlag, 0, startFrame);
+
+    if (fps <= 0.0) fps = 24.0;
+    double dt = 1.0 / fps;
+
+    // ---- Initialise wing model (Monarch defaults) ------------
+    BFWingModel wingModel;
+
+    // ---- Simulation loop -------------------------------------
+    for (int f = startFrame; f < startFrame + duration; ++f) {
+
+        // 1. Evaluate maneuvering angles (Subtask 2.2)
+        wingModel.update(m_state, dt);
+
+        // 2. Apply joint rotations (Subtask 2.3)
+        applyAngles(m_state.skeleton, m_state.angles);
+
+        // 3. Write keyframes (Subtask 2.3)
+        MTime frameTime((double)f, MTime::uiUnit());
+        writeAllKeys(m_state.skeleton, m_state.angles, frameTime);
+
+        // --- Tasks 3-5 will add force computation and velocity integration here ---
+    }
+
+    // ---- Set playback range to cover baked frames ---------------
+    MAnimControl::setMinTime(MTime((double)startFrame, MTime::uiUnit()));
+    MAnimControl::setMaxTime(MTime((double)(startFrame + duration - 1), MTime::uiUnit()));
+
+    // ---- Report -----------------------------------------------
+    MGlobal::displayInfo(
+        MString("ButterFlight: Baked ") + duration +
+        " frames (" + startFrame + "-" + (startFrame + duration - 1) +
+        "), " + m_state.flapCycle + " flap cycles.");
     return MS::kSuccess;
 }
 
