@@ -226,3 +226,47 @@ Implemented the parametric maneuvering function from Chen et al. 2022 (Eqs. 1–
 - The master frequency for cycle-period detection uses the maximum across all angles (gamma in practice)
 - Phase offset (`phi_p`) is converted to radians inside `evalAngle()`; all stored parameters and outputs are in degrees
 - Sliding-window smoothing (Eq. 12) is deferred to Task 5 (BFManeuverController)
+
+---
+
+## 2026-03-19 — Subtask 2.3: Joint-Rotation Applicator & Keyframe Baking (Yiding Tian)
+
+### Overview
+
+Implemented the joint-rotation applicator that maps the five maneuvering angles to Maya joint rotations, and the keyframe writer that bakes the simulation into animation curves so the result is scrubbable on the timeline.
+
+### Files Modified
+
+#### `src/BFSimulateCmd.cpp`
+
+- Added includes: `MFnAnimCurve.h`, `MPlug.h`, `MPlugArray.h`, `MFnDependencyNode.h`
+- Added `deg2rad()` helper
+- **`applyAngles()`** — static function that sets joint rotations from `BFManeuverAngles`:
+  - Thorax: `thetaBeta` → rotateX (pitch)
+  - Forewing L: `thetaZeta` → rotateX (feather), `thetaPsi` → rotateY (sweep), `thetaGamma` → rotateZ (flap)
+  - Forewing R: same as L but flap and sweep negated for bilateral symmetry
+  - Hindwing L: `thetaGamma` → rotateZ (flap, 1 DOF)
+  - Hindwing R: flap negated
+  - Abdomen: `thetaPhi` → rotateX (counter-phase to wings, encoded via phi_p = -180°)
+- **`ensureAnimCurve()`** — finds an existing `kAnimCurveTA` (time→angular) on a rotation plug, or creates one if none exists
+- **`writeRotationKey()`** — writes a single (X,Y,Z) rotation keyframe on a joint at a given `MTime`, using `MFnAnimCurve::addKey` with auto tangents
+- **`writeAllKeys()`** — calls `writeRotationKey` for all 6 joints with the correct mirroring
+- **Simulation loop** now calls `applyAngles()` and `writeAllKeys()` each frame
+- After the loop, sets Maya's playback range (`MAnimControl::setMinTime/setMaxTime`) to the baked frame range
+- Updated completion message to report frame range and flap cycle count
+
+### Axis Mapping
+
+| Angle | Joint(s) | Axis | Mirror |
+|-------|----------|------|--------|
+| thetaBeta (thorax pitch) | BF_thorax | rotateX | — |
+| thetaGamma (flap) | BF_forewing_L/R, BF_hindwing_L/R | rotateZ | negate R |
+| thetaZeta (feather) | BF_forewing_L/R | rotateX | same |
+| thetaPsi (sweep) | BF_forewing_L/R | rotateY | negate R |
+| thetaPhi (abdomen) | BF_abdomen | rotateX | — |
+
+### Notes
+
+- The axis mapping assumes Maya's default joint orientation. If the rig's joint orient values differ, the X/Y/Z assignments in `applyAngles()` and `writeAllKeys()` need to be adjusted after visual inspection.
+- `writeRotationKey` values are in radians (Maya's `kAnimCurveTA` internal unit).
+- Auto tangents are used for smooth interpolation between keys.
