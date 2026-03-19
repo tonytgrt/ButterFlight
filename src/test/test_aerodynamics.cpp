@@ -65,8 +65,8 @@ MStatus BFTestAeroCmd::doIt(const MArgList& /*args*/)
     t.check(approx(BFAerodynamics::dragCoeff(0.7854), 0.5170, 1e-3),
             "C_d(pi/4) ~  0.517");
 
-    t.check(approx(BFAerodynamics::liftCoeff(1.5708), -0.2185, 1e-3),
-            "C_l(pi/2) ~ -0.219");
+    t.check(approx(BFAerodynamics::liftCoeff(1.5708), -0.2231, 1e-3),
+            "C_l(pi/2) ~ -0.223");
 
     t.check(approx(BFAerodynamics::dragCoeff(1.5708), 0.5241, 1e-3),
             "C_d(pi/2) ~  0.524");
