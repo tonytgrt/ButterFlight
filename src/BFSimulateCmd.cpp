@@ -18,7 +18,7 @@ const char* BFSimulateCmd::kCommandName = "bfSimulate";
 
 // ---- Flag constants ----------------------------------------
 static const char* kRigFlag      = "-r";
-static const char* kRigFlagLong  = "-rig";
+static const char* kRigFlagLong  = "-rigRoot";
 static const char* kModeFlag     = "-m";
 static const char* kModeFlagLong = "-mode";
 
@@ -33,7 +33,7 @@ MSyntax BFSimulateCmd::newSyntax()
     // TODO: add remaining flags (mass, wingArea, gains, eta, etc.)
     return syntax;
 }
-
+ 
 // ============================================================
 // readSkeleton — resolve the joint hierarchy from a root name
 // ============================================================
@@ -41,7 +41,7 @@ MStatus BFSimulateCmd::readSkeleton(const MString& rootJointName,
                                     BFSkeleton&    outSkeleton)
 {
     MStatus status;
-    outSkeleton.valid = false;
+    outSkeleton.valid = false; 
 
     // ---- 1. Locate the root joint in the scene ---------------
     MSelectionList selList;
@@ -163,7 +163,7 @@ MStatus BFSimulateCmd::readSkeleton(const MString& rootJointName,
 MStatus BFSimulateCmd::doIt(const MArgList& args)
 {
     MStatus status;
-    MArgDatabase argData(newSyntax(), args, &status);
+    MArgDatabase argData(syntax(), args, &status);
     if (status != MS::kSuccess) {
         MGlobal::displayError("ButterFlight: Failed to parse command flags.");
         return status;
