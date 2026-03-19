@@ -4,6 +4,7 @@
 // ============================================================
 
 #include "BFSimulateCmd.h"
+#include "BFWingModel.h"
 
 #include <maya/MGlobal.h>
 #include <maya/MSelectionList.h>
@@ -12,6 +13,10 @@
 #include <maya/MItDag.h>
 #include <maya/MFn.h>
 #include <maya/MArgList.h>
+#include <maya/MFnTransform.h>
+#include <maya/MEulerRotation.h>
+#include <maya/MAnimControl.h>
+#include <maya/MTime.h>
 
 // ---- Command name registered with Maya ---------------------
 const char* BFSimulateCmd::kCommandName = "bfSimulate";
@@ -19,8 +24,14 @@ const char* BFSimulateCmd::kCommandName = "bfSimulate";
 // ---- Flag constants ----------------------------------------
 static const char* kRigFlag      = "-r";
 static const char* kRigFlagLong  = "-rigRoot";
-static const char* kModeFlag     = "-m";
-static const char* kModeFlagLong = "-mode";
+static const char* kModeFlag       = "-m";
+static const char* kModeFlagLong   = "-mode";
+static const char* kDurFlag        = "-d";
+static const char* kDurFlagLong    = "-duration";
+static const char* kFpsFlag        = "-f";
+static const char* kFpsFlagLong    = "-frameRate";
+static const char* kStartFlag      = "-s";
+static const char* kStartFlagLong  = "-startFrame";
 
 // ============================================================
 // newSyntax — declare accepted flags
@@ -29,7 +40,10 @@ MSyntax BFSimulateCmd::newSyntax()
 {
     MSyntax syntax;
     syntax.addFlag(kRigFlag,  kRigFlagLong,  MSyntax::kString);
-    syntax.addFlag(kModeFlag, kModeFlagLong, MSyntax::kLong);
+    syntax.addFlag(kModeFlag,  kModeFlagLong,  MSyntax::kLong);
+    syntax.addFlag(kDurFlag,   kDurFlagLong,   MSyntax::kLong);
+    syntax.addFlag(kFpsFlag,   kFpsFlagLong,   MSyntax::kDouble);
+    syntax.addFlag(kStartFlag, kStartFlagLong, MSyntax::kLong);
     // TODO: add remaining flags (mass, wingArea, gains, eta, etc.)
     return syntax;
 }
@@ -167,7 +181,7 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
     if (status != MS::kSuccess) {
         MGlobal::displayError("ButterFlight: Failed to parse command flags.");
         return status;
-    }
+    } 
 
     // ---- Read the rig root joint name ------------------------
     MString rigName;
@@ -177,13 +191,49 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
         MGlobal::displayError("ButterFlight: -rig flag is required.");
         return MS::kInvalidParameter;
     }
-
+     
     // ---- Resolve skeleton ------------------------------------
     status = readSkeleton(rigName, m_state.skeleton);
     if (status != MS::kSuccess) return status;
 
-    // TODO: parse remaining flags, run simulation loop, write keyframes
-    MGlobal::displayInfo("ButterFlight: Skeleton ready. Simulation not yet implemented.");
+    // ---- Parse optional simulation flags -----------------------
+    int duration   = 60;
+    double fps     = 24.0;
+    int startFrame = 1;
+
+    if (argData.isFlagSet(kDurFlag))
+        argData.getFlagArgument(kDurFlag, 0, duration);
+    if (argData.isFlagSet(kFpsFlag))
+        argData.getFlagArgument(kFpsFlag, 0, fps);
+    if (argData.isFlagSet(kStartFlag))
+        argData.getFlagArgument(kStartFlag, 0, startFrame);
+
+    if (fps <= 0.0) fps = 24.0;
+    double dt = 1.0 / fps;
+
+    // ---- Initialise wing model (Monarch defaults) ------------
+    BFWingModel wingModel;
+
+    // ---- Simulation loop -------------------------------------
+    for (int f = startFrame; f < startFrame + duration; ++f) {
+
+        // 1. Evaluate maneuvering angles (Subtask 2.2)
+        wingModel.update(m_state, dt);
+
+        // 2. Apply joint rotations (Subtask 2.3 — placeholder)
+        //    TODO: applyAngles(m_state.skeleton, m_state.angles);
+
+        // 3. Write keyframes (Subtask 2.3 — placeholder)
+        //    TODO: writeRotationKeys(m_state.skeleton, m_state.angles, MTime(f, MTime::uiUnit()));
+
+        // --- Tasks 3-5 will add force computation and velocity integration here ---
+    }
+
+    // ---- Report -----------------------------------------------
+    MGlobal::displayInfo(
+        MString("ButterFlight: Simulation complete — ") + duration +
+        " frames, cycle " + m_state.flapCycle +
+        ", final gamma = " + m_state.angles.thetaGamma + " deg.");
     return MS::kSuccess;
 }
 
