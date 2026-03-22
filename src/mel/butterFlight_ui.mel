@@ -83,14 +83,14 @@ global proc butterFlightUI()
 
             columnLayout -adjustableColumn true -rowSpacing 4;
 
-                text -label "Butterfly Root Joint (BF_thorax):" -align "left";
+                text -label "Butterfly Root Joint (BF_body):" -align "left";
                 global string $bf_rigField;
                 $bf_rigField = `textFieldButtonGrp
                     -label ""
                     -text ""
                     -buttonLabel "Select"
                     -buttonCommand "bfSelectRig"
-                    -placeholderText "Select BF_thorax joint"
+                    -placeholderText "Select BF_body joint"
                     -columnWidth3 0 220 70`;
 
             setParent ..;  // columnLayout
@@ -456,7 +456,7 @@ global proc bfSelectRig()
     if (size($sel) == 0) {
         confirmDialog
             -title "ButterFlight"
-            -message "Please select the BF_thorax root joint first."
+            -message "Please select the BF_body root joint first."
             -button "OK";
         return;
     }
@@ -465,7 +465,7 @@ global proc bfSelectRig()
     if (!startsWith($joint, "BF_")) {
         string $choice = `confirmDialog
             -title "Naming Warning"
-            -message ("Joint \"" + $joint + "\" does not begin with BF_.\nButterFlight expects BF_thorax as the root.\nUse anyway?")
+            -message ("Joint \"" + $joint + "\" does not begin with BF_.\nButterFlight expects BF_body as the root.\nUse anyway?")
             -button "Yes"
             -button "Cancel"
             -defaultButton "Cancel"`;
@@ -744,6 +744,32 @@ global proc bfReset()
 
 
 // ============================================================
+// Menu bar integration
+// ============================================================
+global proc butterFlightMenu()
+{
+    global string $gMainWindow;
+
+    // Remove existing menu if re-sourced
+    if (`menu -exists bf_mainMenu`)
+        deleteUI bf_mainMenu;
+
+    menu -parent $gMainWindow
+         -label "ButterFlight"
+         -tearOff true
+         bf_mainMenu;
+
+        menuItem -label "Open ButterFlight..."
+                 -command "butterFlightUI";
+
+        menuItem -divider true;
+
+        menuItem -label "Quick Simulate (Selected Rig)"
+                 -command "bfSimulate -rigRoot \"BF_body\" -duration 120 -frameRate 24";
+}
+
+// ============================================================
 // Auto-launch when sourced
 // ============================================================
+butterFlightMenu;
 butterFlightUI;
