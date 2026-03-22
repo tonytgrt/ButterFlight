@@ -270,3 +270,30 @@ Implemented the joint-rotation applicator that maps the five maneuvering angles 
 - The axis mapping assumes Maya's default joint orientation. If the rig's joint orient values differ, the X/Y/Z assignments in `applyAngles()` and `writeAllKeys()` need to be adjusted after visual inspection.
 - `writeRotationKey` values are in radians (Maya's `kAnimCurveTA` internal unit).
 - Auto tangents are used for smooth interpolation between keys.
+
+---
+
+## 2026-03-22 — Full Pipeline Integration: Tasks 3-5 into Simulation Loop (Yiding Tian)
+
+### Overview
+
+Wired `BFManeuverController` (Tasks 3-5, implemented by Cecilia) into the main simulation loop in `BFSimulateCmd::doIt()`. Previously, the loop only evaluated maneuvering angles but left velocity at zero, causing the sigmoid to collapse all frequencies/amplitudes to near-zero after the first cycle boundary. Now the full pipeline runs: wing model → force computation → velocity integration → smoothing → keyframe baking.
+
+### Files Modified
+
+#### `src/BFSimulateCmd.cpp`
+
+- Added `#include "BFManeuverController.h"` (pulls in BFAerodynamics and BFCurlNoise transitively)
+- `doIt()` changes:
+  1. Instantiates `BFManeuverController` with Monarch defaults (mass = 0.428g, maxSpeed synced with wingModel)
+  2. Reads initial world-space position from thorax joint via `MFnTransform::getTranslation`
+  3. Simulation loop now follows the pattern documented in `BFManeuverController.cpp`:
+     - Records `prevCycle = state.flapCycle` before wing model update
+     - Calls `wingModel.update(state, dt)` — evaluates Eqs. 1-3, detects cycle boundaries
+     - Calls `controller.step(state, dt)` — computes aero + vortex + gravity forces, integrates velocity/position (Eqs. 8-11)
+     - At cycle boundaries (`flapCycle != prevCycle`): calls `controller.smoothParameters(state)` for Eq. 12 sliding-window
+     - Then applies joint rotations and writes keyframes as before
+
+### Bug Fixed
+
+- **"Only first 6 keyframes have real data":** Root cause was `state.velocity` staying at `(0,0,0)` throughout the simulation. The sigmoid (Eqs. 2-3) at zero speed returns `range / (1 + exp(8)) ≈ 0`, so after the first cycle boundary all frequencies and amplitudes collapsed to near-zero. Now `controller.step()` integrates velocity from aerodynamic lift/drag + curl-noise vortex force + gravity, feeding non-zero speed back into the sigmoid each cycle.
