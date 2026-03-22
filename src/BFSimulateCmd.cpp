@@ -5,6 +5,7 @@
 
 #include "BFSimulateCmd.h"
 #include "BFWingModel.h"
+#include "BFManeuverController.h"
 
 #include <maya/MGlobal.h>
 #include <maya/MSelectionList.h>
@@ -413,20 +414,46 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
     // ---- Initialise wing model (Monarch defaults) ------------
     BFWingModel wingModel;
 
+    // ---- Initialise maneuvering controller (Tasks 3-5) -------
+    BFManeuverController controller;
+    controller.maxSpeed = wingModel.maxSpeed;
+    // controller.hasTarget = false; // no target by default
+    // controller.wind = MVector::zero; // no wind by default
+
+    // ---- Read initial position from thorax joint ---------------
+    {
+        MFnTransform thoraxFn(m_state.skeleton.joints[kThorax], &status);
+        if (status == MS::kSuccess) {
+            MVector worldPos = thoraxFn.getTranslation(MSpace::kWorld, &status);
+            if (status == MS::kSuccess) {
+                m_state.position = MPoint(worldPos.x, worldPos.y, worldPos.z);
+            }
+        }
+    }
+
     // ---- Simulation loop -------------------------------------
     for (int f = startFrame; f < startFrame + duration; ++f) {
 
-        // 1. Evaluate maneuvering angles (Subtask 2.2)
+        // 1. Record previous cycle count for boundary detection
+        int prevCycle = m_state.flapCycle;
+
+        // 2. Evaluate maneuvering angles (Task 2 — Eqs. 1-3)
         wingModel.update(m_state, dt);
 
-        // 2. Apply joint rotations (Subtask 2.3)
+        // 3. Integrate forces, velocity, and position (Tasks 3-5 — Eqs. 8-11)
+        controller.step(m_state, dt);
+
+        // 4. Sliding-window smoothing at cycle boundaries (Eq. 12)
+        if (m_state.flapCycle != prevCycle) {
+            controller.smoothParameters(m_state);
+        }
+
+        // 5. Apply joint rotations (Task 2.3)
         applyAngles(m_state.skeleton, m_state.angles);
 
-        // 3. Write keyframes (Subtask 2.3)
+        // 6. Write keyframes (Task 2.3)
         MTime frameTime((double)f, MTime::uiUnit());
         writeAllKeys(m_state.skeleton, m_state.angles, frameTime);
-
-        // --- Tasks 3-5 will add force computation and velocity integration here ---
     }
 
     // ---- Set playback range to cover baked frames ---------------

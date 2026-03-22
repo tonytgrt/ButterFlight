@@ -83,14 +83,14 @@ global proc butterFlightUI()
 
             columnLayout -adjustableColumn true -rowSpacing 4;
 
-                text -label "Butterfly Root Joint (BF_thorax):" -align "left";
+                text -label "Butterfly Root Joint (BF_body):" -align "left";
                 global string $bf_rigField;
                 $bf_rigField = `textFieldButtonGrp
                     -label ""
                     -text ""
                     -buttonLabel "Select"
                     -buttonCommand "bfSelectRig"
-                    -placeholderText "Select BF_thorax joint"
+                    -placeholderText "Select BF_body joint"
                     -columnWidth3 0 220 70`;
 
             setParent ..;  // columnLayout
@@ -413,7 +413,7 @@ global proc butterFlightUI()
             button
                 -label "Simulate"
                 -backgroundColor 0.2 0.5 0.2
-                -command "bfSimulate"
+                -command "bfSimulateCallback"
                 -annotation "Run the butterfly flight simulation"
                 -width 108;
 
@@ -456,7 +456,7 @@ global proc bfSelectRig()
     if (size($sel) == 0) {
         confirmDialog
             -title "ButterFlight"
-            -message "Please select the BF_thorax root joint first."
+            -message "Please select the BF_body root joint first."
             -button "OK";
         return;
     }
@@ -465,7 +465,7 @@ global proc bfSelectRig()
     if (!startsWith($joint, "BF_")) {
         string $choice = `confirmDialog
             -title "Naming Warning"
-            -message ("Joint \"" + $joint + "\" does not begin with BF_.\nButterFlight expects BF_thorax as the root.\nUse anyway?")
+            -message ("Joint \"" + $joint + "\" does not begin with BF_.\nButterFlight expects BF_body as the root.\nUse anyway?")
             -button "Yes"
             -button "Cancel"
             -defaultButton "Cancel"`;
@@ -568,7 +568,7 @@ global proc bfWindToggle(int $state)
 // ============================================================
 // Callback: Simulate button
 // ============================================================
-global proc bfSimulate()
+global proc bfSimulateCallback()
 {
     global string $bf_rigField;
     global string $bf_modeMenu;
@@ -590,7 +590,7 @@ global proc bfSimulate()
     if ($rig == "") {
         confirmDialog
             -title "ButterFlight"
-            -message "No rig assigned. Please select the BF_thorax root joint."
+            -message "No rig assigned. Please select the BF_body root joint."
             -button "OK";
         return;
     }
@@ -626,16 +626,22 @@ global proc bfSimulate()
     print ("//   Window k:   " + $k         + "\n");
     print ("//   Frames:     " + $startF + " to " + ($startF + $duration - 1) + " @ " + $fps + " fps\n");
 
-    // TODO: Call the C++ plugin command once implemented, e.g.:
-    // butterFlightSimulate
-    //     -rig $rig -mode $mode -mass $mass -wingArea $wingArea
-    //     -gainX $gainX -gainY $gainY -gainZ $gainZ
-    //     -eta $eta -maxSpeed $maxSpeed -window $k
-    //     -startFrame $startF -duration $duration -fps $fps;
+    // Call the C++ bfSimulate command directly
+    print ("// Executing: bfSimulate -rigRoot " + $rig
+           + " -duration " + $duration
+           + " -frameRate " + $fps + "\n");
+
+    if (catch(`bfSimulate -rigRoot $rig -duration $duration -frameRate $fps`)) {
+        confirmDialog
+            -title "ButterFlight"
+            -message "Simulation failed. Check the Script Editor for details."
+            -button "OK";
+        return;
+    }
 
     inViewMessage
         -statusPosition "topCenter"
-        -message "ButterFlight: Simulation parameters collected. C++ plugin not yet connected."
+        -message ("ButterFlight: Simulation complete — " + $duration + " frames baked.")
         -fade true -fadeOutTime 3000;
 }
 
@@ -738,6 +744,32 @@ global proc bfReset()
 
 
 // ============================================================
+// Menu bar integration
+// ============================================================
+global proc butterFlightMenu()
+{
+    global string $gMainWindow;
+
+    // Remove existing menu if re-sourced
+    if (`menu -exists bf_mainMenu`)
+        deleteUI bf_mainMenu;
+
+    menu -parent $gMainWindow
+         -label "ButterFlight"
+         -tearOff true
+         bf_mainMenu;
+
+        menuItem -label "Open ButterFlight..."
+                 -command "butterFlightUI";
+
+        menuItem -divider true;
+
+        menuItem -label "Quick Simulate (Selected Rig)"
+                 -command "bfSimulate -rigRoot \"BF_body\" -duration 120 -frameRate 24";
+}
+
+// ============================================================
 // Auto-launch when sourced
 // ============================================================
+butterFlightMenu;
 butterFlightUI;
