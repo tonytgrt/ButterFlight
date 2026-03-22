@@ -297,3 +297,36 @@ Wired `BFManeuverController` (Tasks 3-5, implemented by Cecilia) into the main s
 ### Bug Fixed
 
 - **"Only first 6 keyframes have real data":** Root cause was `state.velocity` staying at `(0,0,0)` throughout the simulation. The sigmoid (Eqs. 2-3) at zero speed returns `range / (1 + exp(8)) ≈ 0`, so after the first cycle boundary all frequencies and amplitudes collapsed to near-zero. Now `controller.step()` integrates velocity from aerodynamic lift/drag + curl-noise vortex force + gravity, feeding non-zero speed back into the sigmoid each cycle.
+
+---
+
+## 2026-03-22 — Task 6: MEL UI Connected to C++ Simulation Command (Yiding Tian)
+
+### Overview
+
+Connected the ButterFlight MEL UI's Simulate button to the actual `bfSimulate` C++ plugin command. Previously the `bfSimulate()` MEL callback was a stub that only collected parameters and printed a "not yet connected" message.
+
+### Files Modified
+
+#### `src/mel/butterFlight_ui.mel`
+
+- **Renamed `bfSimulate()` proc to `bfSimulateCallback()`** — the MEL proc name was shadowing the C++ `bfSimulate` command, causing Maya to call the MEL proc recursively instead of the plugin command. Renaming eliminates the collision.
+- **Replaced the TODO stub** with a direct call to the C++ command: `` `bfSimulate -rigRoot $rig -duration $duration -frameRate $fps` `` wrapped in `catch` for error handling
+- Shows a success message ("Simulation complete — N frames baked") or an error dialog on failure
+- Updated validation error message to reference `BF_body` (the correct root joint) instead of the old `BF_thorax`
+- Updated the Simulate button's `-command` to call `bfSimulateCallback`
+
+### Bug Fixed
+
+- **"Wrong number of arguments on call to bfSimulate":** The MEL callback proc was originally named `bfSimulate()`, identical to the C++ plugin command. When the callback used `eval("bfSimulate -rigRoot ...")`, MEL resolved `bfSimulate` to the MEL proc (which takes no arguments) instead of the C++ command. Fix: renamed the MEL proc to `bfSimulateCallback()`. Note: after renaming, a fresh Maya session is required to clear the cached proc definition.
+
+### How to Use
+
+1. **Load the plugin:** `loadPlugin "ButterFlight.mll";`
+2. **Open the UI:** `source "butterFlight_ui.mel"; butterFlightUI;`
+3. **Assign rig:** Click the "Select" button next to the Rig Root field, or type `BF_body` directly into the text field.
+4. **Set simulation parameters:**
+   - **Duration** — number of frames to simulate (default 120)
+   - **FPS** — frame rate for the time step (default 24)
+5. **Click "Simulate"** — this calls `bfSimulate -rigRoot "BF_body" -duration 120 -frameRate 24` and bakes keyframes onto all skeleton joints.
+6. **Scrub the timeline** to preview the baked butterfly flight animation.

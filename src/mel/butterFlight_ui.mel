@@ -413,7 +413,7 @@ global proc butterFlightUI()
             button
                 -label "Simulate"
                 -backgroundColor 0.2 0.5 0.2
-                -command "bfSimulate"
+                -command "bfSimulateCallback"
                 -annotation "Run the butterfly flight simulation"
                 -width 108;
 
@@ -568,7 +568,7 @@ global proc bfWindToggle(int $state)
 // ============================================================
 // Callback: Simulate button
 // ============================================================
-global proc bfSimulate()
+global proc bfSimulateCallback()
 {
     global string $bf_rigField;
     global string $bf_modeMenu;
@@ -590,7 +590,7 @@ global proc bfSimulate()
     if ($rig == "") {
         confirmDialog
             -title "ButterFlight"
-            -message "No rig assigned. Please select the BF_thorax root joint."
+            -message "No rig assigned. Please select the BF_body root joint."
             -button "OK";
         return;
     }
@@ -626,16 +626,22 @@ global proc bfSimulate()
     print ("//   Window k:   " + $k         + "\n");
     print ("//   Frames:     " + $startF + " to " + ($startF + $duration - 1) + " @ " + $fps + " fps\n");
 
-    // TODO: Call the C++ plugin command once implemented, e.g.:
-    // butterFlightSimulate
-    //     -rig $rig -mode $mode -mass $mass -wingArea $wingArea
-    //     -gainX $gainX -gainY $gainY -gainZ $gainZ
-    //     -eta $eta -maxSpeed $maxSpeed -window $k
-    //     -startFrame $startF -duration $duration -fps $fps;
+    // Call the C++ bfSimulate command directly
+    print ("// Executing: bfSimulate -rigRoot " + $rig
+           + " -duration " + $duration
+           + " -frameRate " + $fps + "\n");
+
+    if (catch(`bfSimulate -rigRoot $rig -duration $duration -frameRate $fps`)) {
+        confirmDialog
+            -title "ButterFlight"
+            -message "Simulation failed. Check the Script Editor for details."
+            -button "OK";
+        return;
+    }
 
     inViewMessage
         -statusPosition "topCenter"
-        -message "ButterFlight: Simulation parameters collected. C++ plugin not yet connected."
+        -message ("ButterFlight: Simulation complete — " + $duration + " frames baked.")
         -fade true -fadeOutTime 3000;
 }
 
