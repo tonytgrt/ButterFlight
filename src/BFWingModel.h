@@ -37,6 +37,10 @@ public:
     // state.frequency, state.amplitude, and per-angle arrays.
     void update(BFState& state, double dt);
 
+    // Re-evaluate angles from current phase and per-angle freq/amp
+    // without advancing phase or detecting cycle boundaries.
+    void updateAnglesOnly(BFState& state) const;
+
     // Maximum flight speed |u_max| (m/s). Monarch default ~2.0
     double maxSpeed = 2.0;
 

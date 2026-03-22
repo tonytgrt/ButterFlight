@@ -276,13 +276,9 @@ static void applyAngles(const BFSkeleton&       skel,
 // ============================================================
 // ensureAnimCurve — find or create an animCurveTL/TA on a plug
 // ============================================================
-static MFnAnimCurve::AnimCurveType curveTypeForRotate()
-{
-    return MFnAnimCurve::kAnimCurveTA;  // time → angular
-}
-
 static MObject ensureAnimCurve(const MDagPath& joint,
                                const char*     attrName,
+                               MFnAnimCurve::AnimCurveType curveType,
                                MStatus&        outStatus)
 {
     MFnDependencyNode depFn(joint.node(), &outStatus);
@@ -306,7 +302,7 @@ static MObject ensureAnimCurve(const MDagPath& joint,
 
     // Create a new anim curve
     MFnAnimCurve curveFn;
-    MObject curveObj = curveFn.create(plug, curveTypeForRotate(), nullptr, &outStatus);
+    MObject curveObj = curveFn.create(plug, curveType, nullptr, &outStatus);
     return curveObj;
 }
 
@@ -322,7 +318,8 @@ static void writeRotationKey(const MDagPath&        joint,
     double      vals [3] = { rot.x,     rot.y,     rot.z     };  // already in radians
 
     for (int i = 0; i < 3; ++i) {
-        MObject curveObj = ensureAnimCurve(joint, attrs[i], st);
+        MObject curveObj = ensureAnimCurve(joint, attrs[i],
+                                          MFnAnimCurve::kAnimCurveTA, st);
         if (st != MS::kSuccess || curveObj.isNull()) continue;
 
         MFnAnimCurve curveFn(curveObj, &st);
@@ -330,6 +327,30 @@ static void writeRotationKey(const MDagPath&        joint,
 
         // addKey uses the curve's angle unit; TA curves expect radians
         unsigned int idx;
+        curveFn.addKey(time, vals[i], MFnAnimCurve::kTangentAuto,
+                       MFnAnimCurve::kTangentAuto, nullptr, &st);
+    }
+}
+
+// ============================================================
+// writeTranslationKey — set one (X,Y,Z) translation keyframe
+// ============================================================
+static void writeTranslationKey(const MDagPath&  joint,
+                                const MPoint&    pos,
+                                const MTime&     time)
+{
+    MStatus st;
+    const char* attrs[3] = { "translateX", "translateY", "translateZ" };
+    double      vals [3] = { pos.x,        pos.y,        pos.z       };
+
+    for (int i = 0; i < 3; ++i) {
+        MObject curveObj = ensureAnimCurve(joint, attrs[i],
+                                          MFnAnimCurve::kAnimCurveTL, st);
+        if (st != MS::kSuccess || curveObj.isNull()) continue;
+
+        MFnAnimCurve curveFn(curveObj, &st);
+        if (st != MS::kSuccess) continue;
+
         curveFn.addKey(time, vals[i], MFnAnimCurve::kTangentAuto,
                        MFnAnimCurve::kTangentAuto, nullptr, &st);
     }
@@ -414,44 +435,22 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
     // ---- Initialise wing model (Monarch defaults) ------------
     BFWingModel wingModel;
 
-    // ---- Initialise maneuvering controller (Tasks 3-5) -------
-    BFManeuverController controller;
-    controller.maxSpeed = wingModel.maxSpeed;
-    // controller.hasTarget = false; // no target by default
-    // controller.wind = MVector::zero; // no wind by default
-
-    // ---- Read initial position from thorax joint ---------------
-    {
-        MFnTransform thoraxFn(m_state.skeleton.joints[kThorax], &status);
-        if (status == MS::kSuccess) {
-            MVector worldPos = thoraxFn.getTranslation(MSpace::kWorld, &status);
-            if (status == MS::kSuccess) {
-                m_state.position = MPoint(worldPos.x, worldPos.y, worldPos.z);
-            }
-        }
-    }
-
-    // ---- Simulation loop -------------------------------------
+    // ---- Simulation loop (pure kinematics, no forces) --------
+    //  Uses constant default freq/amp from BFState to loop the
+    //  same flapping motion every cycle.
     for (int f = startFrame; f < startFrame + duration; ++f) {
 
-        // 1. Record previous cycle count for boundary detection
-        int prevCycle = m_state.flapCycle;
+        // 1. Advance phase and evaluate angles.
+        //    No cycle-boundary detection needed — cos() is naturally
+        //    periodic, so constant freq/amp produce identical motion
+        //    every cycle with no timing seams.
+        m_state.phase += dt;
+        wingModel.updateAnglesOnly(m_state);
 
-        // 2. Evaluate maneuvering angles (Task 2 — Eqs. 1-3)
-        wingModel.update(m_state, dt);
-
-        // 3. Integrate forces, velocity, and position (Tasks 3-5 — Eqs. 8-11)
-        controller.step(m_state, dt);
-
-        // 4. Sliding-window smoothing at cycle boundaries (Eq. 12)
-        if (m_state.flapCycle != prevCycle) {
-            controller.smoothParameters(m_state);
-        }
-
-        // 5. Apply joint rotations (Task 2.3)
+        // 2. Apply joint rotations
         applyAngles(m_state.skeleton, m_state.angles);
 
-        // 6. Write keyframes (Task 2.3)
+        // 3. Write keyframes
         MTime frameTime((double)f, MTime::uiUnit());
         writeAllKeys(m_state.skeleton, m_state.angles, frameTime);
     }

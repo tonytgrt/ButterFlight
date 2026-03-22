@@ -640,9 +640,9 @@ global proc bfSimulateCallback()
     }
 
     inViewMessage
-        -statusPosition "topCenter"
+        -position "topCenter"
         -message ("ButterFlight: Simulation complete — " + $duration + " frames baked.")
-        -fade true -fadeOutTime 3000;
+        -fade;
 }
 
 
@@ -685,9 +685,9 @@ global proc bfBakeKeyframes()
     }
 
     inViewMessage
-        -statusPosition "topCenter"
+        -position "topCenter"
         -message "ButterFlight: Bake stub executed. Connect C++ plugin to enable."
-        -fade true -fadeOutTime 3000;
+        -fade;
 }
 
 

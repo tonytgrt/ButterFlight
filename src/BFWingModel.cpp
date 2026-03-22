@@ -146,3 +146,25 @@ void BFWingModel::update(BFState& state, double dt)
                                         state.perAngleFreq[kAnglePhi],
                                         state.perAngleAmp[kAnglePhi]);
 }
+
+// ============================================================
+// updateAnglesOnly — re-evaluate angles without advancing phase
+// ============================================================
+void BFWingModel::updateAnglesOnly(BFState& state) const
+{
+    state.angles.thetaBeta  = evalAngle(kAngleBeta,  state.phase,
+                                        state.perAngleFreq[kAngleBeta],
+                                        state.perAngleAmp[kAngleBeta]);
+    state.angles.thetaGamma = evalAngle(kAngleGamma, state.phase,
+                                        state.perAngleFreq[kAngleGamma],
+                                        state.perAngleAmp[kAngleGamma]);
+    state.angles.thetaZeta  = evalAngle(kAngleZeta,  state.phase,
+                                        state.perAngleFreq[kAngleZeta],
+                                        state.perAngleAmp[kAngleZeta]);
+    state.angles.thetaPsi   = evalAngle(kAnglePsi,   state.phase,
+                                        state.perAngleFreq[kAnglePsi],
+                                        state.perAngleAmp[kAnglePsi]);
+    state.angles.thetaPhi   = evalAngle(kAnglePhi,   state.phase,
+                                        state.perAngleFreq[kAnglePhi],
+                                        state.perAngleAmp[kAnglePhi]);
+}
