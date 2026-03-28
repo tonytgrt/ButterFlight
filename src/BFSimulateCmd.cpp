@@ -201,7 +201,7 @@ MStatus BFSimulateCmd::readSkeleton(const MString& rootJointName,
         "ButterFlight: Skeleton loaded successfully from '" +
         rootJointName + "'.");
     return MS::kSuccess;
-}
+} 
 
 // ============================================================
 // applyAngles — set joint rotations from maneuvering angles
