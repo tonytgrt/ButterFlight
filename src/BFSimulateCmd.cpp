@@ -453,29 +453,55 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
     double simRate = 1.0 / (f_gamma_default * flapPeriod);
     double dt_sim  = simRate / fps;
 
-    // ---- Initialise wing model (Monarch defaults) ------------
+    // ---- Initialise wing model and maneuvering controller -----
     BFWingModel wingModel;
+    BFManeuverController controller;
+    controller.maxSpeed = wingModel.maxSpeed;
 
-    // ---- Simulation loop (pure kinematics, no forces) --------
-    //  Uses constant default freq/amp from BFState to loop the
-    //  same flapping motion every cycle.
+    // Initialize position from the root joint's current world translation
+    {
+        MFnTransform rootFn(m_state.skeleton.joints[kThorax], &status);
+        if (status == MS::kSuccess) {
+            MVector t = rootFn.getTranslation(MSpace::kWorld, &status);
+            m_state.position = MPoint(t.x, t.y, t.z);
+        }
+    }
+
+    // ---- Full dynamics simulation loop --------------------------
     //  dt_sim decouples simulation time from FPS: changing FPS only
     //  changes keyframe density, not visible flap speed.
+    //
+    //  Order within each frame:
+    //    1. wingModel.update()  — advance phase, cycle detection,
+    //       sigmoid freq/amp recomputation, evaluate angles
+    //    2. applyAngles()       — push rotations to joints so the
+    //       aerodynamic model reads current wing orientations
+    //    3. controller.step()   — compute forces, integrate velocity
+    //       and position
+    //    4. smoothParameters()  — sliding-window smoother at cycle
+    //       boundaries (Eq. 12)
+    //    5. writeAllKeys() + writeTranslationKey() — bake keyframes
     for (int f = startFrame; f < startFrame + duration; ++f) {
+        int prevCycle = m_state.flapCycle;
 
-        // 1. Advance phase and evaluate angles.
-        //    No cycle-boundary detection needed — cos() is naturally
-        //    periodic, so constant freq/amp produce identical motion
-        //    every cycle with no timing seams.
-        m_state.phase += dt_sim;
-        wingModel.updateAnglesOnly(m_state);
+        // 1. Advance wing kinematics + cycle detection + freq/amp
+        wingModel.update(m_state, dt_sim);
 
-        // 2. Apply joint rotations
+        // 2. Push angles to joints so aero reads current matrices
         applyAngles(m_state.skeleton, m_state.angles);
 
-        // 3. Write keyframes
+        // 3. Integrate forces → velocity → position
+        controller.step(m_state, dt_sim);
+
+        // 4. Eq. 12 smoother at cycle boundaries
+        if (m_state.flapCycle != prevCycle)
+            controller.smoothParameters(m_state);
+
+        // 5. Bake rotation + translation keyframes
         MTime frameTime((double)f, MTime::uiUnit());
         writeAllKeys(m_state.skeleton, m_state.angles, frameTime);
+        writeTranslationKey(m_state.skeleton.joints[kThorax],
+                            m_state.position, frameTime);
     }
 
     // ---- Set playback range to cover baked frames ---------------
