@@ -41,6 +41,9 @@ static const char* kModeFlag       = "-m";
 static const char* kModeFlagLong   = "-mode";
 static const char* kDurFlag        = "-d";
 static const char* kDurFlagLong    = "-duration";
+// NOTE: -frameRate flag kept for backwards compatibility but is
+// ignored — FPS is now read directly from Maya's scene time unit
+// to prevent mismatches between baked keyframes and playback rate.
 static const char* kFpsFlag        = "-f";
 static const char* kFpsFlagLong    = "-frameRate";
 static const char* kStartFlag      = "-s";
@@ -422,22 +425,24 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
 
     // ---- Parse optional simulation flags -----------------------
     int duration   = 60;
-    double fps     = 24.0;
     int startFrame = 1;
-
     double flapPeriod = 1.0;
 
     if (argData.isFlagSet(kDurFlag))
         argData.getFlagArgument(kDurFlag, 0, duration);
-    if (argData.isFlagSet(kFpsFlag))
-        argData.getFlagArgument(kFpsFlag, 0, fps);
     if (argData.isFlagSet(kStartFlag))
         argData.getFlagArgument(kStartFlag, 0, startFrame);
     if (argData.isFlagSet(kFlapPeriodFlag))
         argData.getFlagArgument(kFlapPeriodFlag, 0, flapPeriod);
 
-    if (fps <= 0.0) fps = 24.0;
     if (flapPeriod <= 0.0) flapPeriod = 1.0;
+
+    // Read FPS directly from Maya's scene time unit so that baked
+    // keyframes always match the playback rate.  This prevents the
+    // mismatch where a user-supplied FPS differs from Maya's setting
+    // and inadvertently rescales flap speed.
+    double fps = MTime(1.0, MTime::kSeconds).as(MTime::uiUnit());
+    if (fps <= 0.0) fps = 24.0;
 
     // Convert artist-facing flapPeriod to engine simRate.
     // f_gamma_default is the initial gamma frequency (species constant:
