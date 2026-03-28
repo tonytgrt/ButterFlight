@@ -118,9 +118,11 @@ void BFWingModel::update(BFState& state, double dt)
         }
 
         // The master frequency (used for cycle-period detection)
-        // is the max across all angles — in practice this is the
-        // gamma (flap) frequency, which dominates.
-        state.frequency = (maxFreq > 0.0) ? maxFreq : 0.01;
+        // is the gamma (wing flap) frequency, which defines the
+        // flapping cycle per Section 4.1 of Chen et al. 2022.
+        state.frequency = (state.perAngleFreq[kAngleGamma] > 0.0)
+                          ? state.perAngleFreq[kAngleGamma]
+                          : 0.01;
     }
 
     // ---- 3. Evaluate maneuvering angles (Eq. 1) ----------------

@@ -45,6 +45,8 @@ static const char* kFpsFlag        = "-f";
 static const char* kFpsFlagLong    = "-frameRate";
 static const char* kStartFlag      = "-s";
 static const char* kStartFlagLong  = "-startFrame";
+static const char* kFlapPeriodFlag     = "-fp";
+static const char* kFlapPeriodFlagLong = "-flapPeriod";
 
 // ============================================================
 // newSyntax — declare accepted flags
@@ -57,6 +59,7 @@ MSyntax BFSimulateCmd::newSyntax()
     syntax.addFlag(kDurFlag,   kDurFlagLong,   MSyntax::kLong);
     syntax.addFlag(kFpsFlag,   kFpsFlagLong,   MSyntax::kDouble);
     syntax.addFlag(kStartFlag, kStartFlagLong, MSyntax::kLong);
+    syntax.addFlag(kFlapPeriodFlag, kFlapPeriodFlagLong, MSyntax::kDouble);
     // TODO: add remaining flags (mass, wingArea, gains, eta, etc.)
     return syntax;
 }
@@ -422,15 +425,28 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
     double fps     = 24.0;
     int startFrame = 1;
 
+    double flapPeriod = 1.0;
+
     if (argData.isFlagSet(kDurFlag))
         argData.getFlagArgument(kDurFlag, 0, duration);
     if (argData.isFlagSet(kFpsFlag))
         argData.getFlagArgument(kFpsFlag, 0, fps);
     if (argData.isFlagSet(kStartFlag))
         argData.getFlagArgument(kStartFlag, 0, startFrame);
+    if (argData.isFlagSet(kFlapPeriodFlag))
+        argData.getFlagArgument(kFlapPeriodFlag, 0, flapPeriod);
 
     if (fps <= 0.0) fps = 24.0;
-    double dt = 1.0 / fps;
+    if (flapPeriod <= 0.0) flapPeriod = 1.0;
+
+    // Convert artist-facing flapPeriod to engine simRate.
+    // f_gamma_default is the initial gamma frequency (species constant:
+    // 5.5 Hz for Monarch, from Table 3 of Chen et al. 2022).
+    // simRate = simulation seconds per playback second (analogous to
+    // Unity's Time.timeScale).
+    double f_gamma_default = m_state.perAngleFreq[kAngleGamma];  // 5.5 Hz
+    double simRate = 1.0 / (f_gamma_default * flapPeriod);
+    double dt_sim  = simRate / fps;
 
     // ---- Initialise wing model (Monarch defaults) ------------
     BFWingModel wingModel;
@@ -438,13 +454,15 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
     // ---- Simulation loop (pure kinematics, no forces) --------
     //  Uses constant default freq/amp from BFState to loop the
     //  same flapping motion every cycle.
+    //  dt_sim decouples simulation time from FPS: changing FPS only
+    //  changes keyframe density, not visible flap speed.
     for (int f = startFrame; f < startFrame + duration; ++f) {
 
         // 1. Advance phase and evaluate angles.
         //    No cycle-boundary detection needed — cos() is naturally
         //    periodic, so constant freq/amp produce identical motion
         //    every cycle with no timing seams.
-        m_state.phase += dt;
+        m_state.phase += dt_sim;
         wingModel.updateAnglesOnly(m_state);
 
         // 2. Apply joint rotations
