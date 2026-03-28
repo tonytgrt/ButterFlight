@@ -282,108 +282,337 @@ After the first boundary, the smoother has history and begins
 functioning — subsequent transitions are dampened, which is why the
 motion appears smooth from frame 121 onward.
 
-### 7.3 Why FPS decoupling didn't fix this
+### 7.3 Debug CSV analysis (doc/debug/1.csv)
+
+**Command:**
+`bfSimulate -rigRoot BF_body -duration 960 -flapPeriod 2 -dbg "...1.csv"`
+
+This run includes Fix A (history seeding) and Fix B (±20°/cycle clamp).
+The CSV shows ±10 frames around every cycle boundary.
+
+#### 7.3.1 All cycle boundaries
+
+| Frame | GammaFreq | GammaAmp | ThetaGamma | Prev ThetaGamma | Jump |
+|-------|-----------|----------|------------|-----------------|------|
+| 119   | 5.5       | 50       | 59.93      | —               | —    |
+| **120** | **6.5** | **60** | **80.0**   | 59.93           | **+20.1°** |
+| 221   | 6.5       | 60       | 69.97      | —               | —    |
+| **222** | **7.1** | **66** | **89.9**   | 69.97           | **+19.9°** |
+| 314   | 7.1       | 66       | ~76        | —               | —    |
+| **315** | **7.55**| **70.5**| **95.9**   | ~76             | **~+20°** |
+| 401   | 7.55      | 70.5     | ~80        | —               | —    |
+| **402** | **7.96**| **74.6**| **100.5**  | ~80             | **~+20°** |
+
+The clamp IS working — amplitude grows by exactly `kMaxAmpDelta=20°`
+per cycle instead of 100°.  But the ~20° discontinuity repeats at
+**every** cycle boundary.  It does not diminish over time.
+
+Note: speed is clamped at 2.0 m/s (maxSpeed) throughout.  The sigmoid
+evaluates at s=1.0 and always requests maximum parameter values, so the
+clamp fires at every single boundary, producing a permanent +20° stair-
+step pattern.
+
+#### 7.3.2 The structural problem: amplitude changes at the cosine peak
+
+The cycle boundary fires when `phase >= 1/frequency`, then wraps phase
+to ~0.  At `phase ≈ 0`, `cos(0 + phi_p) = cos(0) = 1.0` for gamma
+(whose `phi_p = 0°`).  And at the end of the old cycle,
+`cos(2π × f × phase_end)` is also ≈ 1.0 because `phase_end ≈ 1/f`
+(one full period).
+
+This means both the **last frame of the old cycle** and the
+**first frame of the new cycle** evaluate the cosine near its peak.
+The angle difference between them is:
+
+```
+theta_new - theta_old = (amp_new × cos_new + mean) - (amp_old × cos_old + mean)
+                      ≈ (amp_new × 1.0) - (amp_old × 1.0)
+                      = amp_new - amp_old
+                      = delta_amp
+```
+
+**Any nonzero amplitude change at a cycle boundary creates a
+discontinuity exactly equal to that amplitude change.**  This is a
+structural consequence of the boundary always falling at `cos ≈ 1`.
+It cannot be fixed by tuning `kMaxAmpDelta` — even `kMaxAmpDelta = 5`
+would produce a visible 5° snap every single cycle.
+
+For the same reason, frequency changes also cause a smaller
+discontinuity: the new frequency shifts the cosine argument for the
+wrapped phase, but since `phase ≈ 0`, this effect is minimal compared
+to the amplitude term.
+
+#### 7.3.3 Smoother timing: one frame too late
+
+The simulation loop order is:
+
+```
+1. wingModel.update()       ← evaluates angles using NEW freq/amp
+2. applyAngles()
+3. controller.step()
+4. smoothParameters()       ← dampens freq/amp AFTER angles are baked
+5. writeAllKeys()           ← writes angles from step 1
+6. debugLog records freq/amp from step 4 (post-smooth)
+```
+
+At a cycle boundary, `wingModel.update()` detects the boundary,
+computes new clamped freq/amp, and immediately evaluates `evalAngle()`
+with those new values.  Only **after** the angles are already computed
+does `smoothParameters()` run and dampen the freq/amp for the **next**
+frame.
+
+This means:
+- The boundary frame always uses **raw clamped** parameters (not
+  smoothed).
+- The CSV shows **post-smooth** values (because debug recording is
+  after step 4), which differ from what was actually used to compute
+  the baked angles.
+- The smoother never has a chance to affect the boundary frame itself.
+
+**Evidence from CSV:**
+
+Frame 120 shows `GammaAmp = 60.0` (post-smooth = 0.5×50 + 0.5×70),
+but `ThetaGamma = 80.0`, which corresponds to `amp = 70` (pre-smooth
+clamped value): `70 × cos(0) + 10 = 80`.  If the smoothed value of 60
+had been used: `60 × cos(0) + 10 = 70`, which would be a 10° jump
+instead of 20°.
+
+### 7.4 Why FPS decoupling didn't fix this
 
 The FPS decoupling correctly separates keyframe rate from flap speed.
 But this bug is not caused by the FPS-flap coupling — it's caused by:
 
 1. The sigmoid mapping `|velocity|` (including gravity freefall) to
-   wing parameters
-2. The smoother having no history to dampen the first cycle transition
+   wing parameters at near-maximum values
+2. Amplitude changes at cycle boundaries produce discontinuities
+   structurally equal to the amplitude delta (cos peak alignment)
+3. The smoother runs after angle evaluation, so it never affects the
+   boundary frame
 
-These two factors are independent of how `dt` is computed.  The
-decoupling was necessary (and still correct), but it was a separate
-concern.
+These factors are independent of how `dt` is computed.  The decoupling
+was necessary (and still correct), but it was a separate concern.
 
-### 7.4 Proposed fixes
+### 7.5 Why Fix A + Fix B (history seeding + clamping) are insufficient
 
-#### Fix A: Seed smoother history with initial defaults
+Fix A (history seeding) ensures the smoother doesn't exit early at the
+first boundary.  Fix B (per-cycle clamping) limits amplitude growth to
+`kMaxAmpDelta` per cycle.  Together they reduced the first-boundary
+jump from 100° to 20°.
 
-Pre-populate `freqHistory` and `ampHistory` with k copies of the
-initial default freq/amp before the simulation starts.  This gives the
-smoother a full window to blend against at the first boundary.
+However, the 20° jump **repeats at every boundary** indefinitely:
+- Speed is maxed at 2.0 m/s from gravity alone.
+- Sigmoid always requests maximum parameter values.
+- Clamp fires every cycle, always adding exactly `kMaxAmpDelta`.
+- The jump equals the amplitude delta because cos ≈ 1 at both sides
+  of the boundary.
+- Reducing `kMaxAmpDelta` makes the jump smaller but also makes the
+  butterfly take more cycles to reach cruising parameters — and the
+  jump still exists.
+
+The smoother (Fix A) does dampen the stored values, but because it
+runs after angle evaluation, it only helps frames **after** the
+boundary — not the boundary frame itself.
+
+### 7.6 Proposed fix strategies
+
+#### Strategy 1: Evaluate angles AFTER smoothing at boundaries
+
+Move `evalAngle()` for boundary frames to after `smoothParameters()`.
+Currently, `wingModel.update()` does both cycle detection and angle
+evaluation in one call.  Splitting these into separate steps would
+allow:
+
+```
+1. wingModel.advancePhaseAndDetectBoundary(state, dt)
+   → advances phase, detects boundary, computes raw new freq/amp
+   → does NOT evaluate angles yet
+
+2. smoothParameters(state)   [if boundary]
+   → dampens freq/amp using history
+
+3. wingModel.evaluateAngles(state)
+   → evaluates angles using the SMOOTHED freq/amp
+```
+
+**Effect:** At frame 120, smoothed amp = 0.5×50 + 0.5×70 = 60°.
+`theta = 60 × cos(0) + 10 = 70°`.  Jump = 70 - 60 = 10° (from 60
+to 70).  Still nonzero, but halved.  Over subsequent boundaries,
+the history blends further and the jumps shrink.
+
+**Limitation:** The smoother's 0.5 × history + 0.5 × current blend
+still allows jumps equal to half the amplitude delta.  At the start
+when the clamp fires every cycle, this is `0.5 × kMaxAmpDelta = 10°`
+— visible but much less severe.
+
+#### Strategy 2: Interpolate parameters within the cycle (no boundary discontinuity)
+
+Instead of changing parameters abruptly at the cycle boundary,
+interpolate between old and new parameters over the first N frames of
+the new cycle:
 
 ```cpp
-// Before the simulation loop:
-std::vector<double> initFreq(BFState::kNumAngles);
-std::vector<double> initAmp(BFState::kNumAngles);
-for (int a = 0; a < BFState::kNumAngles; ++a) {
-    initFreq[a] = m_state.perAngleFreq[a];
-    initAmp[a]  = m_state.perAngleAmp[a];
-}
-for (int i = 0; i < BFManeuverController::kWindowSize; ++i) {
-    m_state.freqHistory.push_back(initFreq);
-    m_state.ampHistory.push_back(initAmp);
+// At boundary: store old and new params
+double ampOld = state.perAngleAmp[i];   // before sigmoid
+double ampNew = clampedSigmoidResult;   // after sigmoid + clamp
+state.perAngleAmpTarget[i] = ampNew;    // target to ramp toward
+
+// Each frame within the cycle:
+double t = state.phase / cyclePeriod;   // 0..1 within cycle
+double blendFraction = smoothstep(0, 0.25, t);  // ramp over first 25%
+double ampEffective = lerp(ampOld, ampTarget, blendFraction);
+theta = ampEffective * cos(2*pi*f*phase + phi_p) + phi_m;
+```
+
+**Effect:** Parameter changes ramp in gradually over the first quarter
+of each cycle.  The boundary frame uses the old parameters, so there
+is **zero discontinuity** at the boundary.  The new parameters are
+fully active by 25% into the cycle, where the cosine has moved away
+from its peak and the amplitude change is less visible.
+
+**Limitation:** Adds per-angle target/old state arrays and a blend
+computation.  Deviates from the paper's instantaneous-at-boundary
+design, but arguably more physically plausible (a real butterfly
+cannot instantaneously change its wing stroke amplitude).
+
+#### Strategy 3: Blend old and new angles (post-hoc smoothing)
+
+Keep the current boundary logic, but blend the post-boundary angle
+with the pre-boundary angle over several frames:
+
+```cpp
+// At boundary: save the angle values from the previous frame
+double prevAngles[kNumAngles] = { state.angles.thetaBeta, ... };
+
+// After evalAngle:
+if (framesAfterBoundary < blendWindow) {
+    double t = framesAfterBoundary / (double)blendWindow;
+    state.angles.thetaGamma = lerp(prevAngles[gamma], state.angles.thetaGamma, t);
+    // ... same for all angles
 }
 ```
 
-**Effect:** First boundary would compute
-`smoothed_amp = 0.5 × 50 + 0.5 × 149.7 = 99.85°` — still a jump,
-but cut in half.  Over subsequent cycles, the smoother continues
-dampening.
+**Effect:** The visible angle transitions smoothly from pre-boundary
+to post-boundary over `blendWindow` frames.  Zero discontinuity.
 
-**Limitation:** 0.5 × history + 0.5 × current still allows a 50% jump
-in one cycle.  May need multiple cycles to settle.
+**Limitation:** The blended angles don't correspond to any physical
+equation — they're purely a visual smoothing post-process.  Could
+produce non-physical intermediate poses.  Also, the aero model would
+see the smoothed angles rather than the true equations, which could
+affect force computation.
 
-#### Fix B: Clamp maximum parameter change per cycle
+#### Strategy 4 (Recommended): Strategy 1 + Strategy 2
 
-After the sigmoid computes raw values, clamp the change relative to
-the previous cycle:
+Split `wingModel.update()` so that:
+1. Phase advance + boundary detection + clamped sigmoid → produces
+   new raw parameters
+2. `smoothParameters()` at boundary → dampens parameters
+3. Within-cycle interpolation ramps from old to new smoothed
+   parameters over first ~25% of cycle
+4. `evalAngle()` uses the interpolated parameters
+
+This eliminates both the smoother-timing problem (Strategy 1) and
+the structural cos-peak alignment problem (Strategy 2).  The result
+is zero discontinuity at boundaries, physically motivated parameter
+ramps, and full compatibility with the paper's Eq. 12 smoother.
+
+### 7.7 Implementation plan for Strategy 4
+
+#### Step 1: Add per-angle "old" and "target" arrays to BFState
 
 ```cpp
-double maxFreqDelta = 2.0;    // Hz per cycle
-double maxAmpDelta  = 20.0;   // degrees per cycle
+// In BFState:
+double perAngleFreqOld[kNumAngles];     // values at start of current cycle
+double perAngleFreqTarget[kNumAngles];  // smoothed values to ramp toward
+double perAngleAmpOld[kNumAngles];
+double perAngleAmpTarget[kNumAngles];
+```
 
-for (int i = 0; i < BFState::kNumAngles; ++i) {
-    double rawFreq = params[i].freqRangeMin + evalSigmoid(speed, freqRange);
-    double rawAmp  = params[i].ampRangeMin  + evalSigmoid(speed, ampRange);
+#### Step 2: Split BFWingModel::update() into three methods
 
-    state.perAngleFreq[i] = std::clamp(rawFreq,
-        state.perAngleFreq[i] - maxFreqDelta,
-        state.perAngleFreq[i] + maxFreqDelta);
-    state.perAngleAmp[i]  = std::clamp(rawAmp,
-        state.perAngleAmp[i] - maxAmpDelta,
-        state.perAngleAmp[i] + maxAmpDelta);
+```cpp
+// Advance phase, detect boundary, compute raw clamped params.
+// Returns true if a boundary was crossed.
+bool advancePhase(BFState& state, double dt);
+
+// Evaluate Eq. 1 using current effective params.
+// Blends old→target over first 25% of cycle.
+void evaluateAngles(BFState& state) const;
+
+// The existing evalAngle() and evalSigmoid() remain as-is.
+```
+
+#### Step 3: Update simulation loop in BFSimulateCmd::doIt()
+
+```cpp
+for (int f = startFrame; f < startFrame + duration; ++f) {
+    // 1. Phase advance + boundary detection
+    bool boundary = wingModel.advancePhase(m_state, dt_sim);
+
+    // 2. Smooth at boundaries (now BEFORE angle evaluation)
+    if (boundary)
+        controller.smoothParameters(m_state);
+
+    // 3. Evaluate angles (uses smoothed + interpolated params)
+    wingModel.evaluateAngles(m_state);
+
+    // 4-5. Apply and bake (unchanged)
+    applyAngles(m_state.skeleton, m_state.angles);
+    controller.step(m_state, dt_sim);
+    MTime frameTime((double)f, MTime::uiUnit());
+    writeAllKeys(m_state.skeleton, m_state.angles, frameTime);
+    writeTranslationKey(m_state.skeleton.joints[kThorax],
+                        m_state.position, frameTime);
 }
 ```
 
-**Effect:** Gamma amplitude can grow by at most 20°/cycle: 50→70→90→...
-Smooth ramp-up over several cycles.
-
-**Limitation:** Adds tuning parameters not in the paper; may delay
-response to legitimate speed changes.
-
-#### Fix C (Recommended): Combine A + B
-
-Seed the history (Fix A) AND apply per-cycle clamping (Fix B).
-History seeding handles the cold-start; clamping prevents any single
-cycle from producing a visible discontinuity regardless of velocity.
-
-This matches the paper's intent: Eq. 12 is designed to prevent abrupt
-transitions, but the paper assumes the simulation starts in a
-quasi-steady state (Unity initializes butterflies with nonzero
-velocity), so it never encounters the empty-history edge case.
-
-#### Fix D (Alternative): Exclude vertical velocity from sigmoid
-
-Use only horizontal speed for the sigmoid evaluation:
+#### Step 4: Implement within-cycle interpolation in evaluateAngles()
 
 ```cpp
-double horizSpeed = std::sqrt(state.velocity.x * state.velocity.x
-                            + state.velocity.z * state.velocity.z);
+void BFWingModel::evaluateAngles(BFState& state) const
+{
+    double cyclePeriod = 1.0 / state.frequency;
+    double cycleT = state.phase / cyclePeriod;       // 0..1 in cycle
+
+    // Ramp fraction: 0 at boundary, 1 at 25% into cycle
+    double ramp = std::min(1.0, cycleT / 0.25);
+    // Smooth the ramp (cubic ease)
+    ramp = ramp * ramp * (3.0 - 2.0 * ramp);
+
+    for (int i = 0; i < BFState::kNumAngles; ++i) {
+        double freq = state.perAngleFreqOld[i]
+                    + ramp * (state.perAngleFreqTarget[i] - state.perAngleFreqOld[i]);
+        double amp  = state.perAngleAmpOld[i]
+                    + ramp * (state.perAngleAmpTarget[i] - state.perAngleAmpOld[i]);
+        // evalAngle uses the interpolated freq/amp
+        // ...
+    }
+}
 ```
 
-This prevents gravity-induced freefall from being interpreted as fast
-forward flight.  However, this deviates from the paper's formulation
-which uses `|u|` (total velocity magnitude), and may cause issues for
-butterflies that intentionally dive.
+#### Step 5: Files to modify
 
-### 7.5 Recommended implementation order
+| File | Change |
+|------|--------|
+| `src/BFState.h` | Add `perAngleFreqOld/Target`, `perAngleAmpOld/Target` arrays |
+| `src/BFWingModel.h` | Declare `advancePhase()` and `evaluateAngles()` |
+| `src/BFWingModel.cpp` | Split `update()` into three methods; implement within-cycle interpolation |
+| `src/BFSimulateCmd.cpp` | Reorder loop to: advancePhase → smoothParameters → evaluateAngles → applyAngles → step → writeKeys |
 
-1. Apply **Fix A** (seed history) — minimal code change, immediately
-   prevents the smoother bypass.
-2. Apply **Fix B** (per-cycle clamping) — prevents any future
-   discontinuity regardless of velocity conditions.
-3. Test with fps=60, flapPeriod=2s — verify no snap at frame 120.
-4. Tune `maxAmpDelta` / `maxFreqDelta` if the ramp-up is too slow
-   or too fast for the desired visual result.
+#### Step 6: Expected results
+
+At frame 120 (first boundary, fps=60, flapPeriod=2s):
+- `advancePhase()` detects boundary, clamps amp to 70° (old=50 + 20).
+- `smoothParameters()` blends: target = 0.5×50 + 0.5×70 = 60°.
+- Old amp = 50°, target amp = 60°.  `cycleT = 0/period = 0`.
+  `ramp = 0`.  Effective amp = 50° (old value).
+- `theta = 50 × cos(0) + 10 = 60°` — **identical to frame 119**.
+  **Zero discontinuity.**
+
+At frame 121:
+- `cycleT ≈ 1/120 ≈ 0.008`.  `ramp ≈ 0.033`.
+  Effective amp = 50 + 0.033 × (60 - 50) = 50.33°.
+- Smooth ramp begins.
+
+At frame 150 (25% into cycle = 30 frames):
+- `ramp = 1.0`.  Effective amp = 60° (full target).
+- Cycle continues at the new parameters.

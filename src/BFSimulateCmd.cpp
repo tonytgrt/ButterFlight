@@ -24,6 +24,8 @@
 #include <maya/MFnDependencyNode.h>
 
 #include <cmath>
+#include <fstream>
+#include <vector>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -50,6 +52,8 @@ static const char* kStartFlag      = "-s";
 static const char* kStartFlagLong  = "-startFrame";
 static const char* kFlapPeriodFlag     = "-fp";
 static const char* kFlapPeriodFlagLong = "-flapPeriod";
+static const char* kDebugCsvFlag       = "-dbg";
+static const char* kDebugCsvFlagLong   = "-debugCsv";
 
 // ============================================================
 // newSyntax — declare accepted flags
@@ -63,6 +67,7 @@ MSyntax BFSimulateCmd::newSyntax()
     syntax.addFlag(kFpsFlag,   kFpsFlagLong,   MSyntax::kDouble);
     syntax.addFlag(kStartFlag, kStartFlagLong, MSyntax::kLong);
     syntax.addFlag(kFlapPeriodFlag, kFlapPeriodFlagLong, MSyntax::kDouble);
+    syntax.addFlag(kDebugCsvFlag, kDebugCsvFlagLong, MSyntax::kString);
     // TODO: add remaining flags (mass, wingArea, gains, eta, etc.)
     return syntax;
 }
@@ -437,6 +442,13 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
 
     if (flapPeriod <= 0.0) flapPeriod = 1.0;
 
+    MString debugCsvPath;
+    bool debugEnabled = false;
+    if (argData.isFlagSet(kDebugCsvFlag)) {
+        argData.getFlagArgument(kDebugCsvFlag, 0, debugCsvPath);
+        debugEnabled = true;
+    }
+
     // Read FPS directly from Maya's scene time unit so that baked
     // keyframes always match the playback rate.  This prevents the
     // mismatch where a user-supplied FPS differs from Maya's setting
@@ -467,6 +479,40 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
         }
     }
 
+    // ---- Seed smoother history with initial defaults --------------
+    //  Pre-populate freq/amp history so the Eq. 12 sliding-window
+    //  smoother has a full window to blend against at the very first
+    //  cycle boundary.  Without this, smoothParameters() exits early
+    //  (n < 2) and the raw sigmoid output is applied directly,
+    //  causing a discontinuity.
+    {
+        std::vector<double> initFreq(BFState::kNumAngles);
+        std::vector<double> initAmp(BFState::kNumAngles);
+        for (int a = 0; a < BFState::kNumAngles; ++a) {
+            initFreq[a] = m_state.perAngleFreq[a];
+            initAmp[a]  = m_state.perAngleAmp[a];
+        }
+        for (int i = 0; i < BFManeuverController::kWindowSize; ++i) {
+            m_state.freqHistory.push_back(initFreq);
+            m_state.ampHistory.push_back(initAmp);
+        }
+    }
+
+    // ---- Debug recording structure ---------------------------------
+    struct DebugRecord {
+        int    frame;
+        bool   isBoundary;
+        double phase;
+        double speed;
+        double gammaFreq;
+        double gammaAmp;
+        double masterFreq;
+        double posX, posY, posZ;
+        double thetaBeta, thetaGamma, thetaZeta, thetaPsi, thetaPhi;
+    };
+    std::vector<DebugRecord> debugLog;
+    std::vector<int> boundaryFrameIndices;  // indices into debugLog
+
     // ---- Full dynamics simulation loop --------------------------
     //  dt_sim decouples simulation time from FPS: changing FPS only
     //  changes keyframe density, not visible flap speed.
@@ -493,8 +539,10 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
         // 3. Integrate forces → velocity → position
         controller.step(m_state, dt_sim);
 
+        bool boundary = (m_state.flapCycle != prevCycle);
+
         // 4. Eq. 12 smoother at cycle boundaries
-        if (m_state.flapCycle != prevCycle)
+        if (boundary)
             controller.smoothParameters(m_state);
 
         // 5. Bake rotation + translation keyframes
@@ -502,6 +550,74 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
         writeAllKeys(m_state.skeleton, m_state.angles, frameTime);
         writeTranslationKey(m_state.skeleton.joints[kThorax],
                             m_state.position, frameTime);
+
+        // 6. Record debug data
+        if (debugEnabled) {
+            DebugRecord rec;
+            rec.frame      = f;
+            rec.isBoundary = boundary;
+            rec.phase      = m_state.phase;
+            rec.speed      = m_state.velocity.length();
+            rec.gammaFreq  = m_state.perAngleFreq[kAngleGamma];
+            rec.gammaAmp   = m_state.perAngleAmp[kAngleGamma];
+            rec.masterFreq = m_state.frequency;
+            rec.posX       = m_state.position.x;
+            rec.posY       = m_state.position.y;
+            rec.posZ       = m_state.position.z;
+            rec.thetaBeta  = m_state.angles.thetaBeta;
+            rec.thetaGamma = m_state.angles.thetaGamma;
+            rec.thetaZeta  = m_state.angles.thetaZeta;
+            rec.thetaPsi   = m_state.angles.thetaPsi;
+            rec.thetaPhi   = m_state.angles.thetaPhi;
+            if (boundary)
+                boundaryFrameIndices.push_back((int)debugLog.size());
+            debugLog.push_back(rec);
+        }
+    }
+
+    // ---- Write debug CSV around cycle boundaries ----------------
+    if (debugEnabled && !debugLog.empty()) {
+        std::ofstream csv(debugCsvPath.asChar());
+        if (csv.is_open()) {
+            csv << "Frame,Boundary,Phase,Speed,GammaFreq,GammaAmp,MasterFreq,"
+                   "PosX,PosY,PosZ,"
+                   "ThetaBeta,ThetaGamma,ThetaZeta,ThetaPsi,ThetaPhi\n";
+            csv << std::fixed;
+            csv.precision(6);
+
+            // Collect which log indices to include (±10 around each boundary)
+            std::vector<bool> include(debugLog.size(), false);
+            for (int bi : boundaryFrameIndices) {
+                int lo = std::max(0, bi - 10);
+                int hi = std::min((int)debugLog.size() - 1, bi + 10);
+                for (int i = lo; i <= hi; ++i)
+                    include[i] = true;
+            }
+
+            for (size_t i = 0; i < debugLog.size(); ++i) {
+                if (!include[i]) continue;
+                const DebugRecord& r = debugLog[i];
+                csv << r.frame << ","
+                    << (r.isBoundary ? "YES" : "") << ","
+                    << r.phase << ","
+                    << r.speed << ","
+                    << r.gammaFreq << ","
+                    << r.gammaAmp << ","
+                    << r.masterFreq << ","
+                    << r.posX << "," << r.posY << "," << r.posZ << ","
+                    << r.thetaBeta << ","
+                    << r.thetaGamma << ","
+                    << r.thetaZeta << ","
+                    << r.thetaPsi << ","
+                    << r.thetaPhi << "\n";
+            }
+            csv.close();
+            MGlobal::displayInfo(
+                MString("ButterFlight: Debug CSV written to ") + debugCsvPath);
+        } else {
+            MGlobal::displayWarning(
+                MString("ButterFlight: Could not open debug CSV path: ") + debugCsvPath);
+        }
     }
 
     // ---- Set playback range to cover baked frames ---------------

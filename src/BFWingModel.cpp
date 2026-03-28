@@ -103,15 +103,30 @@ void BFWingModel::update(BFState& state, double dt)
         state.flapCycle++;
 
         // Recompute per-angle frequency and amplitude (Eqs. 2-3)
+        // Raw sigmoid values are clamped relative to the previous
+        // cycle's values to prevent discontinuities — especially at
+        // the first boundary where gravity-induced freefall pushes
+        // the sigmoid to near-maximum output.
+        static constexpr double kMaxFreqDelta = 2.0;   // Hz per cycle
+        static constexpr double kMaxAmpDelta  = 20.0;  // degrees per cycle
+
         double maxFreq = 0.0;
         for (int i = 0; i < BFState::kNumAngles; ++i) {
             double freqRange = params[i].freqRangeMax - params[i].freqRangeMin;
             double ampRange  = params[i].ampRangeMax  - params[i].ampRangeMin;
 
-            state.perAngleFreq[i] = params[i].freqRangeMin
-                                    + evalSigmoid(speed, freqRange);
-            state.perAngleAmp[i]  = params[i].ampRangeMin
-                                    + evalSigmoid(speed, ampRange);
+            double rawFreq = params[i].freqRangeMin
+                             + evalSigmoid(speed, freqRange);
+            double rawAmp  = params[i].ampRangeMin
+                             + evalSigmoid(speed, ampRange);
+
+            // Clamp change per cycle to prevent sudden jumps
+            state.perAngleFreq[i] = std::clamp(rawFreq,
+                state.perAngleFreq[i] - kMaxFreqDelta,
+                state.perAngleFreq[i] + kMaxFreqDelta);
+            state.perAngleAmp[i]  = std::clamp(rawAmp,
+                state.perAngleAmp[i] - kMaxAmpDelta,
+                state.perAngleAmp[i] + kMaxAmpDelta);
 
             if (state.perAngleFreq[i] > maxFreq)
                 maxFreq = state.perAngleFreq[i];
