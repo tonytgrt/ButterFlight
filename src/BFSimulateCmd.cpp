@@ -41,10 +41,15 @@ static const char* kModeFlag       = "-m";
 static const char* kModeFlagLong   = "-mode";
 static const char* kDurFlag        = "-d";
 static const char* kDurFlagLong    = "-duration";
+// NOTE: -frameRate flag kept for backwards compatibility but is
+// ignored — FPS is now read directly from Maya's scene time unit
+// to prevent mismatches between baked keyframes and playback rate.
 static const char* kFpsFlag        = "-f";
 static const char* kFpsFlagLong    = "-frameRate";
 static const char* kStartFlag      = "-s";
 static const char* kStartFlagLong  = "-startFrame";
+static const char* kFlapPeriodFlag     = "-fp";
+static const char* kFlapPeriodFlagLong = "-flapPeriod";
 
 // ============================================================
 // newSyntax — declare accepted flags
@@ -57,6 +62,7 @@ MSyntax BFSimulateCmd::newSyntax()
     syntax.addFlag(kDurFlag,   kDurFlagLong,   MSyntax::kLong);
     syntax.addFlag(kFpsFlag,   kFpsFlagLong,   MSyntax::kDouble);
     syntax.addFlag(kStartFlag, kStartFlagLong, MSyntax::kLong);
+    syntax.addFlag(kFlapPeriodFlag, kFlapPeriodFlagLong, MSyntax::kDouble);
     // TODO: add remaining flags (mass, wingArea, gains, eta, etc.)
     return syntax;
 }
@@ -419,17 +425,32 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
 
     // ---- Parse optional simulation flags -----------------------
     int duration   = 60;
-    double fps     = 24.0;
     int startFrame = 1;
+    double flapPeriod = 1.0;
 
     if (argData.isFlagSet(kDurFlag))
         argData.getFlagArgument(kDurFlag, 0, duration);
-    if (argData.isFlagSet(kFpsFlag))
-        argData.getFlagArgument(kFpsFlag, 0, fps);
     if (argData.isFlagSet(kStartFlag))
         argData.getFlagArgument(kStartFlag, 0, startFrame);
+    if (argData.isFlagSet(kFlapPeriodFlag))
+        argData.getFlagArgument(kFlapPeriodFlag, 0, flapPeriod);
 
+    if (flapPeriod <= 0.0) flapPeriod = 1.0;
+
+    // Read FPS directly from Maya's scene time unit so that baked
+    // keyframes always match the playback rate.  This prevents the
+    // mismatch where a user-supplied FPS differs from Maya's setting
+    // and inadvertently rescales flap speed.
+    double fps = MTime(1.0, MTime::kSeconds).as(MTime::uiUnit());
     if (fps <= 0.0) fps = 24.0;
+
+    // Convert artist-facing flapPeriod to engine simRate.
+    // f_gamma_default is the initial gamma frequency (species constant:
+    // 5.5 Hz for Monarch, from Table 3 of Chen et al. 2022).
+    // simRate = simulation seconds per playback second (analogous to
+    // Unity's Time.timeScale).
+    double f_gamma_default = m_state.perAngleFreq[kAngleGamma];  // 5.5 Hz
+    double simRate = 1.0 / (f_gamma_default * flapPeriod);
 
     // ---- Decouple physics rate from output fps ----------------
     //  The -frameRate flag sets the PLAYBACK / KEYFRAME rate, not the
@@ -441,7 +462,7 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
     //      low output fps (which was causing the amplitude discontinuity)
     static constexpr double kTargetSimHz = 960.0;
     int    substeps = std::max(1, (int)std::ceil(kTargetSimHz / fps));
-    double simDt    = 1.0 / (fps * substeps);  // physics timestep (≈1/960s)
+    double simDt   _sim  = simRate / (fps * substeps);  // physics timestep (≈1/960s)
 
     // ---- Initialise wing model and maneuvering controller ----
     BFWingModel wingModel;

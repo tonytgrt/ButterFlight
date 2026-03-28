@@ -135,18 +135,15 @@ void BFManeuverController::smoothParameters(BFState& state) const
         state.perAngleAmp[a]  = 0.5 * ampAvg  + 0.5 * state.perAngleAmp[a];
     }
 
-    // --- 3. Sync master frequency with smoothed per-angle freqs --
-    //  The master frequency drives cycle-period detection.  If it
-    //  stays at the raw (unsmoothed) value while per-angle freqs
-    //  are smoothed, the cosine in evalAngle won't complete a full
-    //  period before the cycle resets, causing cumulative phase
-    //  drift that inverts the wings after several cycles.
-    double maxSmoothed = 0.0;
-    for (int a = 0; a < numAngles; ++a) {
-        if (state.perAngleFreq[a] > maxSmoothed)
-            maxSmoothed = state.perAngleFreq[a];
-    }
-    state.frequency = (maxSmoothed > 0.0) ? maxSmoothed : 0.01;
+    // --- 3. Sync master frequency with smoothed gamma freq ------
+    //  The master frequency drives cycle-period detection and is
+    //  defined as the gamma (wing flap) frequency per Section 4.1
+    //  of Chen et al. 2022.  Using gamma explicitly (instead of
+    //  max across all angles) makes the intent clear and prevents
+    //  drift if per-species parameter ranges are later customized.
+    state.frequency = (state.perAngleFreq[kAngleGamma] > 0.0)
+                      ? state.perAngleFreq[kAngleGamma]
+                      : 0.01;
 
     // --- 4. Trim history to avoid unbounded growth ---------------
     //  Keep at most kWindowSize + 1 entries.

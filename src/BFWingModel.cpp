@@ -107,9 +107,33 @@ void BFWingModel::update(BFState& state, double dt)
     if (state.phase >= cyclePeriod) {
         state.phase -= cyclePeriod;
         state.flapCycle++;
+
+        // Recompute per-angle frequency and amplitude (Eqs. 2-3)
+        double maxFreq = 0.0;
+        for (int i = 0; i < BFState::kNumAngles; ++i) {
+            double freqRange = params[i].freqRangeMax - params[i].freqRangeMin;
+            double ampRange  = params[i].ampRangeMax  - params[i].ampRangeMin;
+
+            state.perAngleFreq[i] = params[i].freqRangeMin
+                                    + evalSigmoid(speed, freqRange);
+            state.perAngleAmp[i]  = params[i].ampRangeMin
+                                    + evalSigmoid(speed, ampRange);
+
+            if (state.perAngleFreq[i] > maxFreq)
+                maxFreq = state.perAngleFreq[i];
+        }
+
+        // The master frequency (used for cycle-period detection)
+        // is the gamma (wing flap) frequency, which defines the
+        // flapping cycle per Section 4.1 of Chen et al. 2022.
+        state.frequency = (state.perAngleFreq[kAngleGamma] > 0.0)
+                          ? state.perAngleFreq[kAngleGamma]
+                          : 0.01;
     }
 
-    // ---- 4. Evaluate maneuvering angles (Eq. 1) ----------------
+    // ---- 3. Evaluate maneuvering angles (Eq. 1) ----------------
+    //  Each angle uses its OWN per-angle frequency and amplitude,
+    //  but the same phase accumulator (time within the cycle).
     state.angles.thetaBeta  = evalAngle(kAngleBeta,  state.phase,
                                         state.perAngleFreq[kAngleBeta],
                                         state.perAngleAmp[kAngleBeta]);
