@@ -98,34 +98,18 @@ void BFWingModel::update(BFState& state, double dt)
                          ? 1.0 / state.frequency
                          : 1.0;
 
+    // ---- 3. Cycle-boundary: advance cycle counter only ----------
+    //  Freq/amp are NO LONGER updated abruptly here.  Abrupt updates
+    //  cause visible amplitude discontinuities at the seam when speed
+    //  has changed significantly during the cycle.  Instead, a
+    //  continuous first-order filter (step 4) drives freq/amp smoothly
+    //  toward the sigmoid target every frame.
     if (state.phase >= cyclePeriod) {
-        state.phase -= cyclePeriod;  // carry over remainder
+        state.phase -= cyclePeriod;
         state.flapCycle++;
-
-        // Recompute per-angle frequency and amplitude (Eqs. 2-3)
-        double maxFreq = 0.0;
-        for (int i = 0; i < BFState::kNumAngles; ++i) {
-            double freqRange = params[i].freqRangeMax - params[i].freqRangeMin;
-            double ampRange  = params[i].ampRangeMax  - params[i].ampRangeMin;
-
-            state.perAngleFreq[i] = params[i].freqRangeMin
-                                    + evalSigmoid(speed, freqRange);
-            state.perAngleAmp[i]  = params[i].ampRangeMin
-                                    + evalSigmoid(speed, ampRange);
-
-            if (state.perAngleFreq[i] > maxFreq)
-                maxFreq = state.perAngleFreq[i];
-        }
-
-        // The master frequency (used for cycle-period detection)
-        // is the max across all angles — in practice this is the
-        // gamma (flap) frequency, which dominates.
-        state.frequency = (maxFreq > 0.0) ? maxFreq : 0.01;
     }
 
-    // ---- 3. Evaluate maneuvering angles (Eq. 1) ----------------
-    //  Each angle uses its OWN per-angle frequency and amplitude,
-    //  but the same phase accumulator (time within the cycle).
+    // ---- 4. Evaluate maneuvering angles (Eq. 1) ----------------
     state.angles.thetaBeta  = evalAngle(kAngleBeta,  state.phase,
                                         state.perAngleFreq[kAngleBeta],
                                         state.perAngleAmp[kAngleBeta]);
@@ -145,6 +129,31 @@ void BFWingModel::update(BFState& state, double dt)
     state.angles.thetaPhi   = evalAngle(kAnglePhi,   state.phase,
                                         state.perAngleFreq[kAnglePhi],
                                         state.perAngleAmp[kAnglePhi]);
+
+    // ---- 5. Continuous first-order filter toward sigmoid target -
+    //  alpha = dt / kAdaptTime gives a time constant of kAdaptTime
+    //  seconds. At 960 fps (dt=1/960) with kAdaptTime=3s:
+    //    alpha ≈ 3.5e-4 → max change per frame ≈ 0.05° for gamma
+    //  Over one 5.5 Hz cycle (174 frames): ≈ 9° max drift — smooth.
+    //  No discrete jump at any cycle boundary regardless of speed.
+    static constexpr double kAdaptTime = 3.0;  // seconds
+    double alpha = dt / kAdaptTime;
+    if (alpha > 1.0) alpha = 1.0;
+
+    double maxFreq = 0.0;
+    for (int i = 0; i < BFState::kNumAngles; ++i) {
+        double freqRange  = params[i].freqRangeMax - params[i].freqRangeMin;
+        double ampRange   = params[i].ampRangeMax  - params[i].ampRangeMin;
+        double targetFreq = params[i].freqRangeMin + evalSigmoid(speed, freqRange);
+        double targetAmp  = params[i].ampRangeMin  + evalSigmoid(speed, ampRange);
+
+        state.perAngleFreq[i] += alpha * (targetFreq - state.perAngleFreq[i]);
+        state.perAngleAmp[i]  += alpha * (targetAmp  - state.perAngleAmp[i]);
+
+        if (state.perAngleFreq[i] > maxFreq)
+            maxFreq = state.perAngleFreq[i];
+    }
+    state.frequency = (maxFreq > 0.0) ? maxFreq : 0.01;
 }
 
 // ============================================================

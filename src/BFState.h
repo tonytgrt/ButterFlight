@@ -75,6 +75,7 @@ struct BFState {
     // The sigmoid in BFWingModel::update() will adjust these at the first cycle
     // boundary based on the actual velocity.
     //                                        beta  gamma  zeta   psi    phi
+    //                                        beta  gamma  zeta   psi    phi
     static constexpr int kNumAngles = 5;
     double           perAngleFreq[kNumAngles] = { 1.5,  5.5,   5.5,   5.5,   5.5  };
     double           perAngleAmp [kNumAngles] = { 15.0, 50.0,  5.0,   10.0,  17.0 };

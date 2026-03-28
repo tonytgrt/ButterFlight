@@ -5,6 +5,137 @@ Last updated: 2026-03-27
 
 ---
 
+## 0. Wing-Flip Bug at Cycle Boundary (2026-03-27)
+
+### Observed Symptom
+
+At 960 fps, frames 1–174 look correct (one full flap cycle ≈ 174 frames at 5.5 Hz). At frame 175 all wings suddenly snap to the opposite extreme. Debug CSV for `BF_forewing_L` (rotateZ = thetaGamma):
+
+| Frame | rotateZ (°) |
+|-------|-------------|
+| 173   | 59.92       |
+| 174   | 59.99       |
+| 175   | 159.87      |
+| 176   | 159.13      |
+
+The flap angle jumps ~100° in one frame, then continues from the new (wrong) baseline.
+
+### Root Cause
+
+The bug is in the **order of operations** inside `BFWingModel::update()`. The original sequence was:
+
+1. `state.phase += dt`
+2. If phase ≥ cyclePeriod → reset phase, recompute **and immediately write** new freq/amp into state
+3. Evaluate angles with the newly written freq/amp
+
+At the boundary frame the initial `perAngleAmp[gamma] = 50°` (hover default from `BFState`). After 174 frames of dynamics, velocity is non-zero. The sigmoid at that speed yields amp ≈ 150°. With carry-over phase ≈ 0 and phaseOffset = 0°:
+
+```text
+cos(2π × f × 0 + 0) = 1
+theta_gamma = 150 × 1 + 10 = 160°   ← new, wrong
+```
+
+While the previous frame evaluated:
+
+```text
+theta_gamma = 50 × cos(2π × 5.5 × 0.1817 + 0) + 10 ≈ 60°  ← last frame of old cycle
+```
+
+The 100° discontinuity (60° → 160°) exactly matches the CSV and the visual flip seen in Maya.
+
+### Fix Applied
+
+Swapped the order: **evaluate angles first, then detect boundary and update freq/amp**. New sequence in `BFWingModel::update()`:
+
+1. `state.phase += dt`
+2. **Evaluate all five angles** with current (pre-boundary) freq/amp
+3. If phase ≥ cyclePeriod → reset phase, recompute freq/amp for the **next** frame
+
+At the next frame, phase ≈ 0. Because `cos(2π × f × 0 + phiP) = cos(phiP)` regardless of `f`, the new frequency is invisible at the seam. The new amplitude does change the cycle peak, but it does so from the very start of the new cycle rather than mid-cycle, which is correct per the paper (parameters update between cycles, not within them).
+
+**File changed:** `src/BFWingModel.cpp` — moved the `if (state.phase >= cyclePeriod)` block to after the angle-evaluation block.
+
+### Follow-up: all previous attempts insufficient (2026-03-27)
+
+Shifting the update one frame later did not eliminate the jump — it moved from frame 175 to frame 176. The reorder only delayed the problem; the amplitude change itself was still too large.
+
+**Deeper root cause — three compounding issues:**
+
+| # | Issue | Effect |
+|---|---|---|
+| 1 | `smoothParameters()` returns early when history has < 2 entries | No smoothing at the critical first boundary |
+| 2 | `perAngleAmp[gamma]` initialised to 50° but sigmoid at s=0.5 gives **75°** | First boundary: old cycle ends at 60°, new raw = 75+, jump even without velocity change |
+| 3 | Initial `state.velocity = 0` — sigmoid at v=0 gives ≈0, so dynamics during first cycle pushes velocity non-zero → sigmoid at boundary returns a value inconsistent with the 50° default | First boundary sigmoid diverges from defaults regardless |
+
+**Correct reference values** (sigmoid at s=0.5, i.e. `speed = maxSpeed/2`):
+
+| Angle | Range | sigmoid(s=0.5) | Old default | Fixed default |
+|-------|-------|----------------|-------------|---------------|
+| gamma | 0–150° | **75°** | 50° | **75°** |
+| phi   | 0–35°  | **17.5°** | 17° | **17.5°** |
+| beta, zeta, psi | — | correct | correct | unchanged |
+
+**All three of these fixes also failed.** Moving the reorder delayed the jump one frame. Seeding initial velocity to 1.0 m/s caused gravity to accelerate the butterfly to maxSpeed (2.0 m/s) within one cycle, pushing sigmoid to 150°; the smoother returned 0.5×75+0.5×150=112.5°, giving frame 176 z=122°. Seeding velocity also caused wings to pierce in the first loop (75° amplitude too large). The smoother pre-seeding also didn't help because it could only halve the jump, not eliminate it.
+
+### Final diagnosis: discrete cycle-boundary updates are inherently wrong at high fps
+
+The paper's model assumes updates happen once per cycle (~0.18s), with speed changing slowly between cycles. At 960 fps, gravity accelerates the butterfly by ~1.8 m/s in one cycle (0.18s), which completely changes the sigmoid output. No amount of smoothing at cycle boundaries can hide this because the amplitude change is too large in a single step.
+
+**Final fix: replace discrete cycle-boundary freq/amp updates with a continuous per-frame first-order filter.**
+
+Instead of abruptly setting freq/amp at cycle boundaries, every frame blend toward the sigmoid target:
+
+```text
+alpha = dt / kAdaptTime          (kAdaptTime = 3.0 seconds)
+perAngleAmp[i] += alpha * (target - perAngleAmp[i])
+```
+
+At 960 fps (dt=1/960), alpha ≈ 3.5×10⁻⁴. Maximum amplitude change per frame ≈ 0.05° (for gamma range 150°). Over one cycle (174 frames) ≈ 9° maximum drift — completely smooth and continuous. **No discrete jump is possible at any cycle boundary.**
+
+**Files changed (filter fix):**
+
+- `src/BFWingModel.cpp` — cycle boundary block now only increments `flapCycle` (no freq/amp update); new step 5 applies per-frame exponential filter toward sigmoid target
+- `src/BFState.h` — reverted `perAngleAmp[gamma]` back to 50.0 (75.0 caused wings to intersect at first loop)
+- `src/BFSimulateCmd.cpp` — removed initial velocity seeding; removed smoother pre-seeding
+
+---
+
+## 4. Root Architectural Issue: fps Coupled to Physics Timestep (2026-03-27)
+
+### Problem
+
+The professor noted that wing flap speed should not depend on the `-frameRate` flag. Currently `dt = 1.0 / fps` is used for both the physics timestep and the keyframe output rate.
+
+| fps | real time simulated (120 frames) | frames per cycle |
+|-----|----------------------------------|-----------------|
+| 30  | 4.0 seconds | 5.45 |
+| 480 | 0.25 seconds | 87 |
+| 960 | 0.125 seconds | 174 |
+
+Wing Hz is correct in all cases when played back at the matching fps — but the **total flight duration changes with fps**, and at high fps, **each cycle takes 174 output frames**, giving gravity 174 physics steps to accelerate the butterfly, causing the amplitude discontinuity.
+
+### Fix: Fixed Internal Physics Rate
+
+Physics now runs at a fixed ~960 Hz regardless of output fps. The `-frameRate` flag controls only keyframe output (playback rate):
+
+```text
+substeps = ceil(960 / outputFps)
+simDt    = 1 / (outputFps × substeps)   ← always ≈ 1/960 s
+```
+
+| `-frameRate` | substeps/frame | simDt | total flight (120 frames) |
+|-------------|---------------|-------|--------------------------|
+| 24 | 40 | 1/960s | 5.0 seconds |
+| 30 | 32 | 1/960s | 4.0 seconds |
+| 60 | 16 | 1/960s | 2.0 seconds |
+| 960 | 1  | 1/960s | 0.125 seconds |
+
+Wing speed is now independent of fps. Using `-frameRate 30` gives a natural-looking 4-second animation with 22 flap cycles at 5.5 Hz. The physics timestep is always ~1/960s so the continuous filter (`alpha = simDt/3.0 ≈ 3.5e-4`) produces at most 0.05° change per substep — no visible discontinuity.
+
+**File changed:** `src/BFSimulateCmd.cpp` — replaced single `dt=1/fps` loop with substep loop using `simDt≈1/960`.
+
+---
+
 ## 1. Current State (Post-Alpha)
 
 The alpha build disabled the full dynamics pipeline and replaced it with a **pure kinematic loop** in `BFSimulateCmd::doIt()`:
@@ -18,6 +149,7 @@ writeAllKeys(...);
 ```
 
 What is **built but not called**:
+
 | Class | Method | Purpose |
 |---|---|---|
 | `BFWingModel` | `update()` | Phase advance + cycle-boundary freq/amp recomputation |
@@ -117,7 +249,7 @@ Alternatively, pass the maneuvering angles directly into an analytic wing-normal
 
 The sigmoid controls freq/amp adaptation:
 
-```
+```text
 f(speed) = range / (1 + exp(-16 * (|u| / |u_max| - 0.5)))
 ```
 
