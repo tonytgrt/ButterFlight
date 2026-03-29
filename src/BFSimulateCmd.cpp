@@ -462,7 +462,7 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
     //      low output fps (which was causing the amplitude discontinuity)
     static constexpr double kTargetSimHz = 960.0;
     int    substeps = std::max(1, (int)std::ceil(kTargetSimHz / fps));
-    double simDt   _sim  = simRate / (fps * substeps);  // physics timestep (≈1/960s)
+    double simDt = simRate / (fps * substeps);  // physics timestep (≈1/960s)
 
     // ---- Initialise wing model and maneuvering controller ----
     BFWingModel wingModel;

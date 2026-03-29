@@ -70,18 +70,21 @@ MVector BFManeuverController::preferredAccel(const BFState& state) const
 MVector BFManeuverController::localAccel(const BFState& state,
                                           double flapOmega) const
 {
-    // Aerodynamic force from all four wings
+    // Aerodynamic force from all four wings (Newtons)
     MVector aeroForce = BFAerodynamics::computeTotalForce(
         state.skeleton, state.velocity, wind, flapOmega, wingParams);
 
-    // Curl-noise vortex force at thorax position
-    MVector vortexForce = BFCurlNoise::computeForce(state.position);
+    // Curl-noise vortex perturbation (Eq. 7).
+    // The paper specifies this as a perturbation acceleration, not a
+    // force.  It must NOT be divided by mass — doing so amplifies it
+    // by 1/0.000428 ≈ 2336x, overwhelming all other dynamics.
+    MVector vortexAccel = BFCurlNoise::computeForce(state.position);
 
-    // Gravity
-    MVector gravity(0.0, kGravY * mass, 0.0);  // weight = m*g
+    // Gravity acceleration
+    MVector gravAccel(0.0, kGravY, 0.0);  // m/s²
 
-    // Newton's second law: a = F_total / m
-    return (aeroForce + vortexForce + gravity) / mass;
+    // a = F_aero / m  +  a_vortex  +  g
+    return aeroForce / mass + vortexAccel + gravAccel;
 }
 
 // ============================================================
@@ -169,12 +172,18 @@ void BFManeuverController::smoothParameters(BFState& state) const
 // ============================================================
 void BFManeuverController::step(BFState& state, double dt)
 {
-    // ---- 1. Estimate flapping angular velocity ------------------
-    //  ω ≈ 2π * f_gamma * A_gamma (peak angular velocity of flap)
-    //  This is a simplified estimate used for the aerodynamic model.
+    // ---- 1. Instantaneous flapping angular velocity ---------------
+    //  The flap angle is  θ(t) = A·cos(φ + φ_p) + φ_m, where φ is the
+    //  accumulated phase.  Its derivative is  dθ/dt = -A·ω·sin(φ + φ_p),
+    //  where ω = dφ/dt = 2πf.
+    //  Using the instantaneous value (not the constant peak) ensures
+    //  the aerodynamic force alternates direction between upstroke and
+    //  downstroke, producing the natural left-right body oscillation.
     double fGamma = state.perAngleFreq[kAngleGamma];
     double aGamma = state.perAngleAmp[kAngleGamma] * M_PI / 180.0;  // to radians
-    double flapOmega = 2.0 * M_PI * fGamma * aGamma;
+    double phiP   = 0.0;  // gamma phase offset (0° from Table 3)
+    double flapOmega = -aGamma * 2.0 * M_PI * fGamma
+                       * std::sin(state.perAnglePhase[kAngleGamma] + phiP);
 
     // ---- 2. Compute accelerations (Eqs. 8, 10) -----------------
     MVector aLoc = localAccel(state, flapOmega);

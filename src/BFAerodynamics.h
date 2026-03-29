@@ -42,6 +42,9 @@ public:
     /// Wing span (base-to-tip) direction from the joint's world-space X axis.
     static MVector getWingSpanDir(const MDagPath& wingJoint);
 
+    /// Wing flap axis from the joint's world-space Z axis.
+    static MVector getWingFlapAxis(const MDagPath& wingJoint);
+
     // ---- High-level force aggregation ----------------------
 
     /// Compute aerodynamic force for one wing (flat-plate model).

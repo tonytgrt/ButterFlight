@@ -50,7 +50,6 @@ private:
     // Sigmoid helper: Eq. 2/3 core —  range / (1 + exp(-16*(|u|/|u_max| - 0.5)))
     double evalSigmoid(double speed, double range) const;
 
-    // Evaluate Eq. 1 for a single angle
-    double evalAngle(int angleId, double phase,
-                     double freq, double amp) const;
+    // Evaluate Eq. 1 for a single angle (accumPhase is the per-angle accumulated phase in radians)
+    double evalAngle(int angleId, double accumPhase, double amp) const;
 };
