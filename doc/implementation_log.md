@@ -300,6 +300,31 @@ Wired `BFManeuverController` (Tasks 3-5, implemented by Cecilia) into the main s
 
 ---
 
+## 2026-03-27 — Maneuvering Control Re-integrated (Yiding Tian)
+
+### Overview
+
+Restored the full physics-based dynamics pipeline in `BFSimulateCmd::doIt()`. The alpha build had disabled this in favour of a pure kinematic loop (`updateAnglesOnly`). A detailed analysis of the disabled state was written to `doc/maneuvering.md` before changes were made.
+
+### Root Causes of Previous Failure
+
+- `state.velocity` was never updated (kinematic loop), so `velocity.length() == 0` at every cycle boundary. The sigmoid (Eqs. 2-3) at zero speed ≈ 0, collapsing all per-angle frequencies and amplitudes after the first cycle.
+- `writeTranslationKey()` existed but was never called, so `BF_body` never moved in world space despite the controller computing a valid `state.position`.
+
+### Changes — `src/BFSimulateCmd.cpp`
+
+- **Replaced kinematic loop** (`updateAnglesOnly` + constant phase advance) with the full dynamics loop:
+  1. `wingModel.update(state, dt)` — phase advance, cycle-boundary detection, per-angle freq/amp recomputation (Eqs. 2-3)
+  2. `applyAngles()` — apply rotations to joints **before** `controller.step()` so that `BFAerodynamics` reads correct wing normals from the scene graph
+  3. `controller.step(state, dt)` — integrates aerodynamic, vortex, and gravity forces → velocity → position (Eqs. 4-11)
+  4. `controller.smoothParameters(state)` — called at each cycle boundary (Eq. 12)
+  5. `writeAllKeys()` — rotation keyframes for all 6 joints
+  6. `writeTranslationKey(skeleton.joints[kThorax], state.position, t)` — **new**: bakes root translation keyframe each frame so the butterfly moves through world space
+- **Added controller initialisation**: `BFManeuverController controller; controller.maxSpeed = wingModel.maxSpeed;`
+- **Added position seed**: reads BF_body's current world translation into `state.position` before the loop begins
+
+---
+
 ## 2026-03-22 — Task 6: MEL UI Connected to C++ Simulation Command (Yiding Tian)
 
 ### Overview

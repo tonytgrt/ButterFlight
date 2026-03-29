@@ -64,7 +64,7 @@ struct BFState {
     // Current maneuvering angles
     BFManeuverAngles angles;
 
-    // Phase accumulator (time within current flapping cycle)
+    // Phase accumulator (time within current flapping cycle, wraps at cycle boundary)
     double           phase     = 0.0;
     int              flapCycle = 0;
 
@@ -76,8 +76,13 @@ struct BFState {
     // boundary based on the actual velocity.
     //                                        beta  gamma  zeta   psi    phi
     static constexpr int kNumAngles = 5;
-    double           perAngleFreq[kNumAngles] = { 1.5,  5.5,   5.5,   5.5,   5.5  };
-    double           perAngleAmp [kNumAngles] = { 15.0, 50.0,  5.0,   10.0,  17.0 };
+    double           perAngleFreq[kNumAngles]  = { 1.5,  5.5,   5.5,   5.5,   5.5  };
+    double           perAngleAmp [kNumAngles]  = { 15.0, 50.0,  5.0,   10.0,  17.0 };
+
+    // Per-angle accumulated phase (radians, never wraps).
+    // Incremented each frame by 2π * freq * dt to avoid phase jumps
+    // when frequency changes over time.
+    double           perAnglePhase[kNumAngles] = { 0.0, 0.0, 0.0, 0.0, 0.0 };
 
     // Master frequency used for cycle-boundary detection (max of per-angle freqs)
     double           frequency = 5.5;  // Hz  (hovering default, ramps up with speed)

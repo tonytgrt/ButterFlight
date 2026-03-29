@@ -116,6 +116,22 @@ MVector BFAerodynamics::getWingSpanDir(const MDagPath& wingJoint)
 }
 
 // ============================================================
+// getWingFlapAxis  —  joint's world-space Z axis (flap axis)
+// ============================================================
+MVector BFAerodynamics::getWingFlapAxis(const MDagPath& wingJoint)
+{
+    MStatus status;
+    MFnTransform xform(wingJoint, &status);
+    if (status != MS::kSuccess) return MVector(0.0, 0.0, 1.0);
+
+    MMatrix worldMat = wingJoint.inclusiveMatrix();
+    // Z axis is the third row of the 4×4 matrix
+    MVector zAxis(worldMat(2, 0), worldMat(2, 1), worldMat(2, 2));
+    zAxis.normalize();
+    return zAxis;
+}
+
+// ============================================================
 // computeWingForce  —  flat-plate force for one wing
 // ============================================================
 MVector BFAerodynamics::computeWingForce(const MDagPath& wingJoint,
@@ -125,17 +141,18 @@ MVector BFAerodynamics::computeWingForce(const MDagPath& wingJoint,
                                          double          wingArea,
                                          double          meanRadius)
 {
-    MVector wingNormal  = getWingNormal(wingJoint);
-    MVector wingSpanDir = getWingSpanDir(wingJoint);
+    MVector wingNormal   = getWingNormal(wingJoint);
+    MVector wingSpanDir  = getWingSpanDir(wingJoint);
+    MVector wingFlapAxis = getWingFlapAxis(wingJoint);
 
-    // The flap rotation axis is perpendicular to both the span and normal
-    // (i.e. the joint's local Z axis), but for a simplified model the flap
-    // angular velocity produces a linear velocity at the center of pressure
-    // in the direction of the wing normal:
-    //   V_flap = omega × r  ≈  flapOmega * meanRadius * wingNormal
-    // (The cross product of the flap axis with the span direction gives
-    //  approximately the normal direction for small feather/sweep angles.)
-    MVector flapVelocity = flapOmega * meanRadius * wingNormal;
+    // V_flap = ω × r, where ω = flapOmega * flapAxis (joint Z)
+    // and r = meanRadius * spanDir (joint X).
+    // Using the actual cross product (Z × X) instead of approximating
+    // with the normal ensures correct bilateral symmetry: for
+    // mirrorBehavior joints, both Z and X are mirrored, and the two
+    // negations cancel in the cross product, producing the same flap
+    // velocity direction for both wings.
+    MVector flapVelocity = flapOmega * meanRadius * (wingFlapAxis ^ wingSpanDir);
 
     // Air velocity relative to the wing panel center:
     //   V_air = wind − (bodyVelocity + flapVelocity)

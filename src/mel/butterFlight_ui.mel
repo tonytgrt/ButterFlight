@@ -44,7 +44,7 @@ global string $bf_repulsionRadField;
 // Output settings
 global string $bf_startFrameField;
 global string $bf_durationField;
-global string $bf_fpsField;
+global string $bf_flapPeriodField;
 global string $bf_exportMenu;
 
 
@@ -382,12 +382,14 @@ global proc butterFlightUI()
                     -value1 120
                     -columnWidth2 120 160`;
 
-                global string $bf_fpsField;
-                $bf_fpsField = `intFieldGrp
-                    -label "Frame Rate (fps)"
+                global string $bf_flapPeriodField;
+                $bf_flapPeriodField = `floatFieldGrp
+                    -label "Flap Period (sec)"
                     -numberOfFields 1
-                    -value1 24
-                    -columnWidth2 120 160`;
+                    -value1 1.0
+                    -precision 3
+                    -annotation "Playback seconds per flap cycle (hovering baseline)"
+                    -columnWidth2 140 140`;
 
                 global string $bf_exportMenu;
                 $bf_exportMenu = `optionMenuGrp
@@ -583,7 +585,7 @@ global proc bfSimulateCallback()
     global string $bf_windowKField;
     global string $bf_startFrameField;
     global string $bf_durationField;
-    global string $bf_fpsField;
+    global string $bf_flapPeriodField;
 
     // --- Validation ---
     string $rig = `textFieldButtonGrp -query -text $bf_rigField`;
@@ -614,7 +616,7 @@ global proc bfSimulateCallback()
     int    $k         = `intFieldGrp    -query -value1 $bf_windowKField`;
     int    $startF    = `intFieldGrp    -query -value1 $bf_startFrameField`;
     int    $duration  = `intFieldGrp    -query -value1 $bf_durationField`;
-    int    $fps       = `intFieldGrp    -query -value1 $bf_fpsField`;
+    float  $flapPeriod = `floatFieldGrp -query -value1 $bf_flapPeriodField`;
 
     print ("// ButterFlight: Starting simulation on rig: " + $rig + "\n");
     print ("//   Mode:       " + $mode      + "\n");
@@ -624,14 +626,16 @@ global proc bfSimulateCallback()
     print ("//   Eta:        " + $eta       + "\n");
     print ("//   Max Speed:  " + $maxSpeed  + " m/s\n");
     print ("//   Window k:   " + $k         + "\n");
-    print ("//   Frames:     " + $startF + " to " + ($startF + $duration - 1) + " @ " + $fps + " fps\n");
+    print ("//   Flap Period: " + $flapPeriod + " sec\n");
+    print ("//   Frames:     " + $startF + " to " + ($startF + $duration - 1) + "\n");
 
     // Call the C++ bfSimulate command directly
+    // FPS is read from Maya's scene time unit automatically.
     print ("// Executing: bfSimulate -rigRoot " + $rig
            + " -duration " + $duration
-           + " -frameRate " + $fps + "\n");
+           + " -flapPeriod " + $flapPeriod + "\n");
 
-    if (catch(`bfSimulate -rigRoot $rig -duration $duration -frameRate $fps`)) {
+    if (catch(`bfSimulate -rigRoot $rig -duration $duration -flapPeriod $flapPeriod`)) {
         confirmDialog
             -title "ButterFlight"
             -message "Simulation failed. Check the Script Editor for details."
@@ -708,7 +712,7 @@ global proc bfReset()
     global string $bf_windowKField;
     global string $bf_startFrameField;
     global string $bf_durationField;
-    global string $bf_fpsField;
+    global string $bf_flapPeriodField;
     global string $bf_windEnableCheck;
     global string $bf_agentCountField;
     global string $bf_spawnSpreadField;
@@ -728,7 +732,7 @@ global proc bfReset()
     intFieldGrp   -edit -value1 10       $bf_windowKField;
     intFieldGrp   -edit -value1 1        $bf_startFrameField;
     intFieldGrp   -edit -value1 120      $bf_durationField;
-    intFieldGrp   -edit -value1 24       $bf_fpsField;
+    floatFieldGrp -edit -value1 1.0      $bf_flapPeriodField;
     intFieldGrp   -edit -value1 10       $bf_agentCountField;
     floatFieldGrp -edit -value1 2.0      $bf_spawnSpreadField;
     floatFieldGrp -edit -value1 0.5      $bf_repulsionRadField;
@@ -765,7 +769,7 @@ global proc butterFlightMenu()
         menuItem -divider true;
 
         menuItem -label "Quick Simulate (Selected Rig)"
-                 -command "bfSimulate -rigRoot \"BF_body\" -duration 120 -frameRate 24";
+                 -command "bfSimulate -rigRoot \"BF_body\" -duration 120 -flapPeriod 1.0";
 }
 
 // ============================================================

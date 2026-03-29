@@ -41,10 +41,15 @@ static const char* kModeFlag       = "-m";
 static const char* kModeFlagLong   = "-mode";
 static const char* kDurFlag        = "-d";
 static const char* kDurFlagLong    = "-duration";
+// NOTE: -frameRate flag kept for backwards compatibility but is
+// ignored — FPS is now read directly from Maya's scene time unit
+// to prevent mismatches between baked keyframes and playback rate.
 static const char* kFpsFlag        = "-f";
 static const char* kFpsFlagLong    = "-frameRate";
 static const char* kStartFlag      = "-s";
 static const char* kStartFlagLong  = "-startFrame";
+static const char* kFlapPeriodFlag     = "-fp";
+static const char* kFlapPeriodFlagLong = "-flapPeriod";
 
 // ============================================================
 // newSyntax — declare accepted flags
@@ -57,6 +62,7 @@ MSyntax BFSimulateCmd::newSyntax()
     syntax.addFlag(kDurFlag,   kDurFlagLong,   MSyntax::kLong);
     syntax.addFlag(kFpsFlag,   kFpsFlagLong,   MSyntax::kDouble);
     syntax.addFlag(kStartFlag, kStartFlagLong, MSyntax::kLong);
+    syntax.addFlag(kFlapPeriodFlag, kFlapPeriodFlagLong, MSyntax::kDouble);
     // TODO: add remaining flags (mass, wingArea, gains, eta, etc.)
     return syntax;
 }
@@ -201,7 +207,7 @@ MStatus BFSimulateCmd::readSkeleton(const MString& rootJointName,
         "ButterFlight: Skeleton loaded successfully from '" +
         rootJointName + "'.");
     return MS::kSuccess;
-}
+} 
 
 // ============================================================
 // applyAngles — set joint rotations from maneuvering angles
@@ -419,40 +425,89 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
 
     // ---- Parse optional simulation flags -----------------------
     int duration   = 60;
-    double fps     = 24.0;
     int startFrame = 1;
+    double flapPeriod = 1.0;
 
     if (argData.isFlagSet(kDurFlag))
         argData.getFlagArgument(kDurFlag, 0, duration);
-    if (argData.isFlagSet(kFpsFlag))
-        argData.getFlagArgument(kFpsFlag, 0, fps);
     if (argData.isFlagSet(kStartFlag))
         argData.getFlagArgument(kStartFlag, 0, startFrame);
+    if (argData.isFlagSet(kFlapPeriodFlag))
+        argData.getFlagArgument(kFlapPeriodFlag, 0, flapPeriod);
 
+    if (flapPeriod <= 0.0) flapPeriod = 1.0;
+
+    // Read FPS directly from Maya's scene time unit so that baked
+    // keyframes always match the playback rate.  This prevents the
+    // mismatch where a user-supplied FPS differs from Maya's setting
+    // and inadvertently rescales flap speed.
+    double fps = MTime(1.0, MTime::kSeconds).as(MTime::uiUnit());
     if (fps <= 0.0) fps = 24.0;
-    double dt = 1.0 / fps;
 
-    // ---- Initialise wing model (Monarch defaults) ------------
+    // Convert artist-facing flapPeriod to engine simRate.
+    // f_gamma_default is the initial gamma frequency (species constant:
+    // 5.5 Hz for Monarch, from Table 3 of Chen et al. 2022).
+    // simRate = simulation seconds per playback second (analogous to
+    // Unity's Time.timeScale).
+    double f_gamma_default = m_state.perAngleFreq[kAngleGamma];  // 5.5 Hz
+    double simRate = 1.0 / (f_gamma_default * flapPeriod);
+
+    // ---- Decouple physics rate from output fps ----------------
+    //  The -frameRate flag sets the PLAYBACK / KEYFRAME rate, not the
+    //  physics timestep.  Physics runs at a fixed ~960 Hz regardless
+    //  of output fps, so:
+    //    • wing flap speed is independent of the fps flag
+    //    • maneuvering forces integrate at consistent precision
+    //    • velocity/position don't accumulate over-large steps at
+    //      low output fps (which was causing the amplitude discontinuity)
+    static constexpr double kTargetSimHz = 960.0;
+    int    substeps = std::max(1, (int)std::ceil(kTargetSimHz / fps));
+    double simDt = simRate / (fps * substeps);  // physics timestep (≈1/960s)
+
+    // ---- Initialise wing model and maneuvering controller ----
     BFWingModel wingModel;
+    BFManeuverController controller;
+    controller.maxSpeed = wingModel.maxSpeed;
 
-    // ---- Simulation loop (pure kinematics, no forces) --------
-    //  Uses constant default freq/amp from BFState to loop the
-    //  same flapping motion every cycle.
+    // Seed position from the root joint's current world translation
+    {
+        MFnTransform rootFn(m_state.skeleton.joints[kThorax]);
+        MVector t = rootFn.getTranslation(MSpace::kWorld);
+        m_state.position = MPoint(t.x, t.y, t.z);
+    }
+
+    MGlobal::displayInfo(
+        MString("ButterFlight: simDt=") + simDt +
+        "s (" + substeps + " substeps/frame @ " + fps + " fps output)");
+
+    // ---- Simulation loop (full dynamics) ---------------------
     for (int f = startFrame; f < startFrame + duration; ++f) {
 
-        // 1. Advance phase and evaluate angles.
-        //    No cycle-boundary detection needed — cos() is naturally
-        //    periodic, so constant freq/amp produce identical motion
-        //    every cycle with no timing seams.
-        m_state.phase += dt;
-        wingModel.updateAnglesOnly(m_state);
+        // Run multiple physics substeps per output frame so that
+        // wing kinematics and body dynamics are fps-independent.
+        for (int s = 0; s < substeps; ++s) {
+            int prevCycle = m_state.flapCycle;
 
-        // 2. Apply joint rotations
-        applyAngles(m_state.skeleton, m_state.angles);
+            // 1. Advance phase + continuous freq/amp filter (Eqs. 2-3).
+            wingModel.update(m_state, simDt);
 
-        // 3. Write keyframes
+            // 2. Apply rotations so aerodynamics reads current normals.
+            applyAngles(m_state.skeleton, m_state.angles);
+
+            // 3. Integrate forces → velocity → position (Eqs. 4-11).
+            controller.step(m_state, simDt);
+
+            // 4. Sliding-window smoother at each flap cycle boundary
+            //    (Eq. 12).
+            if (m_state.flapCycle != prevCycle)
+                controller.smoothParameters(m_state);
+        }
+
+        // Write one keyframe per output frame (after all substeps).
         MTime frameTime((double)f, MTime::uiUnit());
         writeAllKeys(m_state.skeleton, m_state.angles, frameTime);
+        writeTranslationKey(m_state.skeleton.joints[kThorax],
+                            m_state.position, frameTime);
     }
 
     // ---- Set playback range to cover baked frames ---------------

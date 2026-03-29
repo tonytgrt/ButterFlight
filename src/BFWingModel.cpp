@@ -61,17 +61,18 @@ double BFWingModel::evalSigmoid(double speed, double range) const
 // ============================================================
 // evalAngle — Eq. 1
 //
-//   theta*(t) = phiA * cos(2*pi*f*t + phi_p) + phi_m
+//   theta*(t) = phiA * cos(accumulatedPhase + phi_p) + phi_m
 //
-// All angles are in degrees.  `phase` is in seconds (accumulated
-// time within the current flapping cycle).
+// All angles are in degrees.  `accumPhase` is the per-angle
+// accumulated phase in radians, incremented each frame by
+// 2π * freq * dt.  This avoids phase jumps when frequency
+// changes over time.
 // ============================================================
-double BFWingModel::evalAngle(int id, double phase,
-                              double freq, double amp) const
+double BFWingModel::evalAngle(int id, double accumPhase, double amp) const
 {
     const BFAngleParams& p = params[id];
     double phiP = deg2rad(p.phaseOffset);
-    return amp * std::cos(2.0 * M_PI * freq * phase + phiP) + p.meanAngle;
+    return amp * std::cos(accumPhase + phiP) + p.meanAngle;
 }
 
 // ============================================================
@@ -88,8 +89,16 @@ void BFWingModel::update(BFState& state, double dt)
 {
     double speed = state.velocity.length();
 
-    // ---- 1. Advance phase (time within cycle) ------------------
+    // ---- 1. Advance phase (time within cycle) ---------------------
     state.phase += dt;
+
+    // ---- 1b. Advance per-angle phase accumulators ----------------
+    //  Each angle accumulates phase incrementally: φ += 2π * f * dt.
+    //  This ensures frequency changes only affect future increments,
+    //  avoiding phase jumps when frequency varies over time.
+    for (int i = 0; i < BFState::kNumAngles; ++i) {
+        state.perAnglePhase[i] += 2.0 * M_PI * state.perAngleFreq[i] * dt;
+    }
 
     // ---- 2. Cycle-boundary detection ---------------------------
     //  A full cycle lasts 1/f seconds.  When phase exceeds this
@@ -98,53 +107,65 @@ void BFWingModel::update(BFState& state, double dt)
                          ? 1.0 / state.frequency
                          : 1.0;
 
+    // ---- 3. Cycle-boundary: advance cycle counter only ----------
+    //  Freq/amp are NOT updated here.  Abrupt updates cause visible
+    //  amplitude discontinuities at the seam when speed has changed
+    //  significantly during the cycle.  The continuous first-order
+    //  filter (step 5) drives freq/amp smoothly toward the sigmoid
+    //  target every frame instead.
     if (state.phase >= cyclePeriod) {
-        state.phase -= cyclePeriod;  // carry over remainder
+        state.phase -= cyclePeriod;
         state.flapCycle++;
-
-        // Recompute per-angle frequency and amplitude (Eqs. 2-3)
-        double maxFreq = 0.0;
-        for (int i = 0; i < BFState::kNumAngles; ++i) {
-            double freqRange = params[i].freqRangeMax - params[i].freqRangeMin;
-            double ampRange  = params[i].ampRangeMax  - params[i].ampRangeMin;
-
-            state.perAngleFreq[i] = params[i].freqRangeMin
-                                    + evalSigmoid(speed, freqRange);
-            state.perAngleAmp[i]  = params[i].ampRangeMin
-                                    + evalSigmoid(speed, ampRange);
-
-            if (state.perAngleFreq[i] > maxFreq)
-                maxFreq = state.perAngleFreq[i];
-        }
-
-        // The master frequency (used for cycle-period detection)
-        // is the max across all angles — in practice this is the
-        // gamma (flap) frequency, which dominates.
-        state.frequency = (maxFreq > 0.0) ? maxFreq : 0.01;
     }
 
     // ---- 3. Evaluate maneuvering angles (Eq. 1) ----------------
-    //  Each angle uses its OWN per-angle frequency and amplitude,
-    //  but the same phase accumulator (time within the cycle).
-    state.angles.thetaBeta  = evalAngle(kAngleBeta,  state.phase,
-                                        state.perAngleFreq[kAngleBeta],
+    //  Each angle uses its own accumulated phase and amplitude.
+    state.angles.thetaBeta  = evalAngle(kAngleBeta,
+                                        state.perAnglePhase[kAngleBeta],
                                         state.perAngleAmp[kAngleBeta]);
 
-    state.angles.thetaGamma = evalAngle(kAngleGamma, state.phase,
-                                        state.perAngleFreq[kAngleGamma],
+    state.angles.thetaGamma = evalAngle(kAngleGamma,
+                                        state.perAnglePhase[kAngleGamma],
                                         state.perAngleAmp[kAngleGamma]);
 
-    state.angles.thetaZeta  = evalAngle(kAngleZeta,  state.phase,
-                                        state.perAngleFreq[kAngleZeta],
+    state.angles.thetaZeta  = evalAngle(kAngleZeta,
+                                        state.perAnglePhase[kAngleZeta],
                                         state.perAngleAmp[kAngleZeta]);
 
-    state.angles.thetaPsi   = evalAngle(kAnglePsi,   state.phase,
-                                        state.perAngleFreq[kAnglePsi],
+    state.angles.thetaPsi   = evalAngle(kAnglePsi,
+                                        state.perAnglePhase[kAnglePsi],
                                         state.perAngleAmp[kAnglePsi]);
 
-    state.angles.thetaPhi   = evalAngle(kAnglePhi,   state.phase,
-                                        state.perAngleFreq[kAnglePhi],
+    state.angles.thetaPhi   = evalAngle(kAnglePhi,
+                                        state.perAnglePhase[kAnglePhi],
                                         state.perAngleAmp[kAnglePhi]);
+
+    // ---- 5. Continuous first-order filter toward sigmoid target -
+    //  alpha = dt / kAdaptTime gives a time constant of kAdaptTime
+    //  seconds. At 960 fps (dt=1/960) with kAdaptTime=3s:
+    //    alpha ≈ 3.5e-4 → max change per frame ≈ 0.05° for gamma
+    //  Over one 5.5 Hz cycle (174 frames): ≈ 9° max drift — smooth.
+    //  No discrete jump at any cycle boundary regardless of speed.
+    static constexpr double kAdaptTime = 3.0;  // seconds
+    double alpha = dt / kAdaptTime;
+    if (alpha > 1.0) alpha = 1.0;
+
+    double maxFreq = 0.0;
+    for (int i = 0; i < BFState::kNumAngles; ++i) {
+        double freqRange  = params[i].freqRangeMax - params[i].freqRangeMin;
+        double ampRange   = params[i].ampRangeMax  - params[i].ampRangeMin;
+        double targetFreq = params[i].freqRangeMin + evalSigmoid(speed, freqRange);
+        double targetAmp  = params[i].ampRangeMin  + evalSigmoid(speed, ampRange);
+
+        state.perAngleFreq[i] += alpha * (targetFreq - state.perAngleFreq[i]);
+        state.perAngleAmp[i]  += alpha * (targetAmp  - state.perAngleAmp[i]);
+
+        if (state.perAngleFreq[i] > maxFreq)
+            maxFreq = state.perAngleFreq[i];
+    }
+    state.frequency = (state.perAngleFreq[kAngleGamma] > 0.0)
+                      ? state.perAngleFreq[kAngleGamma]
+                      : 0.01;
 }
 
 // ============================================================
@@ -152,19 +173,19 @@ void BFWingModel::update(BFState& state, double dt)
 // ============================================================
 void BFWingModel::updateAnglesOnly(BFState& state) const
 {
-    state.angles.thetaBeta  = evalAngle(kAngleBeta,  state.phase,
-                                        state.perAngleFreq[kAngleBeta],
+    state.angles.thetaBeta  = evalAngle(kAngleBeta,
+                                        state.perAnglePhase[kAngleBeta],
                                         state.perAngleAmp[kAngleBeta]);
-    state.angles.thetaGamma = evalAngle(kAngleGamma, state.phase,
-                                        state.perAngleFreq[kAngleGamma],
+    state.angles.thetaGamma = evalAngle(kAngleGamma,
+                                        state.perAnglePhase[kAngleGamma],
                                         state.perAngleAmp[kAngleGamma]);
-    state.angles.thetaZeta  = evalAngle(kAngleZeta,  state.phase,
-                                        state.perAngleFreq[kAngleZeta],
+    state.angles.thetaZeta  = evalAngle(kAngleZeta,
+                                        state.perAnglePhase[kAngleZeta],
                                         state.perAngleAmp[kAngleZeta]);
-    state.angles.thetaPsi   = evalAngle(kAnglePsi,   state.phase,
-                                        state.perAngleFreq[kAnglePsi],
+    state.angles.thetaPsi   = evalAngle(kAnglePsi,
+                                        state.perAnglePhase[kAnglePsi],
                                         state.perAngleAmp[kAnglePsi]);
-    state.angles.thetaPhi   = evalAngle(kAnglePhi,   state.phase,
-                                        state.perAngleFreq[kAnglePhi],
+    state.angles.thetaPhi   = evalAngle(kAnglePhi,
+                                        state.perAnglePhase[kAnglePhi],
                                         state.perAngleAmp[kAnglePhi]);
 }
