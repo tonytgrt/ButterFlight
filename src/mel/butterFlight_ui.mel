@@ -583,6 +583,7 @@ global proc bfSimulateCallback()
     global string $bf_etaField;
     global string $bf_maxSpeedField;
     global string $bf_windowKField;
+    global string $bf_pathField;
     global string $bf_startFrameField;
     global string $bf_durationField;
     global string $bf_flapPeriodField;
@@ -629,13 +630,22 @@ global proc bfSimulateCallback()
     print ("//   Flap Period: " + $flapPeriod + " sec\n");
     print ("//   Frames:     " + $startF + " to " + ($startF + $duration - 1) + "\n");
 
+    // Build path flag if a guide curve is assigned
+    string $path = `textFieldButtonGrp -query -text $bf_pathField`;
+    string $pathFlag = "";
+    if ($path != "") {
+        $pathFlag = " -path \"" + $path + "\"";
+    }
+
     // Call the C++ bfSimulate command directly
     // FPS is read from Maya's scene time unit automatically.
-    print ("// Executing: bfSimulate -rigRoot " + $rig
-           + " -duration " + $duration
-           + " -flapPeriod " + $flapPeriod + "\n");
+    string $cmd = "bfSimulate -rigRoot \"" + $rig + "\""
+                  + " -duration " + $duration
+                  + " -flapPeriod " + $flapPeriod
+                  + $pathFlag;
+    print ("// Executing: " + $cmd + "\n");
 
-    if (catch(`bfSimulate -rigRoot $rig -duration $duration -flapPeriod $flapPeriod`)) {
+    if (catch(eval($cmd))) {
         confirmDialog
             -title "ButterFlight"
             -message "Simulation failed. Check the Script Editor for details."

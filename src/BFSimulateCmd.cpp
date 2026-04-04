@@ -50,6 +50,8 @@ static const char* kStartFlag      = "-s";
 static const char* kStartFlagLong  = "-startFrame";
 static const char* kFlapPeriodFlag     = "-fp";
 static const char* kFlapPeriodFlagLong = "-flapPeriod";
+static const char* kPathFlag           = "-p";
+static const char* kPathFlagLong       = "-path";
 
 // ============================================================
 // newSyntax — declare accepted flags
@@ -63,6 +65,7 @@ MSyntax BFSimulateCmd::newSyntax()
     syntax.addFlag(kFpsFlag,   kFpsFlagLong,   MSyntax::kDouble);
     syntax.addFlag(kStartFlag, kStartFlagLong, MSyntax::kLong);
     syntax.addFlag(kFlapPeriodFlag, kFlapPeriodFlagLong, MSyntax::kDouble);
+    syntax.addFlag(kPathFlag, kPathFlagLong, MSyntax::kString);
     // TODO: add remaining flags (mass, wingArea, gains, eta, etc.)
     return syntax;
 }
@@ -469,11 +472,48 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
     BFManeuverController controller;
     controller.maxSpeed = wingModel.maxSpeed;
 
+    // ---- Resolve path curve (optional) --------------------------
+    MDagPath curveDagPath;
+    MFnNurbsCurve curveFn;
+    bool hasPath = false;
+
+    if (argData.isFlagSet(kPathFlag)) {
+        MString curveName;
+        argData.getFlagArgument(kPathFlag, 0, curveName);
+        MSelectionList sel;
+        sel.add(curveName);
+        sel.getDagPath(0, curveDagPath);
+        // If user selected transform, extend to shape
+        if (curveDagPath.hasFn(MFn::kTransform))
+            curveDagPath.extendToShape();
+        if (curveDagPath.hasFn(MFn::kNurbsCurve)) {
+            curveFn.setObject(curveDagPath);
+            hasPath = true;
+            controller.hasTarget = true;
+            MGlobal::displayInfo("ButterFlight: Path curve '" + curveName + "' loaded.");
+        } else {
+            MGlobal::displayWarning("ButterFlight: '" + curveName +
+                "' is not a NURBS curve — ignoring path.");
+        }
+    }
+
     // Seed position from the root joint's current world translation
     {
         MFnTransform rootFn(m_state.skeleton.joints[kThorax]);
         MVector t = rootFn.getTranslation(MSpace::kWorld);
         m_state.position = MPoint(t.x, t.y, t.z);
+    }
+
+    // If a path is provided, snap the butterfly to the curve start
+    if (hasPath) {
+        double uMin, uMax;
+        curveFn.getKnotDomain(uMin, uMax);
+        MPoint startPt;
+        curveFn.getPointAtParam(uMin, startPt, MSpace::kWorld);
+        m_state.position = startPt;
+
+        MFnTransform rootFn(m_state.skeleton.joints[kThorax]);
+        rootFn.setTranslation(MVector(startPt), MSpace::kWorld);
     }
 
     MGlobal::displayInfo(
@@ -493,6 +533,27 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
 
             // 2. Apply rotations so aerodynamics reads current normals.
             applyAngles(m_state.skeleton, m_state.angles);
+
+            // 2b. Path following: advance lead target along curve.
+            if (hasPath && controller.hasTarget) {
+                MPoint pos(m_state.position);
+                double uClosest;
+                curveFn.closestPoint(pos, &uClosest, MSpace::kWorld);
+
+                double curveLen = curveFn.length();
+                double arcAtClosest = curveFn.findLengthFromParam(uClosest);
+                double leadArc = arcAtClosest + controller.sensorRange * 0.5;
+
+                if (leadArc >= curveLen) {
+                    // Reached the end — coast in free flight
+                    controller.hasTarget = false;
+                } else {
+                    double uLead = curveFn.findParamFromLength(leadArc);
+                    MPoint leadPt;
+                    curveFn.getPointAtParam(uLead, leadPt, MSpace::kWorld);
+                    controller.target = leadPt;
+                }
+            }
 
             // 3. Integrate forces → velocity → position (Eqs. 4-11).
             controller.step(m_state, simDt);
