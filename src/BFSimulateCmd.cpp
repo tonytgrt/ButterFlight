@@ -31,6 +31,10 @@
 
 static inline double deg2rad(double d) { return d * M_PI / 180.0; }
 
+// ---- Unit conversion (Maya cm ↔ physics SI metres) ----------
+static constexpr double kCmToM = 0.01;
+static constexpr double kMToCm = 100.0;
+
 // ---- Command name registered with Maya ---------------------
 const char* BFSimulateCmd::kCommandName = "bfSimulate";
 
@@ -225,15 +229,16 @@ MStatus BFSimulateCmd::readSkeleton(const MString& rootJointName,
 // the right side so bilateral wings move symmetrically.
 // ============================================================
 static void applyAngles(const BFSkeleton&       skel,
-                        const BFManeuverAngles&  ang)
+                        const BFManeuverAngles&  ang,
+                        double                   heading)
 {
     MStatus st;
 
-    // Thorax pitch
+    // Thorax pitch + heading (yaw)
     MFnTransform thoraxFn(skel.joints[kThorax], &st);
     if (st == MS::kSuccess) {
         thoraxFn.setRotation(MEulerRotation(
-            deg2rad(ang.thetaBeta), 0.0, 0.0,
+            deg2rad(ang.thetaBeta), heading, 0.0,
             MEulerRotation::kXYZ));
     }
 
@@ -279,6 +284,40 @@ static void applyAngles(const BFSkeleton&       skel,
         abdFn.setRotation(MEulerRotation(
             deg2rad(ang.thetaPhi), 0.0, 0.0,
             MEulerRotation::kXYZ));
+    }
+}
+
+// ============================================================
+// clearAnimCurves — remove all existing keys from a joint's
+// rotation and translation anim curves so that re-simulation
+// doesn't leave stale keys from a previous run.
+// ============================================================
+static void clearAnimCurves(const MDagPath& joint)
+{
+    MStatus st;
+    const char* attrs[] = { "translateX", "translateY", "translateZ",
+                            "rotateX",    "rotateY",    "rotateZ" };
+
+    MFnDependencyNode depFn(joint.node(), &st);
+    if (st != MS::kSuccess) return;
+
+    for (const char* attr : attrs) {
+        MPlug plug = depFn.findPlug(attr, true, &st);
+        if (st != MS::kSuccess || !plug.isConnected()) continue;
+
+        MPlugArray conns;
+        plug.connectedTo(conns, true, false);
+        if (conns.length() == 0) continue;
+
+        MObject curveObj = conns[0].node();
+        if (!curveObj.hasFn(MFn::kAnimCurve)) continue;
+
+        MFnAnimCurve curveFn(curveObj, &st);
+        if (st != MS::kSuccess) continue;
+
+        // Remove all keys (iterate in reverse to keep indices valid)
+        for (int i = (int)curveFn.numKeys() - 1; i >= 0; --i)
+            curveFn.remove(i);
     }
 }
 
@@ -334,10 +373,11 @@ static void writeRotationKey(const MDagPath&        joint,
         MFnAnimCurve curveFn(curveObj, &st);
         if (st != MS::kSuccess) continue;
 
-        // addKey uses the curve's angle unit; TA curves expect radians
+        // addKey uses the curve's angle unit; TA curves expect radians.
+        // Linear tangents prevent overshoot between per-frame keys.
         unsigned int idx;
-        curveFn.addKey(time, vals[i], MFnAnimCurve::kTangentAuto,
-                       MFnAnimCurve::kTangentAuto, nullptr, &st);
+        curveFn.addKey(time, vals[i], MFnAnimCurve::kTangentLinear,
+                       MFnAnimCurve::kTangentLinear, nullptr, &st);
     }
 }
 
@@ -360,8 +400,10 @@ static void writeTranslationKey(const MDagPath&  joint,
         MFnAnimCurve curveFn(curveObj, &st);
         if (st != MS::kSuccess) continue;
 
-        curveFn.addKey(time, vals[i], MFnAnimCurve::kTangentAuto,
-                       MFnAnimCurve::kTangentAuto, nullptr, &st);
+        // Linear tangents prevent overshoot between per-frame keys,
+        // keeping the butterfly's speed even along the path.
+        curveFn.addKey(time, vals[i], MFnAnimCurve::kTangentLinear,
+                       MFnAnimCurve::kTangentLinear, nullptr, &st);
     }
 }
 
@@ -370,11 +412,12 @@ static void writeTranslationKey(const MDagPath&  joint,
 // ============================================================
 static void writeAllKeys(const BFSkeleton&       skel,
                          const BFManeuverAngles&  ang,
+                         double                   heading,
                          const MTime&             time)
 {
-    // Thorax
+    // Thorax — pitch + heading (yaw)
     writeRotationKey(skel.joints[kThorax],
-        MEulerRotation(deg2rad(ang.thetaBeta), 0.0, 0.0), time);
+        MEulerRotation(deg2rad(ang.thetaBeta), heading, 0.0), time);
 
     // Forewing L
     writeRotationKey(skel.joints[kForewingL],
@@ -497,28 +540,39 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
         }
     }
 
-    // Seed position from the root joint's current world translation
+    // Seed position from the root joint's current world translation (cm → m)
     {
         MFnTransform rootFn(m_state.skeleton.joints[kThorax]);
         MVector t = rootFn.getTranslation(MSpace::kWorld);
-        m_state.position = MPoint(t.x, t.y, t.z);
+        m_state.position = MPoint(t.x * kCmToM, t.y * kCmToM, t.z * kCmToM);
     }
 
     // If a path is provided, snap the butterfly to the curve start
     if (hasPath) {
         double uMin, uMax;
         curveFn.getKnotDomain(uMin, uMax);
-        MPoint startPt;
+        MPoint startPt;  // Maya cm
         curveFn.getPointAtParam(uMin, startPt, MSpace::kWorld);
-        m_state.position = startPt;
+        m_state.position = MPoint(startPt.x * kCmToM, startPt.y * kCmToM, startPt.z * kCmToM);
 
         MFnTransform rootFn(m_state.skeleton.joints[kThorax]);
-        rootFn.setTranslation(MVector(startPt), MSpace::kWorld);
+        rootFn.setTranslation(MVector(startPt), MSpace::kWorld);  // stays in cm for Maya
+
+        // Initialize heading to face along the curve's start tangent
+        MVector tangent = curveFn.tangent(uMin, MSpace::kWorld);
+        double tx = tangent.x, tz = tangent.z;
+        if (std::sqrt(tx * tx + tz * tz) > 1e-6) {
+            m_state.heading = std::atan2(-tx, -tz);
+        }
     }
 
     MGlobal::displayInfo(
         MString("ButterFlight: simDt=") + simDt +
         "s (" + substeps + " substeps/frame @ " + fps + " fps output)");
+
+    // ---- Clear stale keyframes from previous runs ---------------
+    for (int j = 0; j < kNumJoints; ++j)
+        clearAnimCurves(m_state.skeleton.joints[j]);
 
     // ---- Simulation loop (full dynamics) ---------------------
     for (int f = startFrame; f < startFrame + duration; ++f) {
@@ -528,35 +582,71 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
         for (int s = 0; s < substeps; ++s) {
             int prevCycle = m_state.flapCycle;
 
-            // 1. Advance phase + continuous freq/amp filter (Eqs. 2-3).
-            wingModel.update(m_state, simDt);
+            // 1. Advance phase and evaluate maneuvering angles.
+            //    In path-following mode, use fixed frequencies (the
+            //    initial defaults) so that flap rate stays constant
+            //    regardless of flight speed.  In free flight the
+            //    velocity-adaptive sigmoid drives freq/amp as usual.
+            if (hasPath) {
+                // Fixed-rate phase advancement
+                for (int i = 0; i < BFState::kNumAngles; ++i)
+                    m_state.perAnglePhase[i] += 2.0 * M_PI * m_state.perAngleFreq[i] * simDt;
+                m_state.phase += simDt;
+                double cyclePeriod = (m_state.frequency > 0.0)
+                                     ? 1.0 / m_state.frequency : 1.0;
+                if (m_state.phase >= cyclePeriod) {
+                    m_state.phase -= cyclePeriod;
+                    m_state.flapCycle++;
+                }
+                wingModel.updateAnglesOnly(m_state);
+            } else {
+                wingModel.update(m_state, simDt);
+            }
 
             // 2. Apply rotations so aerodynamics reads current normals.
-            applyAngles(m_state.skeleton, m_state.angles);
+            applyAngles(m_state.skeleton, m_state.angles, m_state.heading);
 
             // 2b. Path following: advance lead target along curve.
+            //     Convert physics position (m) → Maya (cm) for curve queries,
+            //     and curve results (cm) → physics (m) for the controller.
             if (hasPath && controller.hasTarget) {
-                MPoint pos(m_state.position);
+                MPoint posCm(m_state.position.x * kMToCm,
+                             m_state.position.y * kMToCm,
+                             m_state.position.z * kMToCm);
                 double uClosest;
-                curveFn.closestPoint(pos, &uClosest, MSpace::kWorld);
+                curveFn.closestPoint(posCm, &uClosest, MSpace::kWorld);
 
-                double curveLen = curveFn.length();
-                double arcAtClosest = curveFn.findLengthFromParam(uClosest);
-                double leadArc = arcAtClosest + controller.sensorRange * 0.5;
+                double curveLen = curveFn.length();           // cm
+                double arcAtClosest = curveFn.findLengthFromParam(uClosest);  // cm
+                double leadArc = arcAtClosest + controller.sensorRange * 0.5 * kMToCm;  // all cm
 
                 if (leadArc >= curveLen) {
                     // Reached the end — coast in free flight
                     controller.hasTarget = false;
                 } else {
                     double uLead = curveFn.findParamFromLength(leadArc);
-                    MPoint leadPt;
-                    curveFn.getPointAtParam(uLead, leadPt, MSpace::kWorld);
-                    controller.target = leadPt;
+                    MPoint leadPtCm;
+                    curveFn.getPointAtParam(uLead, leadPtCm, MSpace::kWorld);
+                    controller.target = MPoint(leadPtCm.x * kCmToM,
+                                               leadPtCm.y * kCmToM,
+                                               leadPtCm.z * kCmToM);
                 }
             }
 
             // 3. Integrate forces → velocity → position (Eqs. 4-11).
             controller.step(m_state, simDt);
+
+            // 3b. Compute body heading (yaw) from velocity direction.
+            //     Only update when there is meaningful horizontal movement
+            //     to avoid jitter when hovering.
+            {
+                double vx = m_state.velocity.x;
+                double vz = m_state.velocity.z;
+                double hSpeed = std::sqrt(vx * vx + vz * vz);
+                if (hSpeed > 0.01) {
+                    m_state.heading = std::atan2(-vx, -vz);
+                }
+            }
 
             // 4. Sliding-window smoother at each flap cycle boundary
             //    (Eq. 12).
@@ -566,9 +656,12 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
 
         // Write one keyframe per output frame (after all substeps).
         MTime frameTime((double)f, MTime::uiUnit());
-        writeAllKeys(m_state.skeleton, m_state.angles, frameTime);
+        writeAllKeys(m_state.skeleton, m_state.angles, m_state.heading, frameTime);
+        MPoint posCm(m_state.position.x * kMToCm,
+                     m_state.position.y * kMToCm,
+                     m_state.position.z * kMToCm);
         writeTranslationKey(m_state.skeleton.joints[kThorax],
-                            m_state.position, frameTime);
+                            posCm, frameTime);
     }
 
     // ---- Set playback range to cover baked frames ---------------
