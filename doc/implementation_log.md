@@ -355,3 +355,67 @@ Connected the ButterFlight MEL UI's Simulate button to the actual `bfSimulate` C
    - **FPS** — frame rate for the time step (default 24)
 5. **Click "Simulate"** — this calls `bfSimulate -rigRoot "BF_body" -duration 120 -frameRate 24` and bakes keyframes onto all skeleton joints.
 6. **Scrub the timeline** to preview the baked butterfly flight animation.
+
+---
+
+## 2026-04-05 — Path Following Mode (Yiding Tian)
+
+### Overview
+
+Implemented path following using NURBS EP curves. The butterfly flies along a user-drawn curve using a "carrot on a stick" design: a lead target slides along the curve ahead of the butterfly, pulling it forward via the existing `preferredAccel()` (Eq. 8) attraction mechanism. Flight remains physically simulated — the curve guides direction, not rigidity.
+
+### Design
+
+The plan was documented in `doc/Others/path_plan.md`. Key idea: each substep, the closest point on the curve to the butterfly's current position is found, then the target is advanced by `sensorRange * 0.5` (≈2.25 m) in arc length. This lead point becomes `controller.target`, and `preferredAccel()` steers the butterfly toward it. When the lead point reaches the curve end, `hasTarget` is set to `false` and the butterfly coasts in free flight.
+
+### Files Modified
+
+#### `src/BFSimulateCmd.h`
+
+- Added `#include <maya/MFnNurbsCurve.h>` for curve API access
+
+#### `src/BFSimulateCmd.cpp`
+
+- **New flag:** `-p` / `-path` (string) — name of a NURBS curve in the scene
+- **`newSyntax()`:** registered the new flag
+- **`doIt()` — curve resolution (after controller init):**
+  1. If `-path` is set, resolves the curve name to an `MDagPath`
+  2. Extends transform to shape node if needed (`extendToShape()`)
+  3. Validates it is `MFn::kNurbsCurve`, sets `MFnNurbsCurve` function set
+  4. Sets `hasPath = true` and `controller.hasTarget = true`
+  5. Displays warning and falls back to free flight if the node is not a NURBS curve
+- **`doIt()` — position snap:** When a path is provided, snaps the butterfly's starting position to the curve's first CV (`getPointAtParam(uMin)`) and updates the root joint translation
+- **`doIt()` — target advancement (inside substep loop, before `controller.step()`):**
+  1. `closestPoint(pos, &uClosest)` — find nearest parameter on curve
+  2. `findLengthFromParam(uClosest)` — convert to arc length
+  3. Add `sensorRange * 0.5` to get lead arc length
+  4. If lead arc >= total curve length → set `hasTarget = false` (coast)
+  5. Otherwise → `findParamFromLength(leadArc)` → `getPointAtParam(uLead)` → set `controller.target`
+
+#### `src/mel/butterFlight_ui.mel`
+
+- **`bfSimulateCallback()`:** Added `$bf_pathField` to globals, reads the path text field, and appends `-path "curveName"` to the command string when non-empty
+- Changed command invocation from backtick-literal to `eval($cmd)` with dynamic string building to support the optional path flag
+
+### Maya API Methods Used
+
+| Method | Purpose |
+|--------|---------|
+| `MFnNurbsCurve::closestPoint(pt, &u)` | Find parameter of nearest point |
+| `MFnNurbsCurve::getPointAtParam(u, pt)` | Evaluate curve position at parameter |
+| `MFnNurbsCurve::length()` | Total arc length |
+| `MFnNurbsCurve::findLengthFromParam(u)` | Arc length from start to parameter |
+| `MFnNurbsCurve::findParamFromLength(len)` | Parameter at a given arc length |
+| `MFnNurbsCurve::getKnotDomain(uMin, uMax)` | Valid parameter range |
+
+### How to Use
+
+1. Draw an EP curve in Maya (Create → Curve Tools → EP Curve Tool)
+2. Open the ButterFlight UI, set mode to **"Path Following"** (section 3)
+3. Select the curve in the viewport, click **"Select"** in Path Settings (section 4)
+4. Assign the rig root and click **Simulate**
+5. The butterfly starts at the curve's first CV and flies along it, coasting in free flight after reaching the end
+
+### No Changes Needed
+
+- `BFManeuverController` — `target`, `hasTarget`, and `preferredAccel()` already work as designed for path following
