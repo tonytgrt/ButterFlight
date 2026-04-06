@@ -23,6 +23,7 @@
 #include <maya/MPlugArray.h>
 #include <maya/MFnDependencyNode.h>
 
+#include <algorithm>
 #include <cmath>
 
 #ifndef M_PI
@@ -56,6 +57,8 @@ static const char* kFlapPeriodFlag     = "-fp";
 static const char* kFlapPeriodFlagLong = "-flapPeriod";
 static const char* kPathFlag           = "-p";
 static const char* kPathFlagLong       = "-path";
+static const char* kPathSpeedFlag      = "-ps";
+static const char* kPathSpeedFlagLong  = "-pathSpeed";
 
 // ============================================================
 // newSyntax — declare accepted flags
@@ -70,6 +73,7 @@ MSyntax BFSimulateCmd::newSyntax()
     syntax.addFlag(kStartFlag, kStartFlagLong, MSyntax::kLong);
     syntax.addFlag(kFlapPeriodFlag, kFlapPeriodFlagLong, MSyntax::kDouble);
     syntax.addFlag(kPathFlag, kPathFlagLong, MSyntax::kString);
+    syntax.addFlag(kPathSpeedFlag, kPathSpeedFlagLong, MSyntax::kDouble);
     // TODO: add remaining flags (mass, wingArea, gains, eta, etc.)
     return syntax;
 }
@@ -481,6 +485,11 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
     if (argData.isFlagSet(kFlapPeriodFlag))
         argData.getFlagArgument(kFlapPeriodFlag, 0, flapPeriod);
 
+    double pathSpeedScale = 1.0;
+    if (argData.isFlagSet(kPathSpeedFlag))
+        argData.getFlagArgument(kPathSpeedFlag, 0, pathSpeedScale);
+    if (pathSpeedScale <= 0.0) pathSpeedScale = 1.0;
+
     if (flapPeriod <= 0.0) flapPeriod = 1.0;
 
     // Read FPS directly from Maya's scene time unit so that baked
@@ -567,7 +576,6 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
 
     // ---- Path-progress tracking variables -------------------------
     bool   pathActive      = hasPath; // true while actively following
-    double lastArcProgress = 0.0;   // monotonic arc position on curve (cm)
     double totalCurveLen   = 0.0;   // total curve length (cm)
     MPoint curveEndPtM;             // curve endpoint in metres
     if (hasPath) {
@@ -577,6 +585,22 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
         MPoint endCm;
         curveFn.getPointAtParam(uMax2, endCm, MSpace::kWorld);
         curveEndPtM = MPoint(endCm.x * kCmToM, endCm.y * kCmToM, endCm.z * kCmToM);
+    }
+
+    // ---- Compute path arc advancement rate --------------------------
+    //  Instead of deriving a physics velocity (which gets clamped to
+    //  maxSpeed and fights aero forces), advance a time-based cursor
+    //  along the curve at a fixed rate per substep.  At scale 1.0 the
+    //  cursor traverses the full curve over the full simulation.
+    //  arcRate is in cm/substep (curve's native unit).
+    double arcCursor = 0.0;
+    double arcRate   = 0.0;
+    if (hasPath && duration > 0 && substeps > 0) {
+        arcRate = totalCurveLen / ((double)duration * substeps) * pathSpeedScale;
+        MGlobal::displayInfo(
+            MString("ButterFlight: arcRate=") + arcRate +
+            " cm/substep (curveLen=" + totalCurveLen +
+            " cm, scale=" + pathSpeedScale + ")");
     }
 
     MGlobal::displayInfo(
@@ -624,77 +648,62 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
             //    path-following steering below handles guidance instead.
             controller.step(m_state, simDt);
 
-            // 3b. Path-following velocity steering.
+            // 3b. Path-following: time-based cursor steering.
             //
-            //     Instead of a far-ahead "carrot" target that causes
-            //     shortcutting on curves, we steer the velocity directly:
-            //       • Tangent alignment — push velocity along the curve
-            //       • Lateral spring    — pull butterfly back toward the curve
-            //
-            //     This runs AFTER controller.step() so the aerodynamic
-            //     oscillation (wing flap feel) is preserved, and we only
-            //     overlay the guidance correction.
+            //     A cursor advances along the curve at a fixed rate
+            //     per substep (arcRate), so traversal speed is controlled
+            //     by curve length / duration, not by physics velocity.
+            //     The butterfly chases the cursor via a spring; aero
+            //     oscillation from controller.step() is preserved.
             if (pathActive) {
-                MPoint posCm(m_state.position.x * kMToCm,
-                             m_state.position.y * kMToCm,
-                             m_state.position.z * kMToCm);
-                double uClosest;
-                curveFn.closestPoint(posCm, &uClosest, MSpace::kWorld);
+                // Advance cursor (time-based, not position-based)
+                arcCursor += arcRate;
+                if (arcCursor > totalCurveLen) arcCursor = totalCurveLen;
 
-                // Monotonic arc progress — never regress along the curve
-                double arcAtClosest = curveFn.findLengthFromParam(uClosest);
-                if (arcAtClosest > lastArcProgress)
-                    lastArcProgress = arcAtClosest;
+                double uTarget = curveFn.findParamFromLength(arcCursor);
 
-                // Re-evaluate parameter from monotonic arc length
-                double uMono = curveFn.findParamFromLength(lastArcProgress);
+                // Cursor point on curve (metres)
+                MPoint targetCm;
+                curveFn.getPointAtParam(uTarget, targetCm, MSpace::kWorld);
+                MVector targetM(targetCm.x * kCmToM,
+                                targetCm.y * kCmToM,
+                                targetCm.z * kCmToM);
 
-                // Closest point on curve (metres)
-                MPoint closestCm;
-                curveFn.getPointAtParam(uMono, closestCm, MSpace::kWorld);
-                MVector closestM(closestCm.x * kCmToM,
-                                 closestCm.y * kCmToM,
-                                 closestCm.z * kCmToM);
-
-                // Curve tangent at current progress (world space)
-                MVector tangent = curveFn.tangent(uMono, MSpace::kWorld);
+                // Curve tangent at cursor
+                MVector tangent = curveFn.tangent(uTarget, MSpace::kWorld);
                 tangent.normalize();
 
-                // Lateral correction toward curve surface
-                MVector toPath = closestM - MVector(m_state.position);
-                double lateralDist = toPath.length();
+                // Spring toward cursor point
+                MVector toTarget = targetM - MVector(m_state.position);
+                double dist = toTarget.length();
 
-                // Desired velocity: tangent direction at a cruise speed,
-                // plus a lateral correction proportional to path offset
-                double pathSpeed = controller.maxSpeed * 0.7;
-                MVector desiredVel = tangent * pathSpeed;
-                if (lateralDist > 1e-4) {
-                    double lateralPull = std::min(lateralDist * 8.0, pathSpeed);
-                    desiredVel += (toPath / lateralDist) * lateralPull;
-                }
+                // Desired velocity: spring pull toward cursor.
+                // Gain of 15/s makes the butterfly converge quickly
+                // without overshooting.  No maxSpeed clamp — the
+                // cursor rate controls effective speed, not physics.
+                MVector desiredVel = toTarget * 15.0;
+                // Add tangent bias so direction stays smooth on curves
+                double tangentBias = arcRate * kCmToM / simDt * 0.3;
+                desiredVel += tangent * tangentBias;
 
-                // Blend current velocity toward desired (exponential).
-                // blendRate controls tightness: higher = tighter following.
-                double blendRate = 12.0;
+                // Blend toward desired (higher rate for tighter tracking)
+                double blendRate = 18.0;
                 double alpha = 1.0 - std::exp(-blendRate * simDt);
                 m_state.velocity = m_state.velocity * (1.0 - alpha)
                                  + desiredVel * alpha;
 
-                // Re-clamp speed
-                double speed = m_state.velocity.length();
-                if (speed > controller.maxSpeed)
-                    m_state.velocity *= controller.maxSpeed / speed;
-
-                // Heading from curve tangent (smoother than velocity)
+                // Heading from curve tangent
                 double tx = tangent.x, tz = tangent.z;
                 if (std::sqrt(tx * tx + tz * tz) > 1e-6)
                     m_state.heading = std::atan2(-tx, -tz);
 
-                // End-of-curve: transition to free flight when close to endpoint
-                double distToEnd = (MVector(curveEndPtM)
-                                  - MVector(m_state.position)).length();
-                if (lastArcProgress >= totalCurveLen - 1.0 && distToEnd < 0.1)
-                    pathActive = false;
+                // End-of-curve: transition to free flight
+                if (arcCursor >= totalCurveLen) {
+                    double distToEnd = (MVector(curveEndPtM)
+                                      - MVector(m_state.position)).length();
+                    if (distToEnd < 0.1)
+                        pathActive = false;
+                }
             }
 
             // 3c. Free-flight heading from velocity direction.

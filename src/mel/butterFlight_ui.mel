@@ -14,6 +14,7 @@ global string $bf_modeMenu;
 // Path Following section
 global string $bf_pathFrame;
 global string $bf_pathField;
+global string $bf_pathSpeedField;
 
 // Wind section
 global string $bf_windEnableCheck;
@@ -178,12 +179,14 @@ global proc butterFlightUI()
                     -placeholderText "Select NURBS curve"
                     -columnWidth3 0 220 70`;
 
-                floatFieldGrp
-                    -label "Path Follow Strength"
+                global string $bf_pathSpeedField;
+                $bf_pathSpeedField = `floatFieldGrp
+                    -label "Path Speed Scale"
                     -numberOfFields 1
                     -value1 1.0
                     -precision 3
-                    -columnWidth2 140 140;
+                    -annotation "Multiplier for auto-derived path speed (1.0 = full curve over full duration)"
+                    -columnWidth2 140 140`;
 
             setParent ..;
         setParent ..;
@@ -584,6 +587,7 @@ global proc bfSimulateCallback()
     global string $bf_maxSpeedField;
     global string $bf_windowKField;
     global string $bf_pathField;
+    global string $bf_pathSpeedField;
     global string $bf_startFrameField;
     global string $bf_durationField;
     global string $bf_flapPeriodField;
@@ -630,11 +634,13 @@ global proc bfSimulateCallback()
     print ("//   Flap Period: " + $flapPeriod + " sec\n");
     print ("//   Frames:     " + $startF + " to " + ($startF + $duration - 1) + "\n");
 
-    // Build path flag if a guide curve is assigned
+    // Build path flags if a guide curve is assigned
     string $path = `textFieldButtonGrp -query -text $bf_pathField`;
     string $pathFlag = "";
     if ($path != "") {
         $pathFlag = " -path \"" + $path + "\"";
+        float $psScale = `floatFieldGrp -query -value1 $bf_pathSpeedField`;
+        $pathFlag += " -pathSpeed " + $psScale;
     }
 
     // Call the C++ bfSimulate command directly
@@ -712,6 +718,7 @@ global proc bfReset()
 {
     global string $bf_rigField;
     global string $bf_pathField;
+    global string $bf_pathSpeedField;
     global string $bf_speciesMenu;
     global string $bf_modeMenu;
     global string $bf_vortexGainXField;
@@ -730,6 +737,7 @@ global proc bfReset()
 
     textFieldButtonGrp  -edit -text ""   $bf_rigField;
     textFieldButtonGrp  -edit -text ""   $bf_pathField;
+    floatFieldGrp       -edit -value1 1.0 $bf_pathSpeedField;
 
     optionMenuGrp -edit -select 1        $bf_speciesMenu;
     optionMenuGrp -edit -select 1        $bf_modeMenu;
