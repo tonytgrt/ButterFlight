@@ -532,7 +532,6 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
         if (curveDagPath.hasFn(MFn::kNurbsCurve)) {
             curveFn.setObject(curveDagPath);
             hasPath = true;
-            controller.hasTarget = true;
             MGlobal::displayInfo("ButterFlight: Path curve '" + curveName + "' loaded.");
         } else {
             MGlobal::displayWarning("ButterFlight: '" + curveName +
@@ -564,6 +563,20 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
         if (std::sqrt(tx * tx + tz * tz) > 1e-6) {
             m_state.heading = std::atan2(-tx, -tz);
         }
+    }
+
+    // ---- Path-progress tracking variables -------------------------
+    bool   pathActive      = hasPath; // true while actively following
+    double lastArcProgress = 0.0;   // monotonic arc position on curve (cm)
+    double totalCurveLen   = 0.0;   // total curve length (cm)
+    MPoint curveEndPtM;             // curve endpoint in metres
+    if (hasPath) {
+        totalCurveLen = curveFn.length();
+        double uMin2, uMax2;
+        curveFn.getKnotDomain(uMin2, uMax2);
+        MPoint endCm;
+        curveFn.getPointAtParam(uMax2, endCm, MSpace::kWorld);
+        curveEndPtM = MPoint(endCm.x * kCmToM, endCm.y * kCmToM, endCm.z * kCmToM);
     }
 
     MGlobal::displayInfo(
@@ -606,46 +619,91 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
             // 2. Apply rotations so aerodynamics reads current normals.
             applyAngles(m_state.skeleton, m_state.angles, m_state.heading);
 
-            // 2b. Path following: advance lead target along curve.
-            //     Convert physics position (m) → Maya (cm) for curve queries,
-            //     and curve results (cm) → physics (m) for the controller.
-            if (hasPath && controller.hasTarget) {
+            // 3. Integrate forces → velocity → position (Eqs. 4-11).
+            //    In path mode, a_pre is zero (hasTarget=false); the
+            //    path-following steering below handles guidance instead.
+            controller.step(m_state, simDt);
+
+            // 3b. Path-following velocity steering.
+            //
+            //     Instead of a far-ahead "carrot" target that causes
+            //     shortcutting on curves, we steer the velocity directly:
+            //       • Tangent alignment — push velocity along the curve
+            //       • Lateral spring    — pull butterfly back toward the curve
+            //
+            //     This runs AFTER controller.step() so the aerodynamic
+            //     oscillation (wing flap feel) is preserved, and we only
+            //     overlay the guidance correction.
+            if (pathActive) {
                 MPoint posCm(m_state.position.x * kMToCm,
                              m_state.position.y * kMToCm,
                              m_state.position.z * kMToCm);
                 double uClosest;
                 curveFn.closestPoint(posCm, &uClosest, MSpace::kWorld);
 
-                double curveLen = curveFn.length();           // cm
-                double arcAtClosest = curveFn.findLengthFromParam(uClosest);  // cm
-                double leadArc = arcAtClosest + controller.sensorRange * 0.5 * kMToCm;  // all cm
+                // Monotonic arc progress — never regress along the curve
+                double arcAtClosest = curveFn.findLengthFromParam(uClosest);
+                if (arcAtClosest > lastArcProgress)
+                    lastArcProgress = arcAtClosest;
 
-                if (leadArc >= curveLen) {
-                    // Reached the end — coast in free flight
-                    controller.hasTarget = false;
-                } else {
-                    double uLead = curveFn.findParamFromLength(leadArc);
-                    MPoint leadPtCm;
-                    curveFn.getPointAtParam(uLead, leadPtCm, MSpace::kWorld);
-                    controller.target = MPoint(leadPtCm.x * kCmToM,
-                                               leadPtCm.y * kCmToM,
-                                               leadPtCm.z * kCmToM);
+                // Re-evaluate parameter from monotonic arc length
+                double uMono = curveFn.findParamFromLength(lastArcProgress);
+
+                // Closest point on curve (metres)
+                MPoint closestCm;
+                curveFn.getPointAtParam(uMono, closestCm, MSpace::kWorld);
+                MVector closestM(closestCm.x * kCmToM,
+                                 closestCm.y * kCmToM,
+                                 closestCm.z * kCmToM);
+
+                // Curve tangent at current progress (world space)
+                MVector tangent = curveFn.tangent(uMono, MSpace::kWorld);
+                tangent.normalize();
+
+                // Lateral correction toward curve surface
+                MVector toPath = closestM - MVector(m_state.position);
+                double lateralDist = toPath.length();
+
+                // Desired velocity: tangent direction at a cruise speed,
+                // plus a lateral correction proportional to path offset
+                double pathSpeed = controller.maxSpeed * 0.7;
+                MVector desiredVel = tangent * pathSpeed;
+                if (lateralDist > 1e-4) {
+                    double lateralPull = std::min(lateralDist * 8.0, pathSpeed);
+                    desiredVel += (toPath / lateralDist) * lateralPull;
                 }
+
+                // Blend current velocity toward desired (exponential).
+                // blendRate controls tightness: higher = tighter following.
+                double blendRate = 12.0;
+                double alpha = 1.0 - std::exp(-blendRate * simDt);
+                m_state.velocity = m_state.velocity * (1.0 - alpha)
+                                 + desiredVel * alpha;
+
+                // Re-clamp speed
+                double speed = m_state.velocity.length();
+                if (speed > controller.maxSpeed)
+                    m_state.velocity *= controller.maxSpeed / speed;
+
+                // Heading from curve tangent (smoother than velocity)
+                double tx = tangent.x, tz = tangent.z;
+                if (std::sqrt(tx * tx + tz * tz) > 1e-6)
+                    m_state.heading = std::atan2(-tx, -tz);
+
+                // End-of-curve: transition to free flight when close to endpoint
+                double distToEnd = (MVector(curveEndPtM)
+                                  - MVector(m_state.position)).length();
+                if (lastArcProgress >= totalCurveLen - 1.0 && distToEnd < 0.1)
+                    pathActive = false;
             }
 
-            // 3. Integrate forces → velocity → position (Eqs. 4-11).
-            controller.step(m_state, simDt);
-
-            // 3b. Compute body heading (yaw) from velocity direction.
-            //     Only update when there is meaningful horizontal movement
-            //     to avoid jitter when hovering.
-            {
+            // 3c. Free-flight heading from velocity direction.
+            if (!pathActive) {
                 double vx = m_state.velocity.x;
                 double vz = m_state.velocity.z;
                 double hSpeed = std::sqrt(vx * vx + vz * vz);
-                if (hSpeed > 0.01) {
+                if (hSpeed > 0.01)
                     m_state.heading = std::atan2(-vx, -vz);
-                }
             }
 
             // 4. Sliding-window smoother at each flap cycle boundary

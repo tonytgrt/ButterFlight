@@ -145,12 +145,41 @@ if (leadArc >= curveLen) {
 }
 ```
 
-### 4. Reduce lateral drift with path-pull force (optional, longer term)
-
-The current design only uses `preferredAccel()` (Eq. 8 attraction) to steer toward the lead target. The butterfly is free to drift laterally. A supplementary lateral correction force — pulling the butterfly back toward the closest point on the curve, not just the lead point — would keep the path tighter without sacrificing the organic physics feel.
-
 ---
+
+## Update: Fixes 1-3 did NOT resolve shortcutting
+
+The monotonic progress, scaled lead distance, and end-of-curve targeting were implemented but the butterfly still cut across curves. The root cause is more fundamental than the lead distance.
+
+### Why "carrot on a stick" fails on curves
+
+`preferredAccel()` (Eq. 8) computes a **straight-line** pull toward the target: `R(d) * (1/mass) * direction`. When the target is ahead *on the curve*, the straight-line direction from the butterfly to that target **cuts through the curve's interior**. No amount of adjusting the lead distance fixes this — even a small lead creates a chord that deviates on tight bends.
+
+The paper (line 987) says `q_i` is "the closest attraction point." For path following, this means the closest point on the path — NOT a far-ahead lead target. The butterfly's own aerodynamic thrust provides forward motion; `a_pre` serves as lateral correction to keep it near the path.
+
+### Implemented fix: direct velocity steering
+
+Replaced the lead-target `a_pre` design with a two-component velocity steering system applied AFTER `controller.step()`:
+
+1. **Tangent alignment**: desired velocity is set along the curve tangent at the butterfly's current arc position, at 70% of maxSpeed. This provides forward guidance along the curve.
+
+2. **Lateral spring**: a correction vector pulls the butterfly back toward the closest point on the curve, proportional to distance (gain = 8.0, capped at `pathSpeed`). This prevents drift.
+
+3. **Exponential blend**: the butterfly's actual velocity is blended toward the desired velocity each substep with `blendRate = 12.0`. This gives tight enough following (~40% correction per frame at 24fps) while preserving the organic aerodynamic oscillation from wing flapping.
+
+4. **Heading from tangent**: in path mode, heading is derived from the curve tangent instead of velocity, giving smoother orientation that follows the curve.
+
+5. **`controller.hasTarget = false`**: `preferredAccel()` returns zero during path following. The controller still runs `localAccel()` (aero + vortex + gravity), preserving flap dynamics.
+
+### Tunable parameters
+
+| Parameter | Value | Effect |
+|-----------|-------|--------|
+| `pathSpeed` | `maxSpeed * 0.7` (1.4 m/s) | Cruise speed along path |
+| `lateralPull` gain | `8.0` | Stiffness of lateral correction (m/s per m offset) |
+| `blendRate` | `12.0` | Velocity blend rate (1/s). Higher = tighter following, less drift |
+| End-of-curve threshold | `0.1 m` | Distance to endpoint before coasting to free flight |
 
 ## Summary
 
-The unit conversion and orientation fixes are correct. The path-following issues are **not caused by the unit change itself**, but by pre-existing design limitations in the "carrot on a stick" algorithm that only became visible now that the butterfly actually moves at the correct scale. The three key fixes (monotonic progress, scaled lead distance, end-of-curve targeting) should be straightforward to implement in `BFSimulateCmd::doIt()` without touching the controller.
+The unit conversion and orientation fixes are correct. The initial "carrot on a stick" path-following design was fundamentally incompatible with curved paths because `preferredAccel()` pulls in straight lines. The fix bypasses `a_pre` in path mode and applies direct velocity steering (tangent + lateral spring), which is closer to how the paper uses `q_i` as the closest attraction point for path following.
