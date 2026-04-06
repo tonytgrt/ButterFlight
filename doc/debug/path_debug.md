@@ -180,6 +180,79 @@ Replaced the lead-target `a_pre` design with a two-component velocity steering s
 | `blendRate` | `12.0` | Velocity blend rate (1/s). Higher = tighter following, less drift |
 | End-of-curve threshold | `0.1 m` | Distance to endpoint before coasting to free flight |
 
+---
+
+## Issue: Speed control for small-scale scenes (2026-04-06)
+
+### Problem
+
+`pathSpeed` is currently hardcoded to `maxSpeed * 0.7 = 1.4 m/s` (140 cm/s). On a short curve (say 200 cm), the butterfly reaches the end in ~1.4 seconds and enters free flight for the rest of the simulation duration. In small-scale scenes this makes the path following feel instant and useless — the butterfly spends most of its animation in unguided free-fall.
+
+The user has no way to control how fast the butterfly traverses the curve.
+
+### Design goals
+
+1. The butterfly should be able to traverse the **entire curve** over the **entire simulation duration** if desired.
+2. Speed should be user-controllable from the MEL UI.
+3. The mechanism should feel natural — not teleport or stutter.
+
+### Plan
+
+#### Option A: Derive speed from curve length and duration (recommended)
+
+Compute `pathSpeed` automatically so the butterfly takes approximately the full duration to traverse the curve:
+
+```
+pathSpeed = (totalCurveLen * kCmToM) / (duration / fps)
+```
+
+where `duration / fps` is the total simulation time in seconds. This means:
+- A 500 cm curve at 120 frames / 24 fps = 5 sec → `pathSpeed = 5 * 0.01 / 5 = 0.01 m/s` (1 cm/s)
+- A 5000 cm curve at 120 frames / 24 fps = 5 sec → `pathSpeed = 50 * 0.01 / 5 = 0.1 m/s`
+
+Clamp to `[0.01, maxSpeed]` so it never fully stops or exceeds physical limits.
+
+**Pros**: zero-configuration for the user — just draw a curve and set a duration, and the butterfly paces itself.
+**Cons**: changing duration changes speed. Might feel too slow on long curves or too fast if user sets a very short duration.
+
+#### Option B: Expose a "Path Speed" slider in the UI
+
+Add a new float field (or repurpose the existing "Path Follow Strength" field which currently does nothing) that directly sets `pathSpeed` in m/s or cm/s. The user dials it to taste.
+
+**Pros**: full manual control.
+**Cons**: requires trial and error; the user has to mentally estimate what speed matches their curve length.
+
+#### Option C: Combine both — auto-derive with a multiplier
+
+Compute the auto speed from Option A, then multiply by a user-exposed "Path Speed Scale" (default 1.0). This gives an intelligent default that the user can fine-tune:
+
+```
+autoSpeed = (totalCurveLen * kCmToM) / totalSimTimeSec
+pathSpeed = clamp(autoSpeed * userScale, 0.01, maxSpeed)
+```
+
+The existing "Path Follow Strength" field (currently unused) could be repurposed as this multiplier.
+
+### Recommended: Option C
+
+Auto-derive + multiplier is the best UX. The user doesn't need to guess absolute speeds, but can still speed up/slow down with a single slider if the default pacing doesn't match their artistic intent.
+
+### Implementation steps (when ready)
+
+1. In `doIt()`, after computing `totalCurveLen`, `fps`, and `duration`, compute:
+   ```cpp
+   double totalSimTime = (double)duration / fps;
+   double autoPathSpeed = (totalCurveLen * kCmToM) / totalSimTime;
+   double pathSpeed = std::clamp(autoPathSpeed * pathSpeedScale, 0.01, controller.maxSpeed);
+   ```
+2. Repurpose the "Path Follow Strength" float field in the MEL UI as "Path Speed Scale" (default 1.0). Pass it as a new flag `-ps` / `-pathSpeed` to the C++ command.
+3. Move `pathSpeed` out of the substep loop body (it's currently recomputed every substep at the same value — wasteful but harmless; just compute it once before the loop).
+
+### Other considerations
+
+- The auto-speed doesn't account for **curve curvature**: tight bends naturally slow the butterfly down because the lateral spring fights the tangent component. Very tight curves at high auto-speed may still look wrong. A future refinement could scale speed by local curvature radius, but that's a second-order concern.
+- End-of-curve threshold (`0.1 m`) may need scaling too — on tiny curves, 10 cm could be a significant fraction of the path.
+
 ## Summary
 
-The unit conversion and orientation fixes are correct. The initial "carrot on a stick" path-following design was fundamentally incompatible with curved paths because `preferredAccel()` pulls in straight lines. The fix bypasses `a_pre` in path mode and applies direct velocity steering (tangent + lateral spring), which is closer to how the paper uses `q_i` as the closest attraction point for path following.
+The unit conversion and orientation fixes are correct. The initial "carrot on a stick" path-following design was fundamentally incompatible with curved paths because `preferredAccel()` pulls in straight lines. The fix bypasses `a_pre` in path mode and applies direct velocity steering (tangent + lateral spring), which is closer to how the paper uses `q_i` as the closest attraction point for path following. Speed control via auto-derived pacing (Option C) is the next step.
