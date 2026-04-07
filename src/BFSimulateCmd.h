@@ -11,6 +11,7 @@
 #include <maya/MStatus.h>
 
 #include "BFState.h"
+#include <maya/MFnNurbsCurve.h>
 
 class BFSimulateCmd : public MPxCommand
 {

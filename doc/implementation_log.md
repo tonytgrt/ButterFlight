@@ -355,3 +355,139 @@ Connected the ButterFlight MEL UI's Simulate button to the actual `bfSimulate` C
    - **FPS** — frame rate for the time step (default 24)
 5. **Click "Simulate"** — this calls `bfSimulate -rigRoot "BF_body" -duration 120 -frameRate 24` and bakes keyframes onto all skeleton joints.
 6. **Scrub the timeline** to preview the baked butterfly flight animation.
+
+---
+
+## 2026-04-05 — Path Following Mode (Yiding Tian)
+
+### Overview
+
+Implemented path following using NURBS EP curves. The butterfly flies along a user-drawn curve using a "carrot on a stick" design: a lead target slides along the curve ahead of the butterfly, pulling it forward via the existing `preferredAccel()` (Eq. 8) attraction mechanism. Flight remains physically simulated — the curve guides direction, not rigidity.
+
+### Design
+
+The plan was documented in `doc/Others/path_plan.md`. Key idea: each substep, the closest point on the curve to the butterfly's current position is found, then the target is advanced by `sensorRange * 0.5` (≈2.25 m) in arc length. This lead point becomes `controller.target`, and `preferredAccel()` steers the butterfly toward it. When the lead point reaches the curve end, `hasTarget` is set to `false` and the butterfly coasts in free flight.
+
+### Files Modified
+
+#### `src/BFSimulateCmd.h`
+
+- Added `#include <maya/MFnNurbsCurve.h>` for curve API access
+
+#### `src/BFSimulateCmd.cpp`
+
+- **New flag:** `-p` / `-path` (string) — name of a NURBS curve in the scene
+- **`newSyntax()`:** registered the new flag
+- **`doIt()` — curve resolution (after controller init):**
+  1. If `-path` is set, resolves the curve name to an `MDagPath`
+  2. Extends transform to shape node if needed (`extendToShape()`)
+  3. Validates it is `MFn::kNurbsCurve`, sets `MFnNurbsCurve` function set
+  4. Sets `hasPath = true` and `controller.hasTarget = true`
+  5. Displays warning and falls back to free flight if the node is not a NURBS curve
+- **`doIt()` — position snap:** When a path is provided, snaps the butterfly's starting position to the curve's first CV (`getPointAtParam(uMin)`) and updates the root joint translation
+- **`doIt()` — target advancement (inside substep loop, before `controller.step()`):**
+  1. `closestPoint(pos, &uClosest)` — find nearest parameter on curve
+  2. `findLengthFromParam(uClosest)` — convert to arc length
+  3. Add `sensorRange * 0.5` to get lead arc length
+  4. If lead arc >= total curve length → set `hasTarget = false` (coast)
+  5. Otherwise → `findParamFromLength(leadArc)` → `getPointAtParam(uLead)` → set `controller.target`
+
+#### `src/mel/butterFlight_ui.mel`
+
+- **`bfSimulateCallback()`:** Added `$bf_pathField` to globals, reads the path text field, and appends `-path "curveName"` to the command string when non-empty
+- Changed command invocation from backtick-literal to `eval($cmd)` with dynamic string building to support the optional path flag
+
+### Maya API Methods Used
+
+| Method | Purpose |
+|--------|---------|
+| `MFnNurbsCurve::closestPoint(pt, &u)` | Find parameter of nearest point |
+| `MFnNurbsCurve::getPointAtParam(u, pt)` | Evaluate curve position at parameter |
+| `MFnNurbsCurve::length()` | Total arc length |
+| `MFnNurbsCurve::findLengthFromParam(u)` | Arc length from start to parameter |
+| `MFnNurbsCurve::findParamFromLength(len)` | Parameter at a given arc length |
+| `MFnNurbsCurve::getKnotDomain(uMin, uMax)` | Valid parameter range |
+
+### How to Use
+
+1. Draw an EP curve in Maya (Create → Curve Tools → EP Curve Tool)
+2. Open the ButterFlight UI, set mode to **"Path Following"** (section 3)
+3. Select the curve in the viewport, click **"Select"** in Path Settings (section 4)
+4. Assign the rig root and click **Simulate**
+5. The butterfly starts at the curve's first CV and flies along it, coasting in free flight after reaching the end
+
+### No Changes Needed
+
+- `BFManeuverController` — `target`, `hasTarget`, and `preferredAccel()` already work as designed for path following
+
+---
+
+## 2026-04-06 — Path Following: Speed Control & Cursor-Based Steering (Yiding Tian)
+
+### Problem
+
+Path speed was hardcoded to `controller.maxSpeed * 0.7` (1.4 m/s). On short curves the butterfly reached the end almost instantly and spent most of the animation in unguided free-fall. On long curves the speed was identical. The user had no way to control traversal rate.
+
+Two earlier fix attempts failed:
+1. **Auto-derive pathSpeed from `curveLen / realTime`** — the formula didn't account for `simRate` (physics clock compression), producing a speed ~5.5× too slow.
+2. **Auto-derive from `curveLen / physicsTime`** — correct formula, but `std::clamp(..., maxSpeed)` capped it to 2.0 m/s for any curve longer than ~180 cm, making all curves appear the same speed. Additionally, the post-blend velocity clamp to `maxSpeed` prevented the butterfly from actually reaching the desired speed.
+
+### Root Cause
+
+The velocity-based approach is fundamentally limited: `maxSpeed` clamps both the desired velocity and the post-blend result, and the exponential blend (α ≈ 0.2%/substep) converges too slowly against physics forces at low target speeds. Speed control requires decoupling traversal rate from physics velocity.
+
+### Solution: Time-Based Arc Cursor
+
+Replaced `closestPoint()`-based progress tracking with a time-based cursor that advances at a fixed rate per substep:
+
+```
+arcRate = totalCurveLen / (duration × substeps) × pathSpeedScale
+```
+
+At scale 1.0 the cursor reaches the curve end exactly when the simulation ends, regardless of curve length, `simRate`, or physics forces. The butterfly chases the cursor via a spring; aero oscillation from `controller.step()` is preserved.
+
+### Files Modified
+
+#### `src/BFSimulateCmd.cpp`
+
+- **New flag:** `-ps` / `-pathSpeed` (double, default 1.0) — path speed scale multiplier
+- **`newSyntax()`:** registered the new flag
+- **Added `#include <algorithm>`** for `std::clamp` (unused now but kept for future use)
+- **Arc cursor computation** (before simulation loop):
+  ```cpp
+  double arcCursor = 0.0;
+  double arcRate = totalCurveLen / ((double)duration * substeps) * pathSpeedScale;
+  ```
+- **Replaced the path-following steering block** — removed `closestPoint()`, monotonic arc progress (`lastArcProgress`), and velocity-based `pathSpeed`. New design:
+  1. **Cursor advancement:** `arcCursor += arcRate` each substep (capped at `totalCurveLen`)
+  2. **Target from cursor:** `curveFn.findParamFromLength(arcCursor)` → `getPointAtParam()` for position, `tangent()` for direction
+  3. **Spring to cursor:** `desiredVel = toTarget * 15.0` — proportional spring toward the cursor point
+  4. **Tangent bias:** `tangent * (arcRate * kCmToM / simDt * 0.3)` — smooths direction on curves
+  5. **Blend rate:** increased from 12.0 to 18.0 for tighter tracking
+  6. **No maxSpeed clamp** — neither on `desiredVel` nor on post-blend velocity. The cursor rate controls effective speed, not physics velocity limits
+  7. **End-of-curve:** transitions to free flight when `arcCursor >= totalCurveLen` and butterfly is within 0.1 m of endpoint
+
+#### `src/mel/butterFlight_ui.mel`
+
+- **Repurposed "Path Follow Strength"** field → **"Path Speed Scale"** with tooltip annotation
+- **New global:** `$bf_pathSpeedField` — stored control name for querying
+- **`bfSimulateCallback()`:** reads `$bf_pathSpeedField` and appends `-pathSpeed <scale>` when a path is set
+- **`bfReset()`:** resets path speed scale to 1.0
+
+### Key Design Differences from Previous Approach
+
+| Aspect | Old (velocity-based) | New (cursor-based) |
+|--------|---------------------|--------------------|
+| Progress tracking | `closestPoint()` → monotonic arc | Time-based cursor (`arcCursor += arcRate`) |
+| Speed control | `desiredVel = tangent * pathSpeed` | Implicit from cursor rate |
+| maxSpeed interaction | Clamped to `controller.maxSpeed` | No clamp — cursor rate is the speed limit |
+| Traversal guarantee | Depends on physics convergence | Cursor always finishes on time |
+| Dependencies | Needs correct `simRate` in formula | Only needs `duration × substeps` |
+
+### Path Speed Scale Usage
+
+| Scale | Behaviour |
+|-------|-----------|
+| 1.0 | Butterfly traverses full curve over full simulation duration |
+| 2.0 | Twice as fast — finishes at the halfway point, then free flight |
+| 0.5 | Half speed — only reaches the curve midpoint by simulation end |

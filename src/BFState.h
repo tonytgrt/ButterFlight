@@ -61,6 +61,9 @@ struct BFState {
     MPoint           position;
     MVector          velocity;
 
+    // Body heading (yaw, radians) — computed from velocity direction
+    double           heading = 0.0;
+
     // Current maneuvering angles
     BFManeuverAngles angles;
 

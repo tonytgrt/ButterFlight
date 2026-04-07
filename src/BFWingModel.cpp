@@ -150,12 +150,24 @@ void BFWingModel::update(BFState& state, double dt)
     double alpha = dt / kAdaptTime;
     if (alpha > 1.0) alpha = 1.0;
 
+    // Minimum frequency floors — a butterfly always flaps at a base
+    // rate even when hovering.  Without these, the sigmoid at near-zero
+    // speed drives frequency to ~0 and flapping effectively stops after
+    // the first cycle.
+    //                                   beta  gamma  zeta   psi    phi
+    static constexpr double kMinFreq[5] = { 1.0,  5.0,   5.0,   5.0,   5.0 };
+    static constexpr double kMinAmp [5] = { 5.0,  40.0,  2.0,   4.0,   8.0 };
+
     double maxFreq = 0.0;
     for (int i = 0; i < BFState::kNumAngles; ++i) {
         double freqRange  = params[i].freqRangeMax - params[i].freqRangeMin;
         double ampRange   = params[i].ampRangeMax  - params[i].ampRangeMin;
         double targetFreq = params[i].freqRangeMin + evalSigmoid(speed, freqRange);
         double targetAmp  = params[i].ampRangeMin  + evalSigmoid(speed, ampRange);
+
+        // Enforce minimum floors
+        if (targetFreq < kMinFreq[i]) targetFreq = kMinFreq[i];
+        if (targetAmp  < kMinAmp[i])  targetAmp  = kMinAmp[i];
 
         state.perAngleFreq[i] += alpha * (targetFreq - state.perAngleFreq[i]);
         state.perAngleAmp[i]  += alpha * (targetAmp  - state.perAngleAmp[i]);
