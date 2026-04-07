@@ -419,3 +419,75 @@ The plan was documented in `doc/Others/path_plan.md`. Key idea: each substep, th
 ### No Changes Needed
 
 - `BFManeuverController` — `target`, `hasTarget`, and `preferredAccel()` already work as designed for path following
+
+---
+
+## 2026-04-06 — Path Following: Speed Control & Cursor-Based Steering (Yiding Tian)
+
+### Problem
+
+Path speed was hardcoded to `controller.maxSpeed * 0.7` (1.4 m/s). On short curves the butterfly reached the end almost instantly and spent most of the animation in unguided free-fall. On long curves the speed was identical. The user had no way to control traversal rate.
+
+Two earlier fix attempts failed:
+1. **Auto-derive pathSpeed from `curveLen / realTime`** — the formula didn't account for `simRate` (physics clock compression), producing a speed ~5.5× too slow.
+2. **Auto-derive from `curveLen / physicsTime`** — correct formula, but `std::clamp(..., maxSpeed)` capped it to 2.0 m/s for any curve longer than ~180 cm, making all curves appear the same speed. Additionally, the post-blend velocity clamp to `maxSpeed` prevented the butterfly from actually reaching the desired speed.
+
+### Root Cause
+
+The velocity-based approach is fundamentally limited: `maxSpeed` clamps both the desired velocity and the post-blend result, and the exponential blend (α ≈ 0.2%/substep) converges too slowly against physics forces at low target speeds. Speed control requires decoupling traversal rate from physics velocity.
+
+### Solution: Time-Based Arc Cursor
+
+Replaced `closestPoint()`-based progress tracking with a time-based cursor that advances at a fixed rate per substep:
+
+```
+arcRate = totalCurveLen / (duration × substeps) × pathSpeedScale
+```
+
+At scale 1.0 the cursor reaches the curve end exactly when the simulation ends, regardless of curve length, `simRate`, or physics forces. The butterfly chases the cursor via a spring; aero oscillation from `controller.step()` is preserved.
+
+### Files Modified
+
+#### `src/BFSimulateCmd.cpp`
+
+- **New flag:** `-ps` / `-pathSpeed` (double, default 1.0) — path speed scale multiplier
+- **`newSyntax()`:** registered the new flag
+- **Added `#include <algorithm>`** for `std::clamp` (unused now but kept for future use)
+- **Arc cursor computation** (before simulation loop):
+  ```cpp
+  double arcCursor = 0.0;
+  double arcRate = totalCurveLen / ((double)duration * substeps) * pathSpeedScale;
+  ```
+- **Replaced the path-following steering block** — removed `closestPoint()`, monotonic arc progress (`lastArcProgress`), and velocity-based `pathSpeed`. New design:
+  1. **Cursor advancement:** `arcCursor += arcRate` each substep (capped at `totalCurveLen`)
+  2. **Target from cursor:** `curveFn.findParamFromLength(arcCursor)` → `getPointAtParam()` for position, `tangent()` for direction
+  3. **Spring to cursor:** `desiredVel = toTarget * 15.0` — proportional spring toward the cursor point
+  4. **Tangent bias:** `tangent * (arcRate * kCmToM / simDt * 0.3)` — smooths direction on curves
+  5. **Blend rate:** increased from 12.0 to 18.0 for tighter tracking
+  6. **No maxSpeed clamp** — neither on `desiredVel` nor on post-blend velocity. The cursor rate controls effective speed, not physics velocity limits
+  7. **End-of-curve:** transitions to free flight when `arcCursor >= totalCurveLen` and butterfly is within 0.1 m of endpoint
+
+#### `src/mel/butterFlight_ui.mel`
+
+- **Repurposed "Path Follow Strength"** field → **"Path Speed Scale"** with tooltip annotation
+- **New global:** `$bf_pathSpeedField` — stored control name for querying
+- **`bfSimulateCallback()`:** reads `$bf_pathSpeedField` and appends `-pathSpeed <scale>` when a path is set
+- **`bfReset()`:** resets path speed scale to 1.0
+
+### Key Design Differences from Previous Approach
+
+| Aspect | Old (velocity-based) | New (cursor-based) |
+|--------|---------------------|--------------------|
+| Progress tracking | `closestPoint()` → monotonic arc | Time-based cursor (`arcCursor += arcRate`) |
+| Speed control | `desiredVel = tangent * pathSpeed` | Implicit from cursor rate |
+| maxSpeed interaction | Clamped to `controller.maxSpeed` | No clamp — cursor rate is the speed limit |
+| Traversal guarantee | Depends on physics convergence | Cursor always finishes on time |
+| Dependencies | Needs correct `simRate` in formula | Only needs `duration × substeps` |
+
+### Path Speed Scale Usage
+
+| Scale | Behaviour |
+|-------|-----------|
+| 1.0 | Butterfly traverses full curve over full simulation duration |
+| 2.0 | Twice as fast — finishes at the halfway point, then free flight |
+| 0.5 | Half speed — only reaches the curve midpoint by simulation end |
