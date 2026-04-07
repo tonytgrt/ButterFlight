@@ -536,7 +536,9 @@ global proc butterFlightUI()
 
     showWindow butterFlightWin;
 
-    // Apply initial species defaults
+    // Apply initial defaults
+    optionMenuGrp -edit -select 4 $bf_modeMenu;
+    bfUpdateMode;
     bfUpdateSpecies;
 }
 
@@ -888,7 +890,7 @@ global proc bfReset()
     bfHoverToggle 0;
 
     optionMenuGrp -edit -select 1        $bf_speciesMenu;
-    optionMenuGrp -edit -select 1        $bf_modeMenu;
+    optionMenuGrp -edit -select 4        $bf_modeMenu;
 
     floatFieldGrp -edit -value1 22.0     $bf_vortexGainXField;
     floatFieldGrp -edit -value1 5.5      $bf_vortexGainYField;

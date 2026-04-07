@@ -491,3 +491,91 @@ At scale 1.0 the cursor reaches the curve end exactly when the simulation ends, 
 | 1.0 | Butterfly traverses full curve over full simulation duration |
 | 2.0 | Twice as fast — finishes at the halfway point, then free flight |
 | 0.5 | Half speed — only reaches the curve midpoint by simulation end |
+
+---
+
+## 2026-04-07 — Hover Mode (Yiding Tian)
+
+### Overview
+
+Added a Hover simulation mode (mode 4) where the butterfly stays at a fixed position with wings flapping naturally. The user can optionally specify a world-space position and full orientation (pitch, yaw, roll). If no position is specified, the butterfly hovers at its current rig location.
+
+### Design Rationale
+
+The existing physics pipeline (aero forces, vortex noise, gravity) is designed for flight. At zero velocity, aerodynamic lift vanishes (Eq. 4 scales with |V|²), vortex forces push the butterfly off-station, and gravity pulls it down. Rather than fighting these forces with a PD controller, hover mode bypasses `controller.step()` entirely and only runs the wing model for visual flapping. The `kMinFreq`/`kMinAmp` floors in `BFWingModel.cpp` guarantee the wings keep flapping at a baseline rate even at zero speed (gamma ≥ 5 Hz, 40° amplitude).
+
+### Files Modified
+
+#### `src/BFSimulateCmd.cpp`
+
+- **New flag constants:**
+  - `-hpx` / `-hoverPosX` — hover position X (cm)
+  - `-hpy` / `-hoverPosY` — hover position Y (cm)
+  - `-hpz` / `-hoverPosZ` — hover position Z (cm)
+  - `-hrx` / `-hoverRotX` — pitch angle (degrees)
+  - `-hry` / `-hoverRotY` — yaw/heading angle (degrees)
+  - `-hrz` / `-hoverRotZ` — roll angle (degrees)
+- **`newSyntax()`:** registered all 6 new flags as `MSyntax::kDouble`
+- **`doIt()` — flag parsing:** detects hover mode when `-mode 4` is set. Reads optional position (any of X/Y/Z triggers custom position mode) and rotation values. Position is in Maya cm, rotation in degrees.
+- **`doIt()` — hover setup (after path snap, before simulation loop):**
+  1. If custom position flags are set, overrides `m_state.position` (converted to metres) and moves the rig joint to match
+  2. Sets `m_state.heading` from yaw, stores pitch/roll as radians (`hoverPitchRad`, `hoverRollRad`)
+  3. Zeros `m_state.velocity`
+- **Simulation loop — hover branch:** wraps the existing flight code in an `if (hoverMode) { ... } else { ... }` block. In hover mode:
+  1. `wingModel.update(m_state, simDt)` — runs the full wing model so freq/amp adapt toward zero-speed floor values via the continuous first-order filter (`kAdaptTime = 3s`), producing a natural "settling" animation
+  2. `applyAngles()` — sets joint rotations from the maneuvering angles
+  3. If user specified pitch or roll: overwrites the thorax rotation to `(thetaBeta + userPitch, heading, userRoll)`, preserving the wing model's body bob oscillation on top of the user's base pitch
+  4. No `controller.step()` — no forces, no gravity, no velocity integration
+  5. Position, velocity, and heading remain fixed throughout
+- **Keyframe writing:** after `writeAllKeys()`, if hover mode has pitch/roll offsets, an additional `writeRotationKey` overwrites the thorax rotation key to include the offsets (since `writeAllKeys` writes `(thetaBeta, heading, 0)` by default)
+
+#### `src/mel/butterFlight_ui.mel`
+
+- **New globals:** `$bf_hoverFrame`, `$bf_hoverUseRigCheck`, `$bf_hoverPosXField`, `$bf_hoverPosYField`, `$bf_hoverPosZField`, `$bf_hoverRotXField`, `$bf_hoverRotYField`, `$bf_hoverRotZField`
+- **Mode menu:** added "Hover" as the 4th menu item (index 4). Set as the default selection on window launch and after Reset.
+- **"4b Hover Settings" frame** (visible only when mode == 4):
+  - "Use Current Rig Position" checkbox (default on) — when checked, position fields are disabled and the butterfly uses its current rig location
+  - Position X/Y/Z fields (cm) — enabled when the checkbox is unchecked
+  - Separator + "Orientation:" label
+  - Roll (deg), Yaw (deg), Pitch (deg) fields — always enabled
+- **`bfHoverToggle(int $state)`:** new callback that enables/disables the position X/Y/Z fields when the checkbox is toggled
+- **`bfUpdateMode()`:** updated to show/hide `$bf_hoverFrame` when mode == 4
+- **`bfSimulateCallback()`:** when mode == 4, builds `-mode 4 -hoverRotX <rx> -hoverRotY <ry> -hoverRotZ <rz>` flags, and appends `-hoverPosX/Y/Z` only when "Use Current Rig Position" is unchecked
+- **`bfReset()`:** resets hover checkbox to true, all position/rotation fields to 0.0, and calls `bfHoverToggle 0` to disable position fields. Mode menu resets to Hover (select 4).
+- **Window launch (`butterFlightUI`):** after `showWindow`, sets mode menu to Hover (select 4) and calls `bfUpdateMode` to show the hover frame by default
+
+### No Changes Needed
+
+- **`BFWingModel`** — already works at zero speed; `kMinFreq`/`kMinAmp` floors keep flapping alive
+- **`BFManeuverController`** — not called in hover mode
+- **`BFState`** — no new fields; existing `position`, `heading`, `velocity`, and angle arrays suffice
+- **`BFAerodynamics` / `BFCurlNoise`** — not invoked in hover mode
+
+### Wing Behaviour in Hover
+
+At zero velocity, the sigmoid (Eqs. 2-3) drives freq/amp toward near-zero, but floor values override:
+
+| Angle | Floor Freq (Hz) | Floor Amp (deg) | Visual Effect |
+|-------|-----------------|-----------------|---------------|
+| Beta (thorax pitch) | 1.0 | 5.0 | Gentle body bob |
+| Gamma (wing flap) | 5.0 | 40.0 | Steady hovering flap |
+| Zeta (feather) | 5.0 | 2.0 | Subtle feathering |
+| Psi (sweep) | 5.0 | 4.0 | Slight fore-aft sweep |
+| Phi (abdomen) | 5.0 | 8.0 | Counter-phase abdomen sway |
+
+The `kAdaptTime = 3.0s` filter ramps freq/amp from the initial mid-range defaults down to these floors over ~3 seconds, producing a natural settling animation at the start.
+
+### Orientation Model
+
+Thorax rotation in hover mode is `MEulerRotation(thetaBeta + userPitch, userYaw, userRoll, kXYZ)`:
+- **Pitch (X):** user's base pitch is added on top of the wing model's `thetaBeta` oscillation, so the body bob is preserved
+- **Yaw (Y):** sets the body heading (facing direction)
+- **Roll (Z):** tilts the body left/right
+
+### How to Use
+
+1. Open the ButterFlight UI — defaults to Hover mode
+2. Assign the rig root joint
+3. Optionally uncheck "Use Current Rig Position" and enter X/Y/Z coordinates (cm)
+4. Optionally set Roll, Yaw, Pitch values (degrees)
+5. Click **Simulate** — the butterfly hovers in place with wings flapping for the specified duration
