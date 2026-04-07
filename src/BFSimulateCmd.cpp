@@ -59,6 +59,14 @@ static const char* kPathFlag           = "-p";
 static const char* kPathFlagLong       = "-path";
 static const char* kPathSpeedFlag      = "-ps";
 static const char* kPathSpeedFlagLong  = "-pathSpeed";
+static const char* kHoverPosXFlag      = "-hpx";
+static const char* kHoverPosXFlagLong  = "-hoverPosX";
+static const char* kHoverPosYFlag      = "-hpy";
+static const char* kHoverPosYFlagLong  = "-hoverPosY";
+static const char* kHoverPosZFlag      = "-hpz";
+static const char* kHoverPosZFlagLong  = "-hoverPosZ";
+static const char* kHoverRotYFlag      = "-hry";
+static const char* kHoverRotYFlagLong  = "-hoverRotY";
 
 // ============================================================
 // newSyntax — declare accepted flags
@@ -74,6 +82,10 @@ MSyntax BFSimulateCmd::newSyntax()
     syntax.addFlag(kFlapPeriodFlag, kFlapPeriodFlagLong, MSyntax::kDouble);
     syntax.addFlag(kPathFlag, kPathFlagLong, MSyntax::kString);
     syntax.addFlag(kPathSpeedFlag, kPathSpeedFlagLong, MSyntax::kDouble);
+    syntax.addFlag(kHoverPosXFlag, kHoverPosXFlagLong, MSyntax::kDouble);
+    syntax.addFlag(kHoverPosYFlag, kHoverPosYFlagLong, MSyntax::kDouble);
+    syntax.addFlag(kHoverPosZFlag, kHoverPosZFlagLong, MSyntax::kDouble);
+    syntax.addFlag(kHoverRotYFlag, kHoverRotYFlagLong, MSyntax::kDouble);
     // TODO: add remaining flags (mass, wingArea, gains, eta, etc.)
     return syntax;
 }
@@ -490,6 +502,29 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
         argData.getFlagArgument(kPathSpeedFlag, 0, pathSpeedScale);
     if (pathSpeedScale <= 0.0) pathSpeedScale = 1.0;
 
+    // ---- Detect hover mode (mode == 4) ----------------------------
+    bool hoverMode = false;
+    bool hoverHasCustomPos = false;
+    double hoverPosXcm = 0.0, hoverPosYcm = 0.0, hoverPosZcm = 0.0;
+    double hoverRotYdeg = 0.0;
+    if (argData.isFlagSet(kModeFlag)) {
+        int mode = 1;
+        argData.getFlagArgument(kModeFlag, 0, mode);
+        hoverMode = (mode == 4);
+    }
+    if (argData.isFlagSet(kHoverPosXFlag) || argData.isFlagSet(kHoverPosYFlag)
+        || argData.isFlagSet(kHoverPosZFlag)) {
+        hoverHasCustomPos = true;
+    }
+    if (argData.isFlagSet(kHoverPosXFlag))
+        argData.getFlagArgument(kHoverPosXFlag, 0, hoverPosXcm);
+    if (argData.isFlagSet(kHoverPosYFlag))
+        argData.getFlagArgument(kHoverPosYFlag, 0, hoverPosYcm);
+    if (argData.isFlagSet(kHoverPosZFlag))
+        argData.getFlagArgument(kHoverPosZFlag, 0, hoverPosZcm);
+    if (argData.isFlagSet(kHoverRotYFlag))
+        argData.getFlagArgument(kHoverRotYFlag, 0, hoverRotYdeg);
+
     if (flapPeriod <= 0.0) flapPeriod = 1.0;
 
     // Read FPS directly from Maya's scene time unit so that baked
@@ -574,6 +609,27 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
         }
     }
 
+    // ---- Hover mode: fix position and heading ----------------------
+    if (hoverMode) {
+        if (hoverHasCustomPos) {
+            m_state.position = MPoint(hoverPosXcm * kCmToM,
+                                      hoverPosYcm * kCmToM,
+                                      hoverPosZcm * kCmToM);
+            // Also move the rig so the first frame renders at the hover position
+            MFnTransform rootFn(m_state.skeleton.joints[kThorax]);
+            rootFn.setTranslation(MVector(hoverPosXcm, hoverPosYcm, hoverPosZcm),
+                                  MSpace::kWorld);
+        }
+        m_state.heading  = deg2rad(hoverRotYdeg);
+        m_state.velocity = MVector(0.0, 0.0, 0.0);
+        MGlobal::displayInfo(
+            MString("ButterFlight: Hover mode at (") +
+            m_state.position.x * kMToCm + ", " +
+            m_state.position.y * kMToCm + ", " +
+            m_state.position.z * kMToCm + ") cm, heading=" +
+            hoverRotYdeg + " deg");
+    }
+
     // ---- Path-progress tracking variables -------------------------
     bool   pathActive      = hasPath; // true while actively following
     double totalCurveLen   = 0.0;   // total curve length (cm)
@@ -619,100 +675,113 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
         for (int s = 0; s < substeps; ++s) {
             int prevCycle = m_state.flapCycle;
 
-            // 1. Advance phase and evaluate maneuvering angles.
-            //    In path-following mode, use fixed frequencies (the
-            //    initial defaults) so that flap rate stays constant
-            //    regardless of flight speed.  In free flight the
-            //    velocity-adaptive sigmoid drives freq/amp as usual.
-            if (hasPath) {
-                // Fixed-rate phase advancement
-                for (int i = 0; i < BFState::kNumAngles; ++i)
-                    m_state.perAnglePhase[i] += 2.0 * M_PI * m_state.perAngleFreq[i] * simDt;
-                m_state.phase += simDt;
-                double cyclePeriod = (m_state.frequency > 0.0)
-                                     ? 1.0 / m_state.frequency : 1.0;
-                if (m_state.phase >= cyclePeriod) {
-                    m_state.phase -= cyclePeriod;
-                    m_state.flapCycle++;
-                }
-                wingModel.updateAnglesOnly(m_state);
-            } else {
+            if (hoverMode) {
+                // ---- Hover: wing flapping only, no physics --------
+                //  Run the full wing model so freq/amp adapt toward
+                //  the zero-speed floor values (kMinFreq/kMinAmp),
+                //  producing a natural hovering flap.  Position and
+                //  velocity stay fixed — no forces, no gravity.
                 wingModel.update(m_state, simDt);
-            }
+                applyAngles(m_state.skeleton, m_state.angles, m_state.heading);
+                // Position/velocity/heading unchanged.
+            } else {
+                // ---- Flight modes (free flight / path following) ---
 
-            // 2. Apply rotations so aerodynamics reads current normals.
-            applyAngles(m_state.skeleton, m_state.angles, m_state.heading);
-
-            // 3. Integrate forces → velocity → position (Eqs. 4-11).
-            //    In path mode, a_pre is zero (hasTarget=false); the
-            //    path-following steering below handles guidance instead.
-            controller.step(m_state, simDt);
-
-            // 3b. Path-following: time-based cursor steering.
-            //
-            //     A cursor advances along the curve at a fixed rate
-            //     per substep (arcRate), so traversal speed is controlled
-            //     by curve length / duration, not by physics velocity.
-            //     The butterfly chases the cursor via a spring; aero
-            //     oscillation from controller.step() is preserved.
-            if (pathActive) {
-                // Advance cursor (time-based, not position-based)
-                arcCursor += arcRate;
-                if (arcCursor > totalCurveLen) arcCursor = totalCurveLen;
-
-                double uTarget = curveFn.findParamFromLength(arcCursor);
-
-                // Cursor point on curve (metres)
-                MPoint targetCm;
-                curveFn.getPointAtParam(uTarget, targetCm, MSpace::kWorld);
-                MVector targetM(targetCm.x * kCmToM,
-                                targetCm.y * kCmToM,
-                                targetCm.z * kCmToM);
-
-                // Curve tangent at cursor
-                MVector tangent = curveFn.tangent(uTarget, MSpace::kWorld);
-                tangent.normalize();
-
-                // Spring toward cursor point
-                MVector toTarget = targetM - MVector(m_state.position);
-                double dist = toTarget.length();
-
-                // Desired velocity: spring pull toward cursor.
-                // Gain of 15/s makes the butterfly converge quickly
-                // without overshooting.  No maxSpeed clamp — the
-                // cursor rate controls effective speed, not physics.
-                MVector desiredVel = toTarget * 15.0;
-                // Add tangent bias so direction stays smooth on curves
-                double tangentBias = arcRate * kCmToM / simDt * 0.3;
-                desiredVel += tangent * tangentBias;
-
-                // Blend toward desired (higher rate for tighter tracking)
-                double blendRate = 18.0;
-                double alpha = 1.0 - std::exp(-blendRate * simDt);
-                m_state.velocity = m_state.velocity * (1.0 - alpha)
-                                 + desiredVel * alpha;
-
-                // Heading from curve tangent
-                double tx = tangent.x, tz = tangent.z;
-                if (std::sqrt(tx * tx + tz * tz) > 1e-6)
-                    m_state.heading = std::atan2(-tx, -tz);
-
-                // End-of-curve: transition to free flight
-                if (arcCursor >= totalCurveLen) {
-                    double distToEnd = (MVector(curveEndPtM)
-                                      - MVector(m_state.position)).length();
-                    if (distToEnd < 0.1)
-                        pathActive = false;
+                // 1. Advance phase and evaluate maneuvering angles.
+                //    In path-following mode, use fixed frequencies (the
+                //    initial defaults) so that flap rate stays constant
+                //    regardless of flight speed.  In free flight the
+                //    velocity-adaptive sigmoid drives freq/amp as usual.
+                if (hasPath) {
+                    // Fixed-rate phase advancement
+                    for (int i = 0; i < BFState::kNumAngles; ++i)
+                        m_state.perAnglePhase[i] += 2.0 * M_PI * m_state.perAngleFreq[i] * simDt;
+                    m_state.phase += simDt;
+                    double cyclePeriod = (m_state.frequency > 0.0)
+                                         ? 1.0 / m_state.frequency : 1.0;
+                    if (m_state.phase >= cyclePeriod) {
+                        m_state.phase -= cyclePeriod;
+                        m_state.flapCycle++;
+                    }
+                    wingModel.updateAnglesOnly(m_state);
+                } else {
+                    wingModel.update(m_state, simDt);
                 }
-            }
 
-            // 3c. Free-flight heading from velocity direction.
-            if (!pathActive) {
-                double vx = m_state.velocity.x;
-                double vz = m_state.velocity.z;
-                double hSpeed = std::sqrt(vx * vx + vz * vz);
-                if (hSpeed > 0.01)
-                    m_state.heading = std::atan2(-vx, -vz);
+                // 2. Apply rotations so aerodynamics reads current normals.
+                applyAngles(m_state.skeleton, m_state.angles, m_state.heading);
+
+                // 3. Integrate forces → velocity → position (Eqs. 4-11).
+                //    In path mode, a_pre is zero (hasTarget=false); the
+                //    path-following steering below handles guidance instead.
+                controller.step(m_state, simDt);
+
+                // 3b. Path-following: time-based cursor steering.
+                //
+                //     A cursor advances along the curve at a fixed rate
+                //     per substep (arcRate), so traversal speed is controlled
+                //     by curve length / duration, not by physics velocity.
+                //     The butterfly chases the cursor via a spring; aero
+                //     oscillation from controller.step() is preserved.
+                if (pathActive) {
+                    // Advance cursor (time-based, not position-based)
+                    arcCursor += arcRate;
+                    if (arcCursor > totalCurveLen) arcCursor = totalCurveLen;
+
+                    double uTarget = curveFn.findParamFromLength(arcCursor);
+
+                    // Cursor point on curve (metres)
+                    MPoint targetCm;
+                    curveFn.getPointAtParam(uTarget, targetCm, MSpace::kWorld);
+                    MVector targetM(targetCm.x * kCmToM,
+                                    targetCm.y * kCmToM,
+                                    targetCm.z * kCmToM);
+
+                    // Curve tangent at cursor
+                    MVector tangent = curveFn.tangent(uTarget, MSpace::kWorld);
+                    tangent.normalize();
+
+                    // Spring toward cursor point
+                    MVector toTarget = targetM - MVector(m_state.position);
+                    double dist = toTarget.length();
+
+                    // Desired velocity: spring pull toward cursor.
+                    // Gain of 15/s makes the butterfly converge quickly
+                    // without overshooting.  No maxSpeed clamp — the
+                    // cursor rate controls effective speed, not physics.
+                    MVector desiredVel = toTarget * 15.0;
+                    // Add tangent bias so direction stays smooth on curves
+                    double tangentBias = arcRate * kCmToM / simDt * 0.3;
+                    desiredVel += tangent * tangentBias;
+
+                    // Blend toward desired (higher rate for tighter tracking)
+                    double blendRate = 18.0;
+                    double alpha = 1.0 - std::exp(-blendRate * simDt);
+                    m_state.velocity = m_state.velocity * (1.0 - alpha)
+                                     + desiredVel * alpha;
+
+                    // Heading from curve tangent
+                    double tx = tangent.x, tz = tangent.z;
+                    if (std::sqrt(tx * tx + tz * tz) > 1e-6)
+                        m_state.heading = std::atan2(-tx, -tz);
+
+                    // End-of-curve: transition to free flight
+                    if (arcCursor >= totalCurveLen) {
+                        double distToEnd = (MVector(curveEndPtM)
+                                          - MVector(m_state.position)).length();
+                        if (distToEnd < 0.1)
+                            pathActive = false;
+                    }
+                }
+
+                // 3c. Free-flight heading from velocity direction.
+                if (!pathActive) {
+                    double vx = m_state.velocity.x;
+                    double vz = m_state.velocity.z;
+                    double hSpeed = std::sqrt(vx * vx + vz * vz);
+                    if (hSpeed > 0.01)
+                        m_state.heading = std::atan2(-vx, -vz);
+                }
             }
 
             // 4. Sliding-window smoother at each flap cycle boundary
