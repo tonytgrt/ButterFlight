@@ -71,7 +71,9 @@ if (hoverMode) {
 | Hover Position X | `-hpx` / `-hoverPosX` | double | current rig X (cm) | World-space X position to hover at |
 | Hover Position Y | `-hpy` / `-hoverPosY` | double | current rig Y (cm) | World-space Y position to hover at |
 | Hover Position Z | `-hpz` / `-hoverPosZ` | double | current rig Z (cm) | World-space Z position to hover at |
-| Hover Rotation Y | `-hry` / `-hoverRotY` | double | current heading (deg) | Body yaw/heading angle (degrees) |
+| Hover Pitch | `-hrx` / `-hoverRotX` | double | 0 (deg) | Body pitch angle (nose up/down, added on top of wing model's thetaBeta oscillation) |
+| Hover Yaw | `-hry` / `-hoverRotY` | double | 0 (deg) | Body yaw/heading angle |
+| Hover Roll | `-hrz` / `-hoverRotZ` | double | 0 (deg) | Body roll angle (tilt left/right) |
 
 **All position values are in Maya cm** (consistent with the scene). The command internally converts to metres for the physics state, then back to cm for keyframe output.
 

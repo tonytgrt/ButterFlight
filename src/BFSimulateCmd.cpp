@@ -65,8 +65,12 @@ static const char* kHoverPosYFlag      = "-hpy";
 static const char* kHoverPosYFlagLong  = "-hoverPosY";
 static const char* kHoverPosZFlag      = "-hpz";
 static const char* kHoverPosZFlagLong  = "-hoverPosZ";
+static const char* kHoverRotXFlag      = "-hrx";
+static const char* kHoverRotXFlagLong  = "-hoverRotX";
 static const char* kHoverRotYFlag      = "-hry";
 static const char* kHoverRotYFlagLong  = "-hoverRotY";
+static const char* kHoverRotZFlag      = "-hrz";
+static const char* kHoverRotZFlagLong  = "-hoverRotZ";
 
 // ============================================================
 // newSyntax — declare accepted flags
@@ -85,7 +89,9 @@ MSyntax BFSimulateCmd::newSyntax()
     syntax.addFlag(kHoverPosXFlag, kHoverPosXFlagLong, MSyntax::kDouble);
     syntax.addFlag(kHoverPosYFlag, kHoverPosYFlagLong, MSyntax::kDouble);
     syntax.addFlag(kHoverPosZFlag, kHoverPosZFlagLong, MSyntax::kDouble);
+    syntax.addFlag(kHoverRotXFlag, kHoverRotXFlagLong, MSyntax::kDouble);
     syntax.addFlag(kHoverRotYFlag, kHoverRotYFlagLong, MSyntax::kDouble);
+    syntax.addFlag(kHoverRotZFlag, kHoverRotZFlagLong, MSyntax::kDouble);
     // TODO: add remaining flags (mass, wingArea, gains, eta, etc.)
     return syntax;
 }
@@ -506,7 +512,7 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
     bool hoverMode = false;
     bool hoverHasCustomPos = false;
     double hoverPosXcm = 0.0, hoverPosYcm = 0.0, hoverPosZcm = 0.0;
-    double hoverRotYdeg = 0.0;
+    double hoverRotXdeg = 0.0, hoverRotYdeg = 0.0, hoverRotZdeg = 0.0;
     if (argData.isFlagSet(kModeFlag)) {
         int mode = 1;
         argData.getFlagArgument(kModeFlag, 0, mode);
@@ -522,8 +528,12 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
         argData.getFlagArgument(kHoverPosYFlag, 0, hoverPosYcm);
     if (argData.isFlagSet(kHoverPosZFlag))
         argData.getFlagArgument(kHoverPosZFlag, 0, hoverPosZcm);
+    if (argData.isFlagSet(kHoverRotXFlag))
+        argData.getFlagArgument(kHoverRotXFlag, 0, hoverRotXdeg);
     if (argData.isFlagSet(kHoverRotYFlag))
         argData.getFlagArgument(kHoverRotYFlag, 0, hoverRotYdeg);
+    if (argData.isFlagSet(kHoverRotZFlag))
+        argData.getFlagArgument(kHoverRotZFlag, 0, hoverRotZdeg);
 
     if (flapPeriod <= 0.0) flapPeriod = 1.0;
 
@@ -609,7 +619,12 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
         }
     }
 
-    // ---- Hover mode: fix position and heading ----------------------
+    // ---- Hover mode: fix position and orientation -------------------
+    //  hoverPitchRad / hoverRollRad are base orientation offsets (radians).
+    //  They are added on top of the wing model's thetaBeta oscillation
+    //  in the simulation loop so the body bob is preserved.
+    double hoverPitchRad = 0.0;
+    double hoverRollRad  = 0.0;
     if (hoverMode) {
         if (hoverHasCustomPos) {
             m_state.position = MPoint(hoverPosXcm * kCmToM,
@@ -621,13 +636,15 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
                                   MSpace::kWorld);
         }
         m_state.heading  = deg2rad(hoverRotYdeg);
+        hoverPitchRad    = deg2rad(hoverRotXdeg);
+        hoverRollRad     = deg2rad(hoverRotZdeg);
         m_state.velocity = MVector(0.0, 0.0, 0.0);
         MGlobal::displayInfo(
             MString("ButterFlight: Hover mode at (") +
             m_state.position.x * kMToCm + ", " +
             m_state.position.y * kMToCm + ", " +
-            m_state.position.z * kMToCm + ") cm, heading=" +
-            hoverRotYdeg + " deg");
+            m_state.position.z * kMToCm + ") cm, rot=(" +
+            hoverRotXdeg + ", " + hoverRotYdeg + ", " + hoverRotZdeg + ") deg");
     }
 
     // ---- Path-progress tracking variables -------------------------
@@ -683,6 +700,22 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
                 //  velocity stay fixed — no forces, no gravity.
                 wingModel.update(m_state, simDt);
                 applyAngles(m_state.skeleton, m_state.angles, m_state.heading);
+
+                // Apply user pitch/roll offsets on top of the wing
+                // model's thetaBeta oscillation.  applyAngles() sets
+                // thorax to (thetaBeta, heading, 0); we override to
+                // (thetaBeta + userPitch, heading, userRoll).
+                if (hoverPitchRad != 0.0 || hoverRollRad != 0.0) {
+                    MStatus st;
+                    MFnTransform thoraxFn(m_state.skeleton.joints[kThorax], &st);
+                    if (st == MS::kSuccess) {
+                        thoraxFn.setRotation(MEulerRotation(
+                            deg2rad(m_state.angles.thetaBeta) + hoverPitchRad,
+                            m_state.heading,
+                            hoverRollRad,
+                            MEulerRotation::kXYZ));
+                    }
+                }
                 // Position/velocity/heading unchanged.
             } else {
                 // ---- Flight modes (free flight / path following) ---
@@ -793,6 +826,17 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
         // Write one keyframe per output frame (after all substeps).
         MTime frameTime((double)f, MTime::uiUnit());
         writeAllKeys(m_state.skeleton, m_state.angles, m_state.heading, frameTime);
+
+        // In hover mode, overwrite the thorax rotation key to include
+        // user pitch/roll offsets (writeAllKeys writes (thetaBeta, heading, 0)).
+        if (hoverMode && (hoverPitchRad != 0.0 || hoverRollRad != 0.0)) {
+            writeRotationKey(m_state.skeleton.joints[kThorax],
+                MEulerRotation(
+                    deg2rad(m_state.angles.thetaBeta) + hoverPitchRad,
+                    m_state.heading,
+                    hoverRollRad),
+                frameTime);
+        }
         MPoint posCm(m_state.position.x * kMToCm,
                      m_state.position.y * kMToCm,
                      m_state.position.z * kMToCm);
