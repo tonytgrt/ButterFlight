@@ -36,6 +36,16 @@ global string $bf_windowKField;
 global string $bf_massField;
 global string $bf_wingAreaField;
 
+// Hover section
+global string $bf_hoverFrame;
+global string $bf_hoverUseRigCheck;
+global string $bf_hoverPosXField;
+global string $bf_hoverPosYField;
+global string $bf_hoverPosZField;
+global string $bf_hoverRotXField;
+global string $bf_hoverRotYField;
+global string $bf_hoverRotZField;
+
 // Swarm section
 global string $bf_swarmFrame;
 global string $bf_agentCountField;
@@ -153,6 +163,7 @@ global proc butterFlightUI()
                     menuItem -label "Free Flight";
                     menuItem -label "Path Following";
                     menuItem -label "Swarm";
+                    menuItem -label "Hover";
 
             setParent ..;
         setParent ..;
@@ -187,6 +198,85 @@ global proc butterFlightUI()
                     -precision 3
                     -annotation "Multiplier for auto-derived path speed (1.0 = full curve over full duration)"
                     -columnWidth2 140 140`;
+
+            setParent ..;
+        setParent ..;
+
+
+        // ---- 4b. Hover Settings (conditional) -------------------
+        global string $bf_hoverFrame;
+        $bf_hoverFrame = `frameLayout
+            -label "4b  Hover Settings"
+            -collapsable true
+            -collapse false
+            -visible false
+            -marginWidth 6 -marginHeight 6`;
+
+            columnLayout -adjustableColumn true -rowSpacing 4;
+
+                global string $bf_hoverUseRigCheck;
+                $bf_hoverUseRigCheck = `checkBoxGrp
+                    -label "Use Current Rig Position"
+                    -value1 true
+                    -onCommand  "bfHoverToggle 0"
+                    -offCommand "bfHoverToggle 1"`;
+
+                global string $bf_hoverPosXField;
+                $bf_hoverPosXField = `floatFieldGrp
+                    -label "Position X (cm)"
+                    -numberOfFields 1
+                    -value1 0.0
+                    -precision 3
+                    -enable false
+                    -columnWidth2 120 160`;
+
+                global string $bf_hoverPosYField;
+                $bf_hoverPosYField = `floatFieldGrp
+                    -label "Position Y (cm)"
+                    -numberOfFields 1
+                    -value1 0.0
+                    -precision 3
+                    -enable false
+                    -columnWidth2 120 160`;
+
+                global string $bf_hoverPosZField;
+                $bf_hoverPosZField = `floatFieldGrp
+                    -label "Position Z (cm)"
+                    -numberOfFields 1
+                    -value1 0.0
+                    -precision 3
+                    -enable false
+                    -columnWidth2 120 160`;
+
+                separator -height 6 -style "in";
+                text -label "Orientation:" -align "left" -font "boldLabelFont";
+
+                global string $bf_hoverRotXField;
+                $bf_hoverRotXField = `floatFieldGrp
+                    -label "Roll (deg)"
+                    -numberOfFields 1
+                    -value1 0.0
+                    -precision 3
+                    -annotation "Body roll angle (tilt left/right)"
+                    -columnWidth2 120 160`;
+
+                global string $bf_hoverRotYField;
+                $bf_hoverRotYField = `floatFieldGrp
+                    -label "Yaw (deg)"
+                    -numberOfFields 1
+                    -value1 0.0
+                    -precision 3
+                    -annotation "Body yaw/heading angle (0 = facing -Z)"
+                    -columnWidth2 120 160`;
+
+                global string $bf_hoverRotZField;
+                $bf_hoverRotZField = `floatFieldGrp
+                    -label "Pitch (deg)"
+                    -numberOfFields 1
+                    -value1 0.0
+                    -precision 3
+                    -annotation "Body pitch angle (nose up/down)"
+                    -columnWidth2 120 160`;
 
             setParent ..;
         setParent ..;
@@ -446,7 +536,9 @@ global proc butterFlightUI()
 
     showWindow butterFlightWin;
 
-    // Apply initial species defaults
+    // Apply initial defaults
+    optionMenuGrp -edit -select 4 $bf_modeMenu;
+    bfUpdateMode;
     bfUpdateSpecies;
 }
 
@@ -511,11 +603,13 @@ global proc bfUpdateMode()
     global string $bf_modeMenu;
     global string $bf_pathFrame;
     global string $bf_swarmFrame;
+    global string $bf_hoverFrame;
 
     int $idx = `optionMenuGrp -query -select $bf_modeMenu`;
-    // 1=Free Flight, 2=Path Following, 3=Swarm
+    // 1=Free Flight, 2=Path Following, 3=Swarm, 4=Hover
     frameLayout -edit -visible ($idx == 2) $bf_pathFrame;
     frameLayout -edit -visible ($idx == 3) $bf_swarmFrame;
+    frameLayout -edit -visible ($idx == 4) $bf_hoverFrame;
 }
 
 
@@ -571,6 +665,21 @@ global proc bfWindToggle(int $state)
 
 
 // ============================================================
+// Callback: Hover position field enable/disable
+// ============================================================
+global proc bfHoverToggle(int $state)
+{
+    global string $bf_hoverPosXField;
+    global string $bf_hoverPosYField;
+    global string $bf_hoverPosZField;
+
+    floatFieldGrp -edit -enable $state $bf_hoverPosXField;
+    floatFieldGrp -edit -enable $state $bf_hoverPosYField;
+    floatFieldGrp -edit -enable $state $bf_hoverPosZField;
+}
+
+
+// ============================================================
 // Callback: Simulate button
 // ============================================================
 global proc bfSimulateCallback()
@@ -588,6 +697,13 @@ global proc bfSimulateCallback()
     global string $bf_windowKField;
     global string $bf_pathField;
     global string $bf_pathSpeedField;
+    global string $bf_hoverUseRigCheck;
+    global string $bf_hoverPosXField;
+    global string $bf_hoverPosYField;
+    global string $bf_hoverPosZField;
+    global string $bf_hoverRotXField;
+    global string $bf_hoverRotYField;
+    global string $bf_hoverRotZField;
     global string $bf_startFrameField;
     global string $bf_durationField;
     global string $bf_flapPeriodField;
@@ -643,12 +759,30 @@ global proc bfSimulateCallback()
         $pathFlag += " -pathSpeed " + $psScale;
     }
 
+    // Build hover flags
+    string $hoverFlag = "";
+    if ($mode == 4) {
+        $hoverFlag = " -mode 4";
+        int $useRig = `checkBoxGrp -query -value1 $bf_hoverUseRigCheck`;
+        if (!$useRig) {
+            float $hx = `floatFieldGrp -query -value1 $bf_hoverPosXField`;
+            float $hy = `floatFieldGrp -query -value1 $bf_hoverPosYField`;
+            float $hz = `floatFieldGrp -query -value1 $bf_hoverPosZField`;
+            $hoverFlag += " -hoverPosX " + $hx + " -hoverPosY " + $hy + " -hoverPosZ " + $hz;
+        }
+        float $hrx = `floatFieldGrp -query -value1 $bf_hoverRotXField`;
+        float $hry = `floatFieldGrp -query -value1 $bf_hoverRotYField`;
+        float $hrz = `floatFieldGrp -query -value1 $bf_hoverRotZField`;
+        $hoverFlag += " -hoverRotX " + $hrx + " -hoverRotY " + $hry + " -hoverRotZ " + $hrz;
+    }
+
     // Call the C++ bfSimulate command directly
     // FPS is read from Maya's scene time unit automatically.
     string $cmd = "bfSimulate -rigRoot \"" + $rig + "\""
                   + " -duration " + $duration
                   + " -flapPeriod " + $flapPeriod
-                  + $pathFlag;
+                  + $pathFlag
+                  + $hoverFlag;
     print ("// Executing: " + $cmd + "\n");
 
     if (catch(eval($cmd))) {
@@ -730,6 +864,13 @@ global proc bfReset()
     global string $bf_startFrameField;
     global string $bf_durationField;
     global string $bf_flapPeriodField;
+    global string $bf_hoverUseRigCheck;
+    global string $bf_hoverPosXField;
+    global string $bf_hoverPosYField;
+    global string $bf_hoverPosZField;
+    global string $bf_hoverRotXField;
+    global string $bf_hoverRotYField;
+    global string $bf_hoverRotZField;
     global string $bf_windEnableCheck;
     global string $bf_agentCountField;
     global string $bf_spawnSpreadField;
@@ -739,8 +880,17 @@ global proc bfReset()
     textFieldButtonGrp  -edit -text ""   $bf_pathField;
     floatFieldGrp       -edit -value1 1.0 $bf_pathSpeedField;
 
+    checkBoxGrp         -edit -value1 true $bf_hoverUseRigCheck;
+    floatFieldGrp       -edit -value1 0.0  $bf_hoverPosXField;
+    floatFieldGrp       -edit -value1 0.0  $bf_hoverPosYField;
+    floatFieldGrp       -edit -value1 0.0  $bf_hoverPosZField;
+    floatFieldGrp       -edit -value1 0.0  $bf_hoverRotXField;
+    floatFieldGrp       -edit -value1 0.0  $bf_hoverRotYField;
+    floatFieldGrp       -edit -value1 0.0  $bf_hoverRotZField;
+    bfHoverToggle 0;
+
     optionMenuGrp -edit -select 1        $bf_speciesMenu;
-    optionMenuGrp -edit -select 1        $bf_modeMenu;
+    optionMenuGrp -edit -select 4        $bf_modeMenu;
 
     floatFieldGrp -edit -value1 22.0     $bf_vortexGainXField;
     floatFieldGrp -edit -value1 5.5      $bf_vortexGainYField;
