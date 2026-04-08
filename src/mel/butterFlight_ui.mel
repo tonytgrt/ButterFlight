@@ -15,6 +15,8 @@ global string $bf_modeMenu;
 global string $bf_pathFrame;
 global string $bf_pathField;
 global string $bf_pathSpeedField;
+global string $bf_pathNoiseCheck;
+global string $bf_pathNoiseAmpField;
 
 // Wind section
 global string $bf_windEnableCheck;
@@ -198,6 +200,21 @@ global proc butterFlightUI()
                     -value1 1.0
                     -precision 3
                     -annotation "Multiplier for auto-derived path speed (1.0 = full curve over full duration)"
+                    -columnWidth2 140 140`;
+
+                global string $bf_pathNoiseCheck;
+                $bf_pathNoiseCheck = `checkBoxGrp
+                    -label "Path Noise"
+                    -value1 false
+                    -annotation "Add a smooth left/right swing so the butterfly doesn't track the curve mechanically"`;
+
+                global string $bf_pathNoiseAmpField;
+                $bf_pathNoiseAmpField = `floatFieldGrp
+                    -label "Noise Amplitude (cm)"
+                    -numberOfFields 1
+                    -value1 5.0
+                    -precision 2
+                    -annotation "Lateral swing amplitude in Maya cm"
                     -columnWidth2 140 140`;
 
             setParent ..;
@@ -722,6 +739,8 @@ global proc bfSimulateCallback()
     global string $bf_windowKField;
     global string $bf_pathField;
     global string $bf_pathSpeedField;
+    global string $bf_pathNoiseCheck;
+    global string $bf_pathNoiseAmpField;
     global string $bf_hoverUseRigCheck;
     global string $bf_hoverPosXField;
     global string $bf_hoverPosYField;
@@ -783,6 +802,12 @@ global proc bfSimulateCallback()
         $pathFlag = " -path \"" + $path + "\"";
         float $psScale = `floatFieldGrp -query -value1 $bf_pathSpeedField`;
         $pathFlag += " -pathSpeed " + $psScale;
+        int $pNoise = `checkBoxGrp -query -value1 $bf_pathNoiseCheck`;
+        $pathFlag += " -pathNoise " + $pNoise;
+        if ($pNoise) {
+            float $pnAmp = `floatFieldGrp -query -value1 $bf_pathNoiseAmpField`;
+            $pathFlag += " -pathNoiseAmp " + $pnAmp;
+        }
     }
 
     // Build hover flags
@@ -808,6 +833,7 @@ global proc bfSimulateCallback()
     // Call the C++ bfSimulate command directly
     // FPS is read from Maya's scene time unit automatically.
     string $cmd = "bfSimulate -rigRoot \"" + $rig + "\""
+                  + " -startFrame " + $startF
                   + " -duration " + $duration
                   + " -flapPeriod " + $flapPeriod
                   + $pathFlag
@@ -882,6 +908,8 @@ global proc bfReset()
     global string $bf_rigField;
     global string $bf_pathField;
     global string $bf_pathSpeedField;
+    global string $bf_pathNoiseCheck;
+    global string $bf_pathNoiseAmpField;
     global string $bf_speciesMenu;
     global string $bf_modeMenu;
     global string $bf_vortexGainXField;
@@ -909,6 +937,8 @@ global proc bfReset()
     textFieldButtonGrp  -edit -text ""   $bf_rigField;
     textFieldButtonGrp  -edit -text ""   $bf_pathField;
     floatFieldGrp       -edit -value1 1.0 $bf_pathSpeedField;
+    checkBoxGrp         -edit -value1 false $bf_pathNoiseCheck;
+    floatFieldGrp       -edit -value1 5.0 $bf_pathNoiseAmpField;
 
     checkBoxGrp         -edit -value1 true $bf_hoverUseRigCheck;
     floatFieldGrp       -edit -value1 0.0  $bf_hoverPosXField;
