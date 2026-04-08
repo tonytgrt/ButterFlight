@@ -701,10 +701,6 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
         MString("ButterFlight: simDt=") + simDt +
         "s (" + substeps + " substeps/frame @ " + fps + " fps output)");
 
-    // ---- Clear stale keyframes from previous runs ---------------
-    for (int j = 0; j < kNumJoints; ++j)
-        clearAnimCurves(m_state.skeleton.joints[j]);
-
     // ---- Simulation loop (full dynamics) ---------------------
     for (int f = startFrame; f < startFrame + duration; ++f) {
 
