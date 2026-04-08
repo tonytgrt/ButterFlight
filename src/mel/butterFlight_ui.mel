@@ -42,6 +42,7 @@ global string $bf_hoverUseRigCheck;
 global string $bf_hoverPosXField;
 global string $bf_hoverPosYField;
 global string $bf_hoverPosZField;
+global string $bf_hoverUseRigRotCheck;
 global string $bf_hoverRotXField;
 global string $bf_hoverRotYField;
 global string $bf_hoverRotZField;
@@ -249,7 +250,13 @@ global proc butterFlightUI()
                     -columnWidth2 120 160`;
 
                 separator -height 6 -style "in";
-                text -label "Orientation:" -align "left" -font "boldLabelFont";
+
+                global string $bf_hoverUseRigRotCheck;
+                $bf_hoverUseRigRotCheck = `checkBoxGrp
+                    -label "Use Current Rig Rotation"
+                    -value1 true
+                    -onCommand  "bfHoverRotToggle 0"
+                    -offCommand "bfHoverRotToggle 1"`;
 
                 global string $bf_hoverRotXField;
                 $bf_hoverRotXField = `floatFieldGrp
@@ -257,6 +264,7 @@ global proc butterFlightUI()
                     -numberOfFields 1
                     -value1 0.0
                     -precision 3
+                    -enable false
                     -annotation "Body roll angle (tilt left/right)"
                     -columnWidth2 120 160`;
 
@@ -266,6 +274,7 @@ global proc butterFlightUI()
                     -numberOfFields 1
                     -value1 0.0
                     -precision 3
+                    -enable false
                     -annotation "Body yaw/heading angle (0 = facing -Z)"
                     -columnWidth2 120 160`;
 
@@ -275,6 +284,7 @@ global proc butterFlightUI()
                     -numberOfFields 1
                     -value1 0.0
                     -precision 3
+                    -enable false
                     -annotation "Body pitch angle (nose up/down)"
                     -columnWidth2 120 160`;
 
@@ -680,6 +690,21 @@ global proc bfHoverToggle(int $state)
 
 
 // ============================================================
+// Callback: Hover rotation field enable/disable
+// ============================================================
+global proc bfHoverRotToggle(int $state)
+{
+    global string $bf_hoverRotXField;
+    global string $bf_hoverRotYField;
+    global string $bf_hoverRotZField;
+
+    floatFieldGrp -edit -enable $state $bf_hoverRotXField;
+    floatFieldGrp -edit -enable $state $bf_hoverRotYField;
+    floatFieldGrp -edit -enable $state $bf_hoverRotZField;
+}
+
+
+// ============================================================
 // Callback: Simulate button
 // ============================================================
 global proc bfSimulateCallback()
@@ -701,6 +726,7 @@ global proc bfSimulateCallback()
     global string $bf_hoverPosXField;
     global string $bf_hoverPosYField;
     global string $bf_hoverPosZField;
+    global string $bf_hoverUseRigRotCheck;
     global string $bf_hoverRotXField;
     global string $bf_hoverRotYField;
     global string $bf_hoverRotZField;
@@ -770,10 +796,13 @@ global proc bfSimulateCallback()
             float $hz = `floatFieldGrp -query -value1 $bf_hoverPosZField`;
             $hoverFlag += " -hoverPosX " + $hx + " -hoverPosY " + $hy + " -hoverPosZ " + $hz;
         }
-        float $hrx = `floatFieldGrp -query -value1 $bf_hoverRotXField`;
-        float $hry = `floatFieldGrp -query -value1 $bf_hoverRotYField`;
-        float $hrz = `floatFieldGrp -query -value1 $bf_hoverRotZField`;
-        $hoverFlag += " -hoverRotX " + $hrx + " -hoverRotY " + $hry + " -hoverRotZ " + $hrz;
+        int $useRigRot = `checkBoxGrp -query -value1 $bf_hoverUseRigRotCheck`;
+        if (!$useRigRot) {
+            float $hrx = `floatFieldGrp -query -value1 $bf_hoverRotXField`;
+            float $hry = `floatFieldGrp -query -value1 $bf_hoverRotYField`;
+            float $hrz = `floatFieldGrp -query -value1 $bf_hoverRotZField`;
+            $hoverFlag += " -hoverRotX " + $hrx + " -hoverRotY " + $hry + " -hoverRotZ " + $hrz;
+        }
     }
 
     // Call the C++ bfSimulate command directly
@@ -868,6 +897,7 @@ global proc bfReset()
     global string $bf_hoverPosXField;
     global string $bf_hoverPosYField;
     global string $bf_hoverPosZField;
+    global string $bf_hoverUseRigRotCheck;
     global string $bf_hoverRotXField;
     global string $bf_hoverRotYField;
     global string $bf_hoverRotZField;
@@ -884,10 +914,12 @@ global proc bfReset()
     floatFieldGrp       -edit -value1 0.0  $bf_hoverPosXField;
     floatFieldGrp       -edit -value1 0.0  $bf_hoverPosYField;
     floatFieldGrp       -edit -value1 0.0  $bf_hoverPosZField;
+    checkBoxGrp         -edit -value1 true $bf_hoverUseRigRotCheck;
     floatFieldGrp       -edit -value1 0.0  $bf_hoverRotXField;
     floatFieldGrp       -edit -value1 0.0  $bf_hoverRotYField;
     floatFieldGrp       -edit -value1 0.0  $bf_hoverRotZField;
     bfHoverToggle 0;
+    bfHoverRotToggle 0;
 
     optionMenuGrp -edit -select 1        $bf_speciesMenu;
     optionMenuGrp -edit -select 4        $bf_modeMenu;

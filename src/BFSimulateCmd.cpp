@@ -522,6 +522,11 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
         || argData.isFlagSet(kHoverPosZFlag)) {
         hoverHasCustomPos = true;
     }
+    bool hoverHasCustomRot = false;
+    if (argData.isFlagSet(kHoverRotXFlag) || argData.isFlagSet(kHoverRotYFlag)
+        || argData.isFlagSet(kHoverRotZFlag)) {
+        hoverHasCustomRot = true;
+    }
     if (argData.isFlagSet(kHoverPosXFlag))
         argData.getFlagArgument(kHoverPosXFlag, 0, hoverPosXcm);
     if (argData.isFlagSet(kHoverPosYFlag))
@@ -635,9 +640,25 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
             rootFn.setTranslation(MVector(hoverPosXcm, hoverPosYcm, hoverPosZcm),
                                   MSpace::kWorld);
         }
-        m_state.heading  = deg2rad(hoverRotYdeg);
-        hoverPitchRad    = deg2rad(hoverRotXdeg);
-        hoverRollRad     = deg2rad(hoverRotZdeg);
+        if (hoverHasCustomRot) {
+            m_state.heading  = deg2rad(hoverRotYdeg);
+            hoverPitchRad    = deg2rad(hoverRotXdeg);
+            hoverRollRad     = deg2rad(hoverRotZdeg);
+        } else {
+            // Read current rotation from the rig's thorax joint
+            MStatus rotSt;
+            MFnTransform rootFn(m_state.skeleton.joints[kThorax], &rotSt);
+            if (rotSt == MS::kSuccess) {
+                MEulerRotation rigRot;
+                rootFn.getRotation(rigRot);
+                hoverPitchRad   = rigRot.x;
+                m_state.heading = rigRot.y;
+                hoverRollRad    = rigRot.z;
+                hoverRotXdeg = rigRot.x * 180.0 / M_PI;
+                hoverRotYdeg = rigRot.y * 180.0 / M_PI;
+                hoverRotZdeg = rigRot.z * 180.0 / M_PI;
+            }
+        }
         m_state.velocity = MVector(0.0, 0.0, 0.0);
         MGlobal::displayInfo(
             MString("ButterFlight: Hover mode at (") +
