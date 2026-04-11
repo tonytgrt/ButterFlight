@@ -25,6 +25,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <random>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -59,6 +60,10 @@ static const char* kPathFlag           = "-p";
 static const char* kPathFlagLong       = "-path";
 static const char* kPathSpeedFlag      = "-ps";
 static const char* kPathSpeedFlagLong  = "-pathSpeed";
+static const char* kPathNoiseFlag      = "-pn";
+static const char* kPathNoiseFlagLong  = "-pathNoise";
+static const char* kPathNoiseAmpFlag      = "-pna";
+static const char* kPathNoiseAmpFlagLong  = "-pathNoiseAmp";
 static const char* kHoverPosXFlag      = "-hpx";
 static const char* kHoverPosXFlagLong  = "-hoverPosX";
 static const char* kHoverPosYFlag      = "-hpy";
@@ -86,6 +91,8 @@ MSyntax BFSimulateCmd::newSyntax()
     syntax.addFlag(kFlapPeriodFlag, kFlapPeriodFlagLong, MSyntax::kDouble);
     syntax.addFlag(kPathFlag, kPathFlagLong, MSyntax::kString);
     syntax.addFlag(kPathSpeedFlag, kPathSpeedFlagLong, MSyntax::kDouble);
+    syntax.addFlag(kPathNoiseFlag, kPathNoiseFlagLong, MSyntax::kBoolean);
+    syntax.addFlag(kPathNoiseAmpFlag, kPathNoiseAmpFlagLong, MSyntax::kDouble);
     syntax.addFlag(kHoverPosXFlag, kHoverPosXFlagLong, MSyntax::kDouble);
     syntax.addFlag(kHoverPosYFlag, kHoverPosYFlagLong, MSyntax::kDouble);
     syntax.addFlag(kHoverPosZFlag, kHoverPosZFlagLong, MSyntax::kDouble);
@@ -508,6 +515,17 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
         argData.getFlagArgument(kPathSpeedFlag, 0, pathSpeedScale);
     if (pathSpeedScale <= 0.0) pathSpeedScale = 1.0;
 
+    // Path noise: lateral wandering around the curve so the butterfly
+    // doesn't track the path with mechanical precision.
+    bool   pathNoiseEnable = false;
+    double pathNoiseAmpCm  = 5.0;   // lateral amplitude in Maya cm
+    if (argData.isFlagSet(kPathNoiseFlag))
+        argData.getFlagArgument(kPathNoiseFlag, 0, pathNoiseEnable);
+    if (argData.isFlagSet(kPathNoiseAmpFlag))
+        argData.getFlagArgument(kPathNoiseAmpFlag, 0, pathNoiseAmpCm);
+    if (pathNoiseAmpCm < 0.0) pathNoiseAmpCm = 0.0;
+    double pathNoiseAmpM = pathNoiseAmpCm * kCmToM;
+
     // ---- Detect hover mode (mode == 4) ----------------------------
     bool hoverMode = false;
     bool hoverHasCustomPos = false;
@@ -689,6 +707,25 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
     //  arcRate is in cm/substep (curve's native unit).
     double arcCursor = 0.0;
     double arcRate   = 0.0;
+    double pathNoiseTime = 0.0;  // accumulated sim time for noise oscillator
+
+    // Per-run random phase offsets so the wander pattern differs every
+    // time the user re-simulates.  Seeded from std::random_device.
+    double pnPhaseLatA = 0.0, pnPhaseLatB = 0.0;
+    double pnPhaseVerA = 0.0, pnPhaseVerB = 0.0;
+    if (pathNoiseEnable) {
+        std::random_device rd;
+        std::mt19937 rng(rd());
+        std::uniform_real_distribution<double> dist(0.0, 2.0 * M_PI);
+        pnPhaseLatA = dist(rng);
+        pnPhaseLatB = dist(rng);
+        pnPhaseVerA = dist(rng);
+        pnPhaseVerB = dist(rng);
+        MGlobal::displayInfo(
+            MString("ButterFlight: path noise seed phases = ")
+            + pnPhaseLatA + ", " + pnPhaseLatB + ", "
+            + pnPhaseVerA + ", " + pnPhaseVerB);
+    }
     if (hasPath && duration > 0 && substeps > 0) {
         arcRate = totalCurveLen / ((double)duration * substeps) * pathSpeedScale;
         MGlobal::displayInfo(
@@ -762,17 +799,13 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
                 applyAngles(m_state.skeleton, m_state.angles, m_state.heading);
 
                 // 3. Integrate forces → velocity → position (Eqs. 4-11).
-                //    In path mode, a_pre is zero (hasTarget=false); the
-                //    path-following steering below handles guidance instead.
-                controller.step(m_state, simDt);
+                //    In path mode, skip controller.step() entirely so
+                //    aero/vortex/gravity forces don't fight the path
+                //    spring.  The cursor + spring have full control.
+                if (!pathActive)
+                    controller.step(m_state, simDt);
 
                 // 3b. Path-following: time-based cursor steering.
-                //
-                //     A cursor advances along the curve at a fixed rate
-                //     per substep (arcRate), so traversal speed is controlled
-                //     by curve length / duration, not by physics velocity.
-                //     The butterfly chases the cursor via a spring; aero
-                //     oscillation from controller.step() is preserved.
                 if (pathActive) {
                     // Advance cursor (time-based, not position-based)
                     arcCursor += arcRate;
@@ -790,6 +823,30 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
                     // Curve tangent at cursor
                     MVector tangent = curveFn.tangent(uTarget, MSpace::kWorld);
                     tangent.normalize();
+
+                    // ---- Optional path noise: lateral swing -------
+                    // Adds a smooth left/right (and slight up/down)
+                    // wander to the target point so the butterfly
+                    // doesn't track the curve mechanically.  Uses a
+                    // sum of two incommensurate sines per axis for
+                    // an organic, non-repeating feel.
+                    if (pathNoiseEnable && pathNoiseAmpM > 0.0) {
+                        pathNoiseTime += simDt;
+                        const double t = pathNoiseTime;
+                        // Lateral axis: perpendicular to tangent in XZ
+                        MVector up(0.0, 1.0, 0.0);
+                        MVector lateral = tangent ^ up;
+                        double lateralLen = lateral.length();
+                        if (lateralLen > 1e-6) {
+                            lateral /= lateralLen;
+                            double sLat = std::sin(2.0 * M_PI * 0.7 * t + pnPhaseLatA)
+                                        + 0.5 * std::sin(2.0 * M_PI * 1.13 * t + pnPhaseLatB);
+                            double sVert = 0.4 * (std::sin(2.0 * M_PI * 0.5 * t + pnPhaseVerA)
+                                                + 0.5 * std::sin(2.0 * M_PI * 0.91 * t + pnPhaseVerB));
+                            targetM += lateral * (pathNoiseAmpM * sLat / 1.5);
+                            targetM += up      * (pathNoiseAmpM * sVert / 1.5);
+                        }
+                    }
 
                     // Spring toward cursor point
                     MVector toTarget = targetM - MVector(m_state.position);
@@ -831,6 +888,14 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
                     double hSpeed = std::sqrt(vx * vx + vz * vz);
                     if (hSpeed > 0.01)
                         m_state.heading = std::atan2(-vx, -vz);
+                }
+
+                // 3d. In path mode, controller.step() was skipped, so
+                //     integrate position here from the spring velocity.
+                if (pathActive) {
+                    m_state.position.x += m_state.velocity.x * simDt;
+                    m_state.position.y += m_state.velocity.y * simDt;
+                    m_state.position.z += m_state.velocity.z * simDt;
                 }
             }
 
