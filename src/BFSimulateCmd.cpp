@@ -799,17 +799,13 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
                 applyAngles(m_state.skeleton, m_state.angles, m_state.heading);
 
                 // 3. Integrate forces → velocity → position (Eqs. 4-11).
-                //    In path mode, a_pre is zero (hasTarget=false); the
-                //    path-following steering below handles guidance instead.
-                controller.step(m_state, simDt);
+                //    In path mode, skip controller.step() entirely so
+                //    aero/vortex/gravity forces don't fight the path
+                //    spring.  The cursor + spring have full control.
+                if (!pathActive)
+                    controller.step(m_state, simDt);
 
                 // 3b. Path-following: time-based cursor steering.
-                //
-                //     A cursor advances along the curve at a fixed rate
-                //     per substep (arcRate), so traversal speed is controlled
-                //     by curve length / duration, not by physics velocity.
-                //     The butterfly chases the cursor via a spring; aero
-                //     oscillation from controller.step() is preserved.
                 if (pathActive) {
                     // Advance cursor (time-based, not position-based)
                     arcCursor += arcRate;
@@ -892,6 +888,14 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
                     double hSpeed = std::sqrt(vx * vx + vz * vz);
                     if (hSpeed > 0.01)
                         m_state.heading = std::atan2(-vx, -vz);
+                }
+
+                // 3d. In path mode, controller.step() was skipped, so
+                //     integrate position here from the spring velocity.
+                if (pathActive) {
+                    m_state.position.x += m_state.velocity.x * simDt;
+                    m_state.position.y += m_state.velocity.y * simDt;
+                    m_state.position.z += m_state.velocity.z * simDt;
                 }
             }
 
