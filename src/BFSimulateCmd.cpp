@@ -616,11 +616,30 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
         }
     }
 
-    // Seed position from the root joint's current world translation (cm → m)
+    // Seed position and heading from the previous frame so that a
+    // simulation starting at e.g. frame 961 picks up smoothly from
+    // the animation already baked up to frame 960.
+    if (startFrame > 1) {
+        MTime prevTime((double)(startFrame - 1), MTime::uiUnit());
+        MAnimControl::setCurrentTime(prevTime);
+    }
     {
         MFnTransform rootFn(m_state.skeleton.joints[kThorax]);
         MVector t = rootFn.getTranslation(MSpace::kWorld);
         m_state.position = MPoint(t.x * kCmToM, t.y * kCmToM, t.z * kCmToM);
+
+        // Read heading from the previous frame's Y rotation
+        MEulerRotation rot;
+        rootFn.getRotation(rot);
+        m_state.heading = rot.y;
+    }
+    if (startFrame > 1) {
+        MGlobal::displayInfo(
+            MString("ButterFlight: Seeded from frame ") + (startFrame - 1) +
+            " — pos=(" + m_state.position.x * kMToCm + ", " +
+            m_state.position.y * kMToCm + ", " +
+            m_state.position.z * kMToCm + ") cm, heading=" +
+            (m_state.heading * 180.0 / M_PI) + " deg");
     }
 
     // If a path is provided, snap the butterfly to the curve start
