@@ -649,8 +649,8 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
             (m_state.heading * 180.0 / M_PI) + " deg");
     }
 
-    // If a path is provided, snap the butterfly to the curve start
-    if (hasPath) {
+    // If a path is provided and this is a fresh start, snap to curve start
+    if (hasPath && startFrame <= 1) {
         double uMin, uMax;
         curveFn.getKnotDomain(uMin, uMax);
         MPoint startPt;  // Maya cm
@@ -675,33 +675,41 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
     double hoverPitchRad = 0.0;
     double hoverRollRad  = 0.0;
     if (hoverMode) {
-        if (hoverHasCustomPos) {
-            m_state.position = MPoint(hoverPosXcm * kCmToM,
-                                      hoverPosYcm * kCmToM,
-                                      hoverPosZcm * kCmToM);
-            // Also move the rig so the first frame renders at the hover position
-            MFnTransform rootFn(m_state.skeleton.joints[kThorax]);
-            rootFn.setTranslation(MVector(hoverPosXcm, hoverPosYcm, hoverPosZcm),
-                                  MSpace::kWorld);
-        }
-        if (hoverHasCustomRot) {
-            m_state.heading  = deg2rad(hoverRotYdeg);
-            hoverPitchRad    = deg2rad(hoverRotXdeg);
-            hoverRollRad     = deg2rad(hoverRotZdeg);
-        } else {
-            // Read current rotation from the rig's thorax joint
-            MStatus rotSt;
-            MFnTransform rootFn(m_state.skeleton.joints[kThorax], &rotSt);
-            if (rotSt == MS::kSuccess) {
-                MEulerRotation rigRot;
-                rootFn.getRotation(rigRot);
-                hoverPitchRad   = rigRot.x;
-                m_state.heading = rigRot.y;
-                hoverRollRad    = rigRot.z;
-                hoverRotXdeg = rigRot.x * 180.0 / M_PI;
-                hoverRotYdeg = rigRot.y * 180.0 / M_PI;
-                hoverRotZdeg = rigRot.z * 180.0 / M_PI;
+        if (startFrame <= 1) {
+            // Fresh start: apply hover position/rotation from flags
+            if (hoverHasCustomPos) {
+                m_state.position = MPoint(hoverPosXcm * kCmToM,
+                                          hoverPosYcm * kCmToM,
+                                          hoverPosZcm * kCmToM);
+                MFnTransform rootFn(m_state.skeleton.joints[kThorax]);
+                rootFn.setTranslation(MVector(hoverPosXcm, hoverPosYcm, hoverPosZcm),
+                                      MSpace::kWorld);
             }
+            if (hoverHasCustomRot) {
+                m_state.heading  = deg2rad(hoverRotYdeg);
+                hoverPitchRad    = deg2rad(hoverRotXdeg);
+                hoverRollRad     = deg2rad(hoverRotZdeg);
+            } else {
+                MStatus rotSt;
+                MFnTransform rootFn(m_state.skeleton.joints[kThorax], &rotSt);
+                if (rotSt == MS::kSuccess) {
+                    MEulerRotation rigRot;
+                    rootFn.getRotation(rigRot);
+                    hoverPitchRad   = rigRot.x;
+                    m_state.heading = rigRot.y;
+                    hoverRollRad    = rigRot.z;
+                    hoverRotXdeg = rigRot.x * 180.0 / M_PI;
+                    hoverRotYdeg = rigRot.y * 180.0 / M_PI;
+                    hoverRotZdeg = rigRot.z * 180.0 / M_PI;
+                }
+            }
+        } else {
+            // Continuing from previous frame: read pitch/roll from seeded rotation
+            MFnTransform rootFn(m_state.skeleton.joints[kThorax]);
+            MEulerRotation rigRot;
+            rootFn.getRotation(rigRot);
+            hoverPitchRad = rigRot.x;
+            hoverRollRad  = rigRot.z;
         }
         m_state.velocity = MVector(0.0, 0.0, 0.0);
         MGlobal::displayInfo(

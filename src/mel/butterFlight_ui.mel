@@ -795,10 +795,10 @@ global proc bfSimulateCallback()
     print ("//   Flap Period: " + $flapPeriod + " sec\n");
     print ("//   Frames:     " + $startF + " to " + ($startF + $duration - 1) + "\n");
 
-    // Build path flags if a guide curve is assigned
+    // Build path flags only when in Path Following mode (mode 2)
     string $path = `textFieldButtonGrp -query -text $bf_pathField`;
     string $pathFlag = "";
-    if ($path != "") {
+    if ($path != "" && $mode == 2) {
         $pathFlag = " -path \"" + $path + "\"";
         float $psScale = `floatFieldGrp -query -value1 $bf_pathSpeedField`;
         $pathFlag += " -pathSpeed " + $psScale;
