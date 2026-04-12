@@ -634,6 +634,13 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
         m_state.heading = rot.y;
     }
     if (startFrame > 1) {
+        // Seed a gentle forward velocity in the heading direction so
+        // that free-flight's heading-from-velocity doesn't snap to an
+        // arbitrary direction when continuing from hover (v ≈ 0).
+        double initSpeed = 0.5;  // m/s — mild nudge forward
+        m_state.velocity = MVector(-std::sin(m_state.heading) * initSpeed,
+                                    0.0,
+                                   -std::cos(m_state.heading) * initSpeed);
         MGlobal::displayInfo(
             MString("ButterFlight: Seeded from frame ") + (startFrame - 1) +
             " — pos=(" + m_state.position.x * kMToCm + ", " +
