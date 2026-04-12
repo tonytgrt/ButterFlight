@@ -3,10 +3,11 @@
 // BFSwarmManager.h
 // ButterFlight — Multi-agent swarm orchestrator
 //
-// Duplicates a source butterfly rig N times, scatters the
-// copies within a spawn spread, and runs the simulation loop
-// with flocking forces (separation, alignment, cohesion)
-// blended into each agent's maneuvering controller.
+// Leader-follower design: the leader butterfly is simulated
+// by BFSimulateCmd (any mode: free flight, path, hover).
+// This manager duplicates the rig N-1 times for followers,
+// which flap their wings independently but derive velocity
+// from the leader plus flocking separation forces.
 // ============================================================
 
 #include "BFState.h"
@@ -37,33 +38,41 @@ class BFSwarmManager
 {
 public:
     // ---- Spawn parameters (set before calling spawn()) ---------
-    int     agentCount   = 10;       // number of copies to create
     double  spawnSpread  = 200.0;    // cm — random scatter radius
 
     // ---- Flocking (public so callers can tweak weights) ---------
     BFFlocking flocking;
 
     // ---- Phase jitter ------------------------------------------
-    //  Random per-agent phase offset (in radians) added at spawn
-    //  so butterflies don't flap in unison.
     double  maxPhaseJitter = 3.14159265358979323846;  // up to +/- PI
 
     // ---- Main interface ----------------------------------------
 
-    /// Duplicate the source rig (joint hierarchy + mesh children)
-    /// N times and scatter initial positions.  Populates m_agents.
-    /// @param sourceRootName  Name of the source BF_thorax joint.
-    /// @return MS::kSuccess if all agents were created.
-    MStatus spawn(const MString& sourceRootName);
+    /// Duplicate the source rig N-1 times (followers only; the
+    /// leader is the original rig managed by BFSimulateCmd).
+    /// Scatters initial positions around the leader.
+    /// @param sourceRootName  Name of the source BF_body joint.
+    /// @param totalAgents     Total count including leader.
+    /// @return MS::kSuccess if all followers were created.
+    MStatus spawn(const MString& sourceRootName, int totalAgents);
 
-    /// Run the full simulation loop for all agents.
-    /// @param mode        Flight mode per agent (1=Free Flight, 2=Path Following, 4=Hover).
-    ///                    Flocking forces are added on top of whichever mode is selected.
-    /// @param duration    Number of output frames to bake.
-    /// @param startFrame  First frame number.
-    /// @param flapPeriod  Artist-facing flap period multiplier.
-    /// @return MS::kSuccess on completion.
-    MStatus simulate(int mode, int duration, int startFrame, double flapPeriod);
+    /// Step all followers for one physics substep.
+    /// Each follower: advance wing model, set velocity =
+    /// leader velocity + flocking separation, integrate position.
+    /// @param leader     Current leader state (position in metres).
+    /// @param dt         Physics timestep (seconds).
+    /// @param pathMode   If true, use fixed-frequency phase advance.
+    void stepFollowers(const BFState& leader, double dt, bool pathMode);
+
+    /// Write keyframes for all followers at the given frame time.
+    /// Converts positions from metres to cm for Maya.
+    void writeFollowerKeys(const MTime& time);
+
+    /// Clear all anim curves on follower skeletons (call before sim).
+    void clearFollowerAnimCurves();
+
+    /// Number of followers (total agents - 1).
+    int followerCount() const { return (int)m_agents.size(); }
 
     /// Read-only access to agents (for testing / inspection).
     const std::vector<BFAgent>& agents() const { return m_agents; }
@@ -73,18 +82,9 @@ private:
 
     // ---- DAG duplication helpers --------------------------------
 
-    /// Find the top-level group above a thorax joint (e.g. BF_body
-    /// or the transform parenting the skeleton + mesh).
-    /// Returns the DAG path of the topmost ancestor below the world.
     static MStatus findRigRoot(const MDagPath& thoraxPath,
                                MDagPath&       outRigRoot);
 
-    /// Duplicate the rig root via Maya's "duplicate" command and
-    /// resolve the root joint inside the copy.
-    /// @param rigRoot           DAG path of the group to duplicate.
-    /// @param rootLeafName      Short name of the root joint (e.g. "BF_body").
-    /// @param outNewRootJoint   Receives the DAG path of the new root joint.
-    /// @return MS::kSuccess on success.
     static MStatus duplicateRig(const MDagPath& rigRoot,
                                 const MString&  rootLeafName,
                                 MDagPath&       outNewRootJoint);
@@ -92,10 +92,12 @@ private:
     // ---- Keyframe helpers (mirrors BFSimulateCmd statics) -------
 
     static void applyAngles(const BFSkeleton&      skel,
-                            const BFManeuverAngles& ang);
+                            const BFManeuverAngles& ang,
+                            double                  heading);
 
     static void writeAllKeys(const BFSkeleton&      skel,
                              const BFManeuverAngles& ang,
+                             double                  heading,
                              const MTime&            time);
 
     static void writeTranslationKey(const MDagPath& joint,
@@ -106,12 +108,10 @@ private:
                                  const MEulerRotation& rot,
                                  const MTime&          time);
 
-    static void writeHeadingKey(const MDagPath& joint,
-                                const MVector&  velocity,
-                                const MTime&    time);
-
     static MObject ensureAnimCurve(const MDagPath&             joint,
                                    const char*                 attrName,
                                    MFnAnimCurve::AnimCurveType curveType,
                                    MStatus&                    outStatus);
+
+    static void clearAnimCurves(const MDagPath& joint);
 };

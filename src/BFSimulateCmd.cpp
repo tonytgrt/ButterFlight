@@ -6,6 +6,7 @@
 #include "BFSimulateCmd.h"
 #include "BFWingModel.h"
 #include "BFManeuverController.h"
+#include "BFSwarmManager.h"
 
 #include <maya/MGlobal.h>
 #include <maya/MSelectionList.h>
@@ -76,6 +77,12 @@ static const char* kHoverRotYFlag      = "-hry";
 static const char* kHoverRotYFlagLong  = "-hoverRotY";
 static const char* kHoverRotZFlag      = "-hrz";
 static const char* kHoverRotZFlagLong  = "-hoverRotZ";
+static const char* kAgentCountFlag      = "-ac";
+static const char* kAgentCountFlagLong  = "-agentCount";
+static const char* kSpawnSpreadFlag     = "-ss";
+static const char* kSpawnSpreadFlagLong = "-spawnSpread";
+static const char* kRepulsionRadFlag    = "-rr";
+static const char* kRepulsionRadFlagLong = "-repulsionRadius";
 
 // ============================================================
 // newSyntax — declare accepted flags
@@ -99,6 +106,9 @@ MSyntax BFSimulateCmd::newSyntax()
     syntax.addFlag(kHoverRotXFlag, kHoverRotXFlagLong, MSyntax::kDouble);
     syntax.addFlag(kHoverRotYFlag, kHoverRotYFlagLong, MSyntax::kDouble);
     syntax.addFlag(kHoverRotZFlag, kHoverRotZFlagLong, MSyntax::kDouble);
+    syntax.addFlag(kAgentCountFlag, kAgentCountFlagLong, MSyntax::kLong);
+    syntax.addFlag(kSpawnSpreadFlag, kSpawnSpreadFlagLong, MSyntax::kDouble);
+    syntax.addFlag(kRepulsionRadFlag, kRepulsionRadFlagLong, MSyntax::kDouble);
     // TODO: add remaining flags (mass, wingArea, gains, eta, etc.)
     return syntax;
 }
@@ -558,6 +568,18 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
     if (argData.isFlagSet(kHoverRotZFlag))
         argData.getFlagArgument(kHoverRotZFlag, 0, hoverRotZdeg);
 
+    // ---- Parse swarm flags -----------------------------------------
+    int    swarmAgentCount = 1;
+    double swarmSpawnSpread = 200.0;   // cm
+    double swarmRepulsionRad = 50.0;   // cm
+    if (argData.isFlagSet(kAgentCountFlag))
+        argData.getFlagArgument(kAgentCountFlag, 0, swarmAgentCount);
+    if (argData.isFlagSet(kSpawnSpreadFlag))
+        argData.getFlagArgument(kSpawnSpreadFlag, 0, swarmSpawnSpread);
+    if (argData.isFlagSet(kRepulsionRadFlag))
+        argData.getFlagArgument(kRepulsionRadFlag, 0, swarmRepulsionRad);
+    bool swarmActive = (swarmAgentCount > 1);
+
     if (flapPeriod <= 0.0) flapPeriod = 1.0;
 
     // Read FPS directly from Maya's scene time unit so that baked
@@ -738,6 +760,21 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
         MString("ButterFlight: simDt=") + simDt +
         "s (" + substeps + " substeps/frame @ " + fps + " fps output)");
 
+    // ---- Spawn swarm followers (if enabled) ----------------------
+    BFSwarmManager swarmMgr;
+    if (swarmActive) {
+        swarmMgr.spawnSpread = swarmSpawnSpread;  // cm (Maya units)
+        // Flocking radii must be in metres (physics units)
+        swarmMgr.flocking.separationRadius = swarmRepulsionRad * kCmToM;
+        swarmMgr.flocking.neighborRadius   = swarmRepulsionRad * kCmToM * 4.0;
+        status = swarmMgr.spawn(rigName, swarmAgentCount);
+        if (status != MS::kSuccess) return status;
+        swarmMgr.clearFollowerAnimCurves();
+        MGlobal::displayInfo(
+            MString("ButterFlight: Swarm mode — ") + swarmAgentCount +
+            " total agents (1 leader + " + (swarmAgentCount - 1) + " followers)");
+    }
+
     // ---- Simulation loop (full dynamics) ---------------------
     for (int f = startFrame; f < startFrame + duration; ++f) {
 
@@ -903,6 +940,10 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
             //    (Eq. 12).
             if (m_state.flapCycle != prevCycle)
                 controller.smoothParameters(m_state);
+
+            // 5. Step swarm followers (velocity from leader + flocking).
+            if (swarmActive)
+                swarmMgr.stepFollowers(m_state, simDt, hasPath);
         }
 
         // Write one keyframe per output frame (after all substeps).
@@ -924,6 +965,10 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
                      m_state.position.z * kMToCm);
         writeTranslationKey(m_state.skeleton.joints[kThorax],
                             posCm, frameTime);
+
+        // Write follower keyframes
+        if (swarmActive)
+            swarmMgr.writeFollowerKeys(frameTime);
     }
 
     // ---- Set playback range to cover baked frames ---------------

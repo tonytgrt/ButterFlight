@@ -1,6 +1,10 @@
 // ============================================================
 // BFSwarmManager.cpp
 // ButterFlight — Multi-agent swarm orchestrator
+//
+// Leader-follower design: followers duplicate the leader rig,
+// flap independently, and derive velocity from the leader
+// plus flocking separation forces.
 // ============================================================
 
 #include "BFSwarmManager.h"
@@ -32,18 +36,11 @@
 
 static inline double deg2rad(double d) { return d * M_PI / 180.0; }
 
+static constexpr double kCmToM = 0.01;
+static constexpr double kMToCm = 100.0;
+
 // ============================================================
 // findRigRoot — walk up from the thorax to the topmost group
-//
-// The typical hierarchy is:
-//   |world
-//     |BF_butterfly_GRP   <-- this is what we want
-//       |BF_body
-//         |BF_thorax
-//         |BF_abdomen
-//       |Butterfly_mesh
-//
-// We walk up until the parent is the world root.
 // ============================================================
 MStatus BFSwarmManager::findRigRoot(const MDagPath& thoraxPath,
                                     MDagPath&       outRigRoot)
@@ -51,12 +48,9 @@ MStatus BFSwarmManager::findRigRoot(const MDagPath& thoraxPath,
     MStatus st;
     MDagPath current = thoraxPath;
 
-    // Walk up until the parent is the world (length == 1 means
-    // the node is a direct child of the world root).
     while (current.length() > 1) {
         MFnDagNode fn(current, &st);
         if (st != MS::kSuccess) break;
-
         if (fn.parentCount() == 0) break;
 
         MObject parentObj = fn.parent(0, &st);
@@ -77,10 +71,7 @@ MStatus BFSwarmManager::findRigRoot(const MDagPath& thoraxPath,
 
 // ============================================================
 // duplicateRig — duplicate the whole rig group via MEL and
-//                resolve the new thorax joint inside the copy.
-//
-// Using Maya's native "duplicate -rr" command handles mesh,
-// skinCluster, blendShapes, and material connections properly.
+//                resolve the new root joint inside the copy.
 // ============================================================
 MStatus BFSwarmManager::duplicateRig(const MDagPath& rigRoot,
                                      const MString&  rootLeafName,
@@ -88,10 +79,10 @@ MStatus BFSwarmManager::duplicateRig(const MDagPath& rigRoot,
 {
     MStatus st;
 
-    // Build the full DAG path string for the source
     MString rigFullName = rigRoot.fullPathName();
 
-    // Execute: duplicate -rr "rigFullName"
+    // Duplicate the rig group, then rebind all skinClusters so
+    // the copied meshes deform from the NEW joints, not the originals.
     MString cmd = "duplicate -rr \"" + rigFullName + "\"";
     MCommandResult cmdResult;
     st = MGlobal::executeCommand(cmd, cmdResult);
@@ -101,7 +92,6 @@ MStatus BFSwarmManager::duplicateRig(const MDagPath& rigRoot,
         return st;
     }
 
-    // The result is a list of strings — the first is the new group name
     MStringArray resultNames;
     cmdResult.getResult(resultNames);
     if (resultNames.length() == 0) {
@@ -111,7 +101,54 @@ MStatus BFSwarmManager::duplicateRig(const MDagPath& rigRoot,
 
     MString newGroupName = resultNames[0];
 
-    // Resolve the new group's DAG path
+    // ---- Rebind skin: for each mesh in the duplicate, find the
+    //      matching source mesh, bind to new joints, copy weights.
+    MString rebindCmd =
+        "{\n"
+        "  string $srcGrp = \"" + rigFullName + "\";\n"
+        "  string $dstGrp = \"" + newGroupName + "\";\n"
+        "  string $srcMeshes[] = `listRelatives -ad -type \"mesh\" $srcGrp`;\n"
+        "  string $dstMeshes[] = `listRelatives -ad -type \"mesh\" $dstGrp`;\n"
+        "  string $dstJoints[] = `listRelatives -ad -type \"joint\" $dstGrp`;\n"
+        "  if (size($dstJoints) > 0)\n"
+        "  for ($i = 0; $i < size($dstMeshes); $i++) {\n"
+        "    string $dstXform[] = `listRelatives -parent $dstMeshes[$i]`;\n"
+        "    if (size($dstXform) == 0) continue;\n"
+        "    // Find matching source mesh by comparing short names\n"
+        "    string $srcSkin = \"\";\n"
+        "    for ($j = 0; $j < size($srcMeshes); $j++) {\n"
+        "      string $sn1 = `match \"[^|]+$\" $srcMeshes[$j]`;\n"
+        "      string $sn2 = `match \"[^|]+$\" $dstMeshes[$i]`;\n"
+        "      if ($sn1 == $sn2) {\n"
+        "        string $hist[] = `listHistory $srcMeshes[$j]`;\n"
+        "        for ($h in $hist) {\n"
+        "          if (`nodeType $h` == \"skinCluster\") {\n"
+        "            $srcSkin = $h;\n"
+        "            break;\n"
+        "          }\n"
+        "        }\n"
+        "        break;\n"
+        "      }\n"
+        "    }\n"
+        "    if ($srcSkin == \"\") continue;\n"
+        "    // Bind the duplicate mesh to the duplicate joints\n"
+        "    select -cl;\n"
+        "    select $dstJoints;\n"
+        "    select -add $dstXform[0];\n"
+        "    string $newSkin[] = `skinCluster -toSelectedBones`;\n"
+        "    // Copy weights from source skinCluster\n"
+        "    copySkinWeights -ss $srcSkin -ds $newSkin[0]"
+        " -noMirror -sa \"closestPoint\" -ia \"closestJoint\";\n"
+        "  }\n"
+        "  select -cl;\n"
+        "}\n";
+    st = MGlobal::executeCommand(rebindCmd);
+    if (st != MS::kSuccess) {
+        MGlobal::displayWarning(
+            "BFSwarmManager: Skin rebind had issues for '" + newGroupName +
+            "'. Meshes may not deform correctly.");
+    }
+
     MSelectionList sel;
     st = sel.add(newGroupName);
     if (st != MS::kSuccess) {
@@ -123,7 +160,6 @@ MStatus BFSwarmManager::duplicateRig(const MDagPath& rigRoot,
     MDagPath newGroupPath;
     sel.getDagPath(0, newGroupPath);
 
-    // Search inside the new group for a joint matching rootLeafName
     MItDag dagIter(MItDag::kDepthFirst, MFn::kJoint, &st);
     if (st != MS::kSuccess) return st;
 
@@ -154,75 +190,73 @@ MStatus BFSwarmManager::duplicateRig(const MDagPath& rigRoot,
 }
 
 // ============================================================
-// spawn — create N agents from one source rig
+// spawn — create N-1 follower agents from one source rig
 //
-// Agent 0 reuses the original rig.  Agents 1..N-1 are
-// duplicated copies scattered around the original position.
-// Each agent gets a random phase jitter so they don't flap
-// in lockstep.
+// The leader (agent 0) is the original rig, managed by
+// BFSimulateCmd.  This method only creates followers.
 // ============================================================
-MStatus BFSwarmManager::spawn(const MString& sourceRootName)
+MStatus BFSwarmManager::spawn(const MString& sourceRootName,
+                              int totalAgents)
 {
     MStatus st;
+    int followerN = totalAgents - 1;
+    if (followerN <= 0) {
+        m_agents.clear();
+        return MS::kSuccess;
+    }
+
     m_agents.clear();
-    m_agents.resize(agentCount);
+    m_agents.resize(followerN);
 
-    // ---- Resolve source skeleton --------------------------------
-    st = BFSimulateCmd::readSkeleton(sourceRootName, m_agents[0].state.skeleton);
+    // ---- Resolve source skeleton to get position & rig root -----
+    BFSkeleton srcSkel;
+    st = BFSimulateCmd::readSkeleton(sourceRootName, srcSkel);
     if (st != MS::kSuccess) return st;
 
-    // Read the source thorax world position
-    MFnTransform srcRootFn(m_agents[0].state.skeleton.joints[kThorax]);
-    MVector srcPos = srcRootFn.getTranslation(MSpace::kWorld);
-    m_agents[0].state.position = MPoint(srcPos.x, srcPos.y, srcPos.z);
+    MFnTransform srcRootFn(srcSkel.joints[kThorax]);
+    MVector srcPos = srcRootFn.getTranslation(MSpace::kWorld);  // cm
 
-    // ---- Find the topmost rig group for duplication -------------
     MDagPath rigRoot;
-    st = findRigRoot(m_agents[0].state.skeleton.joints[kThorax], rigRoot);
+    st = findRigRoot(srcSkel.joints[kThorax], rigRoot);
     if (st != MS::kSuccess) return st;
+
+    MFnDagNode sourceRootFn(srcSkel.joints[kThorax]);
+    MString rootLeafName = sourceRootFn.name();
 
     // ---- Random number generator --------------------------------
-    std::mt19937 rng(42);  // fixed seed for reproducibility
+    std::mt19937 rng(42);
     std::uniform_real_distribution<double> spreadDist(-spawnSpread, spawnSpread);
     std::uniform_real_distribution<double> phaseDist(-maxPhaseJitter, maxPhaseJitter);
 
-    // ---- Phase jitter for agent 0 --------------------------------
-    double jitter0 = phaseDist(rng);
-    for (int a = 0; a < BFState::kNumAngles; ++a)
-        m_agents[0].state.perAnglePhase[a] += jitter0;
-
-    // ---- Duplicate for agents 1..N-1 ----------------------------
-    //  Use the leaf name of whatever the user passed as the source
-    //  root (e.g. "BF_body"), not hardcoded "BF_thorax".
-    MFnDagNode sourceRootFn(m_agents[0].state.skeleton.joints[kThorax]);
-    MString rootLeafName = sourceRootFn.name();
-
-    for (int i = 1; i < agentCount; ++i) {
+    // ---- Duplicate for each follower ----------------------------
+    for (int i = 0; i < followerN; ++i) {
         MDagPath newRootJoint;
         st = duplicateRig(rigRoot, rootLeafName, newRootJoint);
         if (st != MS::kSuccess) {
             MGlobal::displayError(
-                MString("BFSwarmManager: Failed to create agent ") + i);
+                MString("BFSwarmManager: Failed to create follower ") + i);
             return st;
         }
 
-        // Use the FULL DAG path so readSkeleton can resolve the
-        // duplicated joint unambiguously (short names collide).
         MString fullPath = newRootJoint.fullPathName();
         st = BFSimulateCmd::readSkeleton(fullPath, m_agents[i].state.skeleton);
         if (st != MS::kSuccess) return st;
 
-        // Scatter position around the source
+        // Scatter position around the source (cm)
         double ox = spreadDist(rng);
         double oy = spreadDist(rng) * 0.3;  // less vertical scatter
         double oz = spreadDist(rng);
 
-        MPoint spawnPos(srcPos.x + ox, srcPos.y + oy, srcPos.z + oz);
-        m_agents[i].state.position = spawnPos;
+        MPoint spawnPosCm(srcPos.x + ox, srcPos.y + oy, srcPos.z + oz);
 
-        // Move the duplicated rig to the spawn position
+        // Store position in metres (physics units)
+        m_agents[i].state.position = MPoint(spawnPosCm.x * kCmToM,
+                                            spawnPosCm.y * kCmToM,
+                                            spawnPosCm.z * kCmToM);
+
+        // Move the duplicated rig to the spawn position (Maya cm)
         MFnTransform newRootFn(newRootJoint);
-        newRootFn.setTranslation(MVector(spawnPos.x, spawnPos.y, spawnPos.z),
+        newRootFn.setTranslation(MVector(spawnPosCm.x, spawnPosCm.y, spawnPosCm.z),
                                  MSpace::kWorld);
 
         // Phase jitter so wings are out of sync
@@ -232,152 +266,124 @@ MStatus BFSwarmManager::spawn(const MString& sourceRootName)
     }
 
     MGlobal::displayInfo(
-        MString("BFSwarmManager: Spawned ") + agentCount +
-        " agents (spread=" + spawnSpread + " cm).");
+        MString("BFSwarmManager: Spawned ") + followerN +
+        " followers (spread=" + spawnSpread + " cm).");
     return MS::kSuccess;
 }
 
 // ============================================================
-// simulate — run the multi-agent simulation loop
+// stepFollowers — advance all followers by one physics substep
 //
-// For each output frame:
-//   1. Compute flocking accelerations for all agents (O(N²))
-//   2. For each agent, run substeps:
-//      a. Advance wing kinematics (BFWingModel)
-//      b. Apply joint rotations (applyAngles)
-//      c. Integrate forces + flocking accel (BFManeuverController)
-//      d. Sliding-window smoother at cycle boundaries
-//   3. Bake keyframes for all agents
+// Each follower:
+//   1. Advance wing kinematics (independent flapping)
+//   2. Apply joint rotations
+//   3. Velocity = leader velocity + flocking separation
+//   4. Integrate position
 // ============================================================
-MStatus BFSwarmManager::simulate(int mode, int duration, int startFrame,
-                                 double flapPeriod)
+void BFSwarmManager::stepFollowers(const BFState& leader,
+                                   double dt, bool pathMode)
 {
-    if (m_agents.empty()) {
-        MGlobal::displayError("BFSwarmManager: No agents. Call spawn() first.");
-        return MS::kFailure;
-    }
-
     const int N = (int)m_agents.size();
-    const bool isHover = (mode == 4);
+    if (N == 0) return;
 
-    // ---- Timing setup (mirrors BFSimulateCmd) -------------------
-    double fps = MTime(1.0, MTime::kSeconds).as(MTime::uiUnit());
-    if (fps <= 0.0) fps = 24.0;
+    // Build state array for flocking: leader at [0], followers at [1..N]
+    std::vector<BFState> allStates(N + 1);
+    allStates[0] = leader;
+    for (int i = 0; i < N; ++i)
+        allStates[i + 1] = m_agents[i].state;
 
-    if (flapPeriod <= 0.0) flapPeriod = 1.0;
-    double f_gamma_default = m_agents[0].state.perAngleFreq[kAngleGamma];
-    double simRate = 1.0 / (f_gamma_default * flapPeriod);
+    // Compute flocking accelerations for all (including leader at [0])
+    std::vector<MVector> flockAccels = flocking.compute(allStates);
 
-    static constexpr double kTargetSimHz = 960.0;
-    int    substeps = std::max(1, (int)std::ceil(kTargetSimHz / fps));
-    double simDt = simRate / (fps * substeps);
-
-    // ---- Initialise per-agent controllers -----------------------
     for (int i = 0; i < N; ++i) {
-        m_agents[i].controller.maxSpeed = m_agents[i].wingModel.maxSpeed;
-    }
+        BFAgent& agent = m_agents[i];
+        int prevCycle = agent.state.flapCycle;
 
-    const char* modeNames[] = { "", "Free Flight", "Path Following", "", "Hover" };
-    const char* modeName = (mode >= 1 && mode <= 4) ? modeNames[mode] : "Unknown";
-    MGlobal::displayInfo(
-        MString("BFSwarmManager: Simulating ") + N + " agents, mode=" +
-        modeName + ", " + duration + " frames, simDt=" + simDt + "s");
-
-    // ---- Collect state references for flocking ------------------
-    std::vector<BFState> stateSnapshot(N);
-
-    // ---- Simulation loop ----------------------------------------
-    for (int f = startFrame; f < startFrame + duration; ++f) {
-
-        for (int s = 0; s < substeps; ++s) {
-
-            // Snapshot current states for flocking computation
-            for (int i = 0; i < N; ++i)
-                stateSnapshot[i] = m_agents[i].state;
-
-            // Compute flocking accelerations (uses snapshot)
-            std::vector<MVector> flockAccels = flocking.compute(stateSnapshot);
-
-            // Step each agent
-            for (int i = 0; i < N; ++i) {
-                BFAgent& agent = m_agents[i];
-                int prevCycle = agent.state.flapCycle;
-
-                // 1. Advance wing kinematics (all modes need flapping)
-                agent.wingModel.update(agent.state, simDt);
-
-                // 2. Apply rotations so aerodynamics reads current normals
-                applyAngles(agent.state.skeleton, agent.state.angles);
-
-                // 3. Physics integration depends on flight mode
-                if (isHover) {
-                    // Hover: no body forces, only flocking keeps group coherent.
-                    // Apply flocking as gentle position drift.
-                    agent.state.velocity = flockAccels[i] * simDt;
-
-                    double speed = agent.state.velocity.length();
-                    if (speed > agent.controller.maxSpeed * 0.3) {
-                        agent.state.velocity *= (agent.controller.maxSpeed * 0.3) / speed;
-                    }
-
-                    agent.state.position.x += agent.state.velocity.x * simDt;
-                    agent.state.position.y += agent.state.velocity.y * simDt;
-                    agent.state.position.z += agent.state.velocity.z * simDt;
-                } else {
-                    // Free Flight (1) / Path Following (2):
-                    // full physics via controller + flocking on top.
-                    agent.controller.step(agent.state, simDt);
-
-                    // Apply flocking acceleration (explicit Euler)
-                    agent.state.velocity += flockAccels[i] * simDt;
-
-                    // Re-clamp speed after flocking contribution
-                    double speed = agent.state.velocity.length();
-                    if (speed > agent.controller.maxSpeed) {
-                        agent.state.velocity *= agent.controller.maxSpeed / speed;
-                    }
-                }
-
-                // 4. Sliding-window smoother at cycle boundary
-                if (agent.state.flapCycle != prevCycle)
-                    agent.controller.smoothParameters(agent.state);
+        // 1. Wing flapping
+        if (pathMode) {
+            // Fixed-rate phase advancement (matches leader's path mode)
+            for (int a = 0; a < BFState::kNumAngles; ++a)
+                agent.state.perAnglePhase[a] += 2.0 * M_PI
+                    * agent.state.perAngleFreq[a] * dt;
+            agent.state.phase += dt;
+            double cyclePeriod = (agent.state.frequency > 0.0)
+                                 ? 1.0 / agent.state.frequency : 1.0;
+            if (agent.state.phase >= cyclePeriod) {
+                agent.state.phase -= cyclePeriod;
+                agent.state.flapCycle++;
             }
+            agent.wingModel.updateAnglesOnly(agent.state);
+        } else {
+            agent.wingModel.update(agent.state, dt);
         }
 
-        // ---- Bake keyframes for all agents at this frame --------
-        MTime frameTime((double)f, MTime::uiUnit());
+        // 2. Apply joint rotations
+        applyAngles(agent.state.skeleton, agent.state.angles,
+                    agent.state.heading);
 
-        for (int i = 0; i < N; ++i) {
-            const BFAgent& agent = m_agents[i];
+        // 3. Velocity = leader velocity + flocking correction
+        //    flockAccels[i+1] is this follower's flocking accel
+        agent.state.velocity = leader.velocity + flockAccels[i + 1] * dt;
 
-            writeAllKeys(agent.state.skeleton, agent.state.angles, frameTime);
-            writeTranslationKey(agent.state.skeleton.joints[kThorax],
-                                agent.state.position, frameTime);
-            if (!isHover) {
-                writeHeadingKey(agent.state.skeleton.joints[kThorax],
-                                agent.state.velocity, frameTime);
-            }
+        // Clamp speed
+        double speed = agent.state.velocity.length();
+        if (speed > agent.controller.maxSpeed) {
+            agent.state.velocity *= agent.controller.maxSpeed / speed;
         }
+
+        // 4. Integrate position
+        agent.state.position.x += agent.state.velocity.x * dt;
+        agent.state.position.y += agent.state.velocity.y * dt;
+        agent.state.position.z += agent.state.velocity.z * dt;
+
+        // 5. Heading from actual velocity direction
+        double vx = agent.state.velocity.x;
+        double vz = agent.state.velocity.z;
+        double hSpeed = std::sqrt(vx * vx + vz * vz);
+        if (hSpeed > 0.01)
+            agent.state.heading = std::atan2(-vx, -vz);
+
+        // 6. Cycle boundary smoothing
+        if (agent.state.flapCycle != prevCycle)
+            agent.controller.smoothParameters(agent.state);
     }
-
-    // ---- Set playback range -------------------------------------
-    MAnimControl::setMinTime(MTime((double)startFrame, MTime::uiUnit()));
-    MAnimControl::setMaxTime(
-        MTime((double)(startFrame + duration - 1), MTime::uiUnit()));
-
-    // ---- Report -------------------------------------------------
-    MGlobal::displayInfo(
-        MString("BFSwarmManager: Baked ") + duration + " frames for " +
-        N + " agents (" + startFrame + "-" +
-        (startFrame + duration - 1) + "), mode=" + modeName + ".");
-
-    return MS::kSuccess;
 }
 
 // ============================================================
-// Keyframe helpers — mirrors the static functions in
-// BFSimulateCmd.cpp.  Duplicated here to avoid exposing
-// those statics in the header.
+// writeFollowerKeys — bake keyframes for all followers
+// ============================================================
+void BFSwarmManager::writeFollowerKeys(const MTime& time)
+{
+    for (int i = 0; i < (int)m_agents.size(); ++i) {
+        const BFAgent& agent = m_agents[i];
+
+        writeAllKeys(agent.state.skeleton, agent.state.angles,
+                     agent.state.heading, time);
+
+        // Convert metres → cm for Maya
+        MPoint posCm(agent.state.position.x * kMToCm,
+                     agent.state.position.y * kMToCm,
+                     agent.state.position.z * kMToCm);
+        writeTranslationKey(agent.state.skeleton.joints[kThorax],
+                            posCm, time);
+    }
+}
+
+// ============================================================
+// clearFollowerAnimCurves — remove stale keys before re-sim
+// ============================================================
+void BFSwarmManager::clearFollowerAnimCurves()
+{
+    for (int i = 0; i < (int)m_agents.size(); ++i) {
+        const BFSkeleton& skel = m_agents[i].state.skeleton;
+        for (int j = 0; j < kNumJoints; ++j) {
+            clearAnimCurves(skel.joints[j]);
+        }
+    }
+}
+
+// ============================================================
+// Keyframe helpers
 // ============================================================
 
 MObject BFSwarmManager::ensureAnimCurve(const MDagPath& joint,
@@ -424,8 +430,8 @@ void BFSwarmManager::writeRotationKey(const MDagPath&       joint,
         MFnAnimCurve curveFn(curveObj, &st);
         if (st != MS::kSuccess) continue;
 
-        curveFn.addKey(time, vals[i], MFnAnimCurve::kTangentAuto,
-                       MFnAnimCurve::kTangentAuto, nullptr, &st);
+        curveFn.addKey(time, vals[i], MFnAnimCurve::kTangentLinear,
+                       MFnAnimCurve::kTangentLinear, nullptr, &st);
     }
 }
 
@@ -445,42 +451,21 @@ void BFSwarmManager::writeTranslationKey(const MDagPath& joint,
         MFnAnimCurve curveFn(curveObj, &st);
         if (st != MS::kSuccess) continue;
 
-        curveFn.addKey(time, vals[i], MFnAnimCurve::kTangentAuto,
-                       MFnAnimCurve::kTangentAuto, nullptr, &st);
+        curveFn.addKey(time, vals[i], MFnAnimCurve::kTangentLinear,
+                       MFnAnimCurve::kTangentLinear, nullptr, &st);
     }
 }
 
-void BFSwarmManager::writeHeadingKey(const MDagPath& joint,
-                                     const MVector&  velocity,
-                                     const MTime&    time)
-{
-    // Derive heading (rotateY) from velocity direction in the XZ plane
-    double speed = velocity.length();
-    if (speed < 1.0e-8) return;
-
-    double headingY = std::atan2(velocity.x, velocity.z);  // radians
-
-    MStatus st;
-    MObject curveObj = ensureAnimCurve(joint, "rotateY",
-                                      MFnAnimCurve::kAnimCurveTA, st);
-    if (st != MS::kSuccess || curveObj.isNull()) return;
-
-    MFnAnimCurve curveFn(curveObj, &st);
-    if (st != MS::kSuccess) return;
-
-    curveFn.addKey(time, headingY, MFnAnimCurve::kTangentAuto,
-                   MFnAnimCurve::kTangentAuto, nullptr, &st);
-}
-
 void BFSwarmManager::applyAngles(const BFSkeleton&      skel,
-                                 const BFManeuverAngles& ang)
+                                 const BFManeuverAngles& ang,
+                                 double                  heading)
 {
     MStatus st;
 
     MFnTransform thoraxFn(skel.joints[kThorax], &st);
     if (st == MS::kSuccess) {
         thoraxFn.setRotation(MEulerRotation(
-            deg2rad(ang.thetaBeta), 0.0, 0.0,
+            deg2rad(ang.thetaBeta), heading, 0.0,
             MEulerRotation::kXYZ));
     }
 
@@ -526,10 +511,12 @@ void BFSwarmManager::applyAngles(const BFSkeleton&      skel,
 
 void BFSwarmManager::writeAllKeys(const BFSkeleton&      skel,
                                   const BFManeuverAngles& ang,
+                                  double                  heading,
                                   const MTime&            time)
 {
+    // Thorax — pitch + heading (yaw)
     writeRotationKey(skel.joints[kThorax],
-        MEulerRotation(deg2rad(ang.thetaBeta), 0.0, 0.0), time);
+        MEulerRotation(deg2rad(ang.thetaBeta), heading, 0.0), time);
 
     writeRotationKey(skel.joints[kForewingL],
         MEulerRotation(deg2rad(ang.thetaZeta),
@@ -549,4 +536,32 @@ void BFSwarmManager::writeAllKeys(const BFSkeleton&      skel,
 
     writeRotationKey(skel.joints[kAbdomen],
         MEulerRotation(deg2rad(ang.thetaPhi), 0.0, 0.0), time);
+}
+
+void BFSwarmManager::clearAnimCurves(const MDagPath& joint)
+{
+    MStatus st;
+    const char* attrs[] = { "translateX", "translateY", "translateZ",
+                            "rotateX",    "rotateY",    "rotateZ" };
+
+    MFnDependencyNode depFn(joint.node(), &st);
+    if (st != MS::kSuccess) return;
+
+    for (const char* attr : attrs) {
+        MPlug plug = depFn.findPlug(attr, true, &st);
+        if (st != MS::kSuccess || !plug.isConnected()) continue;
+
+        MPlugArray conns;
+        plug.connectedTo(conns, true, false);
+        if (conns.length() == 0) continue;
+
+        MObject curveObj = conns[0].node();
+        if (!curveObj.hasFn(MFn::kAnimCurve)) continue;
+
+        MFnAnimCurve curveFn(curveObj, &st);
+        if (st != MS::kSuccess) continue;
+
+        for (int i = (int)curveFn.numKeys() - 1; i >= 0; --i)
+            curveFn.remove(i);
+    }
 }
