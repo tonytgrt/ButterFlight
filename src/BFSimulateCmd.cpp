@@ -22,10 +22,17 @@
 #include <maya/MPlug.h>
 #include <maya/MPlugArray.h>
 #include <maya/MFnDependencyNode.h>
+#include <maya/MFnCamera.h>
+#include <maya/MMatrix.h>
+#include <maya/MTransformationMatrix.h>
+#include <maya/MQuaternion.h>
+#include <maya/MVector.h>
+#include <maya/MStringArray.h>
 
 #include <algorithm>
 #include <cmath>
 #include <random>
+#include <vector>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -76,6 +83,27 @@ static const char* kHoverRotYFlag      = "-hry";
 static const char* kHoverRotYFlagLong  = "-hoverRotY";
 static const char* kHoverRotZFlag      = "-hrz";
 static const char* kHoverRotZFlagLong  = "-hoverRotZ";
+// Follow-camera flags
+static const char* kCamFlag            = "-cam";
+static const char* kCamFlagLong        = "-createCamera";
+static const char* kCamOffXFlag        = "-cox";
+static const char* kCamOffXFlagLong    = "-camOffsetX";
+static const char* kCamOffYFlag        = "-coy";
+static const char* kCamOffYFlagLong    = "-camOffsetY";
+static const char* kCamOffZFlag        = "-coz";
+static const char* kCamOffZFlagLong    = "-camOffsetZ";
+static const char* kCamRotXFlag        = "-crx";
+static const char* kCamRotXFlagLong    = "-camRotX";
+static const char* kCamRotYFlag        = "-cry";
+static const char* kCamRotYFlagLong    = "-camRotY";
+static const char* kCamRotZFlag        = "-crz";
+static const char* kCamRotZFlagLong    = "-camRotZ";
+static const char* kCamStiffFlag       = "-cst";
+static const char* kCamStiffFlagLong   = "-camStiffness";
+static const char* kCamFOVFlag         = "-cfv";
+static const char* kCamFOVFlagLong     = "-camFOV";
+static const char* kCamNameFlag        = "-cnm";
+static const char* kCamNameFlagLong    = "-camName";
 
 // ============================================================
 // newSyntax — declare accepted flags
@@ -99,6 +127,16 @@ MSyntax BFSimulateCmd::newSyntax()
     syntax.addFlag(kHoverRotXFlag, kHoverRotXFlagLong, MSyntax::kDouble);
     syntax.addFlag(kHoverRotYFlag, kHoverRotYFlagLong, MSyntax::kDouble);
     syntax.addFlag(kHoverRotZFlag, kHoverRotZFlagLong, MSyntax::kDouble);
+    syntax.addFlag(kCamFlag,      kCamFlagLong,      MSyntax::kBoolean);
+    syntax.addFlag(kCamOffXFlag,  kCamOffXFlagLong,  MSyntax::kDouble);
+    syntax.addFlag(kCamOffYFlag,  kCamOffYFlagLong,  MSyntax::kDouble);
+    syntax.addFlag(kCamOffZFlag,  kCamOffZFlagLong,  MSyntax::kDouble);
+    syntax.addFlag(kCamRotXFlag,  kCamRotXFlagLong,  MSyntax::kDouble);
+    syntax.addFlag(kCamRotYFlag,  kCamRotYFlagLong,  MSyntax::kDouble);
+    syntax.addFlag(kCamRotZFlag,  kCamRotZFlagLong,  MSyntax::kDouble);
+    syntax.addFlag(kCamStiffFlag, kCamStiffFlagLong, MSyntax::kDouble);
+    syntax.addFlag(kCamFOVFlag,   kCamFOVFlagLong,   MSyntax::kDouble);
+    syntax.addFlag(kCamNameFlag,  kCamNameFlagLong,  MSyntax::kString);
     // TODO: add remaining flags (mass, wingArea, gains, eta, etc.)
     return syntax;
 }
@@ -474,6 +512,239 @@ static void writeAllKeys(const BFSkeleton&       skel,
 }
 
 // ============================================================
+// bakeFollowCamera — create/reuse a spring-arm follow camera and
+// bake per-frame translation+rotation keys from the recorded
+// butterfly positions and headings.
+//
+//   positions[i]     : world-space butterfly thorax position in
+//                      Maya cm, one per output frame
+//   headings[i]      : butterfly yaw in radians (heading=0 faces -Z)
+//   startFrame       : frame number of positions[0]
+//   camName          : transform node name (reused across re-runs)
+//   localOffsetCm    : camera offset in butterfly's local frame
+//                      (X right, Y up, Z behind)
+//   rotOffset        : additional Euler rotation applied in camera
+//                      local frame on top of the look-at orientation
+//   stiffnessPerSec  : spring follow rate in 1/seconds
+//   fovDeg           : camera vertical FOV in degrees
+//   fps              : output frame rate (for stiffness->alpha conv.)
+// ============================================================
+static void bakeFollowCamera(
+    const std::vector<MPoint>&  positions,
+    const std::vector<double>&  headings,
+    int                         startFrame,
+    const MString&              camName,
+    MVector                     localOffsetCm,
+    MEulerRotation              rotOffset,
+    double                      stiffnessPerSec,
+    double                      fovDeg,
+    double                      fps)
+{
+    if (positions.empty() || positions.size() != headings.size()) {
+        MGlobal::displayWarning(
+            "ButterFlight: camera bake skipped (no recorded frames).");
+        return;
+    }
+    if (fps <= 0.0)             fps = 24.0;
+    if (stiffnessPerSec <= 0.0) stiffnessPerSec = 10.0;
+    if (fovDeg < 5.0)           fovDeg = 5.0;
+    if (fovDeg > 170.0)         fovDeg = 170.0;
+
+    MStatus st;
+
+    // ---- Find or create camera transform -----------------------
+    //  Use the MEL `camera -name` command for creation — it creates
+    //  the transform+shape pair atomically with the requested name.
+    //  The MFnCamera::create API left the transform named "camera1"
+    //  on some Maya versions (rename via MFnDagNode::setName was
+    //  inconsistent), so we avoid it entirely.
+    MDagPath camTransformPath;
+    bool reused = false;
+    {
+        MSelectionList sel;
+        if (sel.add(camName) == MS::kSuccess && sel.length() > 0) {
+            MDagPath tpath;
+            if (sel.getDagPath(0, tpath) == MS::kSuccess
+                && tpath.hasFn(MFn::kTransform)) {
+                MFnDagNode dagFn(tpath);
+                for (unsigned int i = 0; i < dagFn.childCount(); ++i) {
+                    MObject child = dagFn.child(i);
+                    if (child.hasFn(MFn::kCamera)) {
+                        camTransformPath = tpath;
+                        reused = true;
+                        MFnCamera camFn(child, &st);
+                        if (st == MS::kSuccess)
+                            camFn.setVerticalFieldOfView(deg2rad(fovDeg));
+                        break;
+                    }
+                }
+                if (!reused) {
+                    MGlobal::displayWarning(
+                        "ButterFlight: node '" + camName +
+                        "' exists but has no camera shape — will create with a suffix.");
+                }
+            }
+        }
+    }
+    if (!reused) {
+        MStringArray createResult;
+        MString createCmd = MString("camera -name \"") + camName + "\"";
+        MStatus cmdSt = MGlobal::executeCommand(createCmd, createResult);
+        if (cmdSt != MS::kSuccess || createResult.length() < 1) {
+            MGlobal::displayError(
+                "ButterFlight: Failed to create follow camera via MEL.");
+            return;
+        }
+        // createResult[0] is the transform's short name (may be
+        // suffixed, e.g. "BF_followCam1" if the target was taken).
+        MString actualName = createResult[0];
+        MSelectionList sel2;
+        if (sel2.add(actualName) != MS::kSuccess || sel2.length() == 0) {
+            MGlobal::displayError(
+                "ButterFlight: Camera '" + actualName +
+                "' was created but could not be resolved.");
+            return;
+        }
+        if (sel2.getDagPath(0, camTransformPath) != MS::kSuccess
+            || !camTransformPath.hasFn(MFn::kTransform)) {
+            MGlobal::displayError(
+                "ButterFlight: Camera DAG path resolution failed.");
+            return;
+        }
+        // Set FOV on the shape child.
+        for (unsigned int i = 0; i < camTransformPath.childCount(); ++i) {
+            MObject child = camTransformPath.child(i);
+            if (child.hasFn(MFn::kCamera)) {
+                MFnCamera camFn(child, &st);
+                if (st == MS::kSuccess)
+                    camFn.setVerticalFieldOfView(deg2rad(fovDeg));
+                break;
+            }
+        }
+        MGlobal::displayInfo(
+            MString("ButterFlight: Created follow camera '") +
+            actualName + "' (requested '" + camName + "').");
+    } else {
+        MGlobal::displayInfo(
+            MString("ButterFlight: Reusing follow camera '") +
+            camName + "'.");
+    }
+
+    // Sanity check: the path must be valid before we key it.
+    if (!camTransformPath.isValid() || camTransformPath.node().isNull()) {
+        MGlobal::displayError(
+            "ButterFlight: Camera transform path is invalid — aborting bake.");
+        return;
+    }
+
+    // ---- Clear any previous keys on the transform ---------------
+    clearAnimCurves(camTransformPath);
+
+    // ---- Per-frame bake ----------------------------------------
+    const int nFrames = (int)positions.size();
+    const double alpha = 1.0 - std::exp(-stiffnessPerSec / fps);
+
+    // Frame-0 seed: camera starts exactly at its rest position so
+    // there is no initial snap.
+    MPoint prevCamPos;
+
+    // Heading unwrap so that a ±pi discontinuity in the stored yaw
+    // doesn't cause the offset to spin the long way around.
+    double unwrapped = headings[0];
+
+    for (int f = 0; f < nFrames; ++f) {
+        double raw = headings[f];
+        while (raw - unwrapped >  M_PI) raw -= 2.0 * M_PI;
+        while (raw - unwrapped < -M_PI) raw += 2.0 * M_PI;
+        unwrapped = raw;
+
+        // Rotate localOffsetCm around world Y by the butterfly's yaw.
+        // heading = 0 means facing -Z, so the rotation that sends
+        // local +Z to the world "behind butterfly" direction is:
+        //   x' =  cos(h) * x + sin(h) * z
+        //   z' = -sin(h) * x + cos(h) * z
+        const double cosY = std::cos(unwrapped);
+        const double sinY = std::sin(unwrapped);
+        const MVector offsetWorld(
+            cosY * localOffsetCm.x + sinY * localOffsetCm.z,
+            localOffsetCm.y,
+            -sinY * localOffsetCm.x + cosY * localOffsetCm.z);
+        const MPoint pDesired = positions[f] + offsetWorld;
+
+        MPoint camPos;
+        if (f == 0) {
+            camPos = pDesired;  // seed with no lag
+        } else {
+            camPos = prevCamPos + (pDesired - prevCamPos) * alpha;
+        }
+
+        // ---- Look-at rotation ---------------------------------
+        // Maya cameras look down -Z with +Y up and +X right.
+        MEulerRotation finalRot(0.0, 0.0, 0.0);
+        MVector forward = MVector(positions[f]) - MVector(camPos);
+        const double fwdLen = forward.length();
+        if (fwdLen < 1e-6) {
+            finalRot = rotOffset;
+        } else {
+            forward /= fwdLen;
+            MVector up(0.0, 1.0, 0.0);
+            // Degenerate when looking straight up/down: swap to +Z up.
+            if (std::abs(forward * up) > 0.999) {
+                up = MVector(0.0, 0.0, 1.0);
+            }
+            MVector camZ = -forward;     // camera +Z points away from target
+            MVector camX = up ^ camZ;    // right
+            if (camX.length() < 1e-6) camX = MVector(1.0, 0.0, 0.0);
+            camX.normalize();
+            MVector camY = camZ ^ camX;  // up'
+            camY.normalize();
+
+            // Build a 4x4 whose rows are the camera basis in world
+            // (Maya uses row vectors, so v_world = v_local * M).
+            double m[4][4] = {
+                { camX.x, camX.y, camX.z, 0.0 },
+                { camY.x, camY.y, camY.z, 0.0 },
+                { camZ.x, camZ.y, camZ.z, 0.0 },
+                { 0.0,    0.0,    0.0,    1.0 }
+            };
+            MMatrix mat(m);
+            MTransformationMatrix xform(mat);
+            MQuaternion baseQ  = xform.rotation();
+            MQuaternion offQ   = rotOffset.asQuaternion();
+            // q_final = offset * base applies offset in the camera's
+            // local frame first, then the look-at orientation.
+            MQuaternion finalQ = offQ * baseQ;
+            finalRot = finalQ.asEulerRotation();
+        }
+
+        const MTime t((double)(startFrame + f), MTime::uiUnit());
+        writeTranslationKey(camTransformPath, camPos, t);
+        writeRotationKey   (camTransformPath, finalRot, t);
+
+        prevCamPos = camPos;
+    }
+
+    // Diagnostic: first/last sample so we can confirm motion was baked.
+    const MPoint& firstBf  = positions.front();
+    const MPoint& lastBf   = positions.back();
+    MGlobal::displayInfo(
+        MString("ButterFlight: Follow camera '") + camTransformPath.partialPathName() +
+        "' baked " + nFrames + " frames (stiffness=" + stiffnessPerSec +
+        ", fov=" + fovDeg + " deg).");
+    MGlobal::displayInfo(
+        MString("  butterfly cm  : first=(") +
+        firstBf.x + ", " + firstBf.y + ", " + firstBf.z +
+        ")  last=(" + lastBf.x + ", " + lastBf.y + ", " + lastBf.z + ")");
+    MGlobal::displayInfo(
+        MString("  local offset  : (") +
+        localOffsetCm.x + ", " + localOffsetCm.y + ", " + localOffsetCm.z + ") cm");
+    MGlobal::displayInfo(
+        MString("  prevCamPos(end)=(") +
+        prevCamPos.x + ", " + prevCamPos.y + ", " + prevCamPos.z + ")");
+}
+
+
+// ============================================================
 // doIt — entry point when the MEL layer calls "bfSimulate"
 // ============================================================
 MStatus BFSimulateCmd::doIt(const MArgList& args)
@@ -557,6 +828,38 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
         argData.getFlagArgument(kHoverRotYFlag, 0, hoverRotYdeg);
     if (argData.isFlagSet(kHoverRotZFlag))
         argData.getFlagArgument(kHoverRotZFlag, 0, hoverRotZdeg);
+
+    // ---- Follow-camera flags ---------------------------------------
+    bool   camEnable    = false;
+    MString camName     = "BF_followCam";
+    double camOffXcm    = 0.0;
+    double camOffYcm    = 5.0;
+    double camOffZcm    = 30.0;
+    double camRotXdeg   = 0.0;
+    double camRotYdeg   = 0.0;
+    double camRotZdeg   = 0.0;
+    double camStiffness = 10.0;
+    double camFOVdeg    = 35.0;
+    if (argData.isFlagSet(kCamFlag))
+        argData.getFlagArgument(kCamFlag, 0, camEnable);
+    if (argData.isFlagSet(kCamNameFlag))
+        argData.getFlagArgument(kCamNameFlag, 0, camName);
+    if (argData.isFlagSet(kCamOffXFlag))
+        argData.getFlagArgument(kCamOffXFlag, 0, camOffXcm);
+    if (argData.isFlagSet(kCamOffYFlag))
+        argData.getFlagArgument(kCamOffYFlag, 0, camOffYcm);
+    if (argData.isFlagSet(kCamOffZFlag))
+        argData.getFlagArgument(kCamOffZFlag, 0, camOffZcm);
+    if (argData.isFlagSet(kCamRotXFlag))
+        argData.getFlagArgument(kCamRotXFlag, 0, camRotXdeg);
+    if (argData.isFlagSet(kCamRotYFlag))
+        argData.getFlagArgument(kCamRotYFlag, 0, camRotYdeg);
+    if (argData.isFlagSet(kCamRotZFlag))
+        argData.getFlagArgument(kCamRotZFlag, 0, camRotZdeg);
+    if (argData.isFlagSet(kCamStiffFlag))
+        argData.getFlagArgument(kCamStiffFlag, 0, camStiffness);
+    if (argData.isFlagSet(kCamFOVFlag))
+        argData.getFlagArgument(kCamFOVFlag, 0, camFOVdeg);
 
     if (flapPeriod <= 0.0) flapPeriod = 1.0;
 
@@ -772,6 +1075,16 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
         MString("ButterFlight: simDt=") + simDt +
         "s (" + substeps + " substeps/frame @ " + fps + " fps output)");
 
+    // ---- Follow-camera sample buffers ------------------------------
+    // Only populated when the user requested a follow camera; we
+    // record one sample per output frame and bake after the sim loop.
+    std::vector<MPoint>  camBfPositions;
+    std::vector<double>  camBfHeadings;
+    if (camEnable) {
+        camBfPositions.reserve((size_t)std::max(1, duration));
+        camBfHeadings .reserve((size_t)std::max(1, duration));
+    }
+
     // ---- Simulation loop (full dynamics) ---------------------
     for (int f = startFrame; f < startFrame + duration; ++f) {
 
@@ -958,6 +1271,29 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
                      m_state.position.z * kMToCm);
         writeTranslationKey(m_state.skeleton.joints[kThorax],
                             posCm, frameTime);
+
+        // Record per-frame sample for the follow camera (cm + radians).
+        if (camEnable) {
+            camBfPositions.push_back(posCm);
+            camBfHeadings .push_back(m_state.heading);
+        }
+    }
+
+    // ---- Follow camera: bake keys from recorded samples --------
+    if (camEnable && !camBfPositions.empty()) {
+        bakeFollowCamera(
+            camBfPositions,
+            camBfHeadings,
+            startFrame,
+            camName,
+            MVector(camOffXcm, camOffYcm, camOffZcm),
+            MEulerRotation(deg2rad(camRotXdeg),
+                           deg2rad(camRotYdeg),
+                           deg2rad(camRotZdeg),
+                           MEulerRotation::kXYZ),
+            camStiffness,
+            camFOVdeg,
+            fps);
     }
 
     // ---- Set playback range to cover baked frames ---------------
