@@ -28,6 +28,7 @@
 #include <maya/MQuaternion.h>
 #include <maya/MVector.h>
 #include <maya/MStringArray.h>
+#include <maya/M3dView.h>
 
 #include <algorithm>
 #include <cmath>
@@ -104,6 +105,8 @@ static const char* kCamFOVFlag         = "-cfv";
 static const char* kCamFOVFlagLong     = "-camFOV";
 static const char* kCamNameFlag        = "-cnm";
 static const char* kCamNameFlagLong    = "-camName";
+static const char* kCamUseCurFlag      = "-ucc";
+static const char* kCamUseCurFlagLong  = "-useCurrentCamera";
 
 // ============================================================
 // newSyntax — declare accepted flags
@@ -137,6 +140,7 @@ MSyntax BFSimulateCmd::newSyntax()
     syntax.addFlag(kCamStiffFlag, kCamStiffFlagLong, MSyntax::kDouble);
     syntax.addFlag(kCamFOVFlag,   kCamFOVFlagLong,   MSyntax::kDouble);
     syntax.addFlag(kCamNameFlag,  kCamNameFlagLong,  MSyntax::kString);
+    syntax.addFlag(kCamUseCurFlag, kCamUseCurFlagLong, MSyntax::kBoolean);
     // TODO: add remaining flags (mass, wingArea, gains, eta, etc.)
     return syntax;
 }
@@ -840,8 +844,11 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
     double camRotZdeg   = 0.0;
     double camStiffness = 10.0;
     double camFOVdeg    = 35.0;
+    bool   camUseCurrent = false;
     if (argData.isFlagSet(kCamFlag))
         argData.getFlagArgument(kCamFlag, 0, camEnable);
+    if (argData.isFlagSet(kCamUseCurFlag))
+        argData.getFlagArgument(kCamUseCurFlag, 0, camUseCurrent);
     if (argData.isFlagSet(kCamNameFlag))
         argData.getFlagArgument(kCamNameFlag, 0, camName);
     if (argData.isFlagSet(kCamOffXFlag))
@@ -916,6 +923,111 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
         } else {
             MGlobal::displayWarning("ButterFlight: '" + curveName +
                 "' is not a NURBS curve — ignoring path.");
+        }
+    }
+
+    // ---- Derive camera offsets from active view (optional) -------
+    //  When -useCurrentCamera is set, read the active 3D view camera
+    //  and the butterfly thorax transform AT THE CURRENT SCENE TIME
+    //  and compute (camOffset*, camRot*) that reproduce this exact
+    //  framing at frame 0 of the bake.  Must run BEFORE the time is
+    //  changed for seeding so that the matrices we read reflect what
+    //  the user is actually looking at.
+    if (camEnable && camUseCurrent) {
+        M3dView view = M3dView::active3dView();
+        MDagPath viewCamPath;
+        MStatus viewSt = view.getCamera(viewCamPath);
+        if (viewSt == MS::kSuccess) {
+            MDagPath camXfPath = viewCamPath;
+            if (!camXfPath.hasFn(MFn::kTransform))
+                camXfPath.pop(1);
+
+            MMatrix camWorld = camXfPath.inclusiveMatrix();
+            MPoint camWorldT(camWorld.matrix[3][0],
+                             camWorld.matrix[3][1],
+                             camWorld.matrix[3][2]);
+            MTransformationMatrix camXf(camWorld);
+            MQuaternion camWorldQ = camXf.rotation();
+
+            // Butterfly thorax world transform at current scene time.
+            MFnTransform thx(m_state.skeleton.joints[kThorax]);
+            MVector bfWorld = thx.getTranslation(MSpace::kWorld);
+            MEulerRotation bfRot;
+            thx.getRotation(bfRot);
+            const double bfHeading = bfRot.y;
+
+            MVector offsetWorld(camWorldT.x - bfWorld.x,
+                                camWorldT.y - bfWorld.y,
+                                camWorldT.z - bfWorld.z);
+
+            // Inverse of bake-loop yaw rotation:
+            //   x_local =  cos(h) * x_world - sin(h) * z_world
+            //   z_local =  sin(h) * x_world + cos(h) * z_world
+            const double cosH = std::cos(bfHeading);
+            const double sinH = std::sin(bfHeading);
+            camOffXcm = cosH * offsetWorld.x - sinH * offsetWorld.z;
+            camOffYcm = offsetWorld.y;
+            camOffZcm = sinH * offsetWorld.x + cosH * offsetWorld.z;
+
+            // Look-at rotation from cam to butterfly (same math as
+            // bakeFollowCamera so offQ composes back to camWorldQ).
+            MVector forward(bfWorld.x - camWorldT.x,
+                            bfWorld.y - camWorldT.y,
+                            bfWorld.z - camWorldT.z);
+            const double fwdLen = forward.length();
+            MQuaternion offQ;
+            if (fwdLen < 1e-6) {
+                offQ = camWorldQ;
+            } else {
+                forward /= fwdLen;
+                MVector up(0.0, 1.0, 0.0);
+                if (std::abs(forward * up) > 0.999) up = MVector(0.0, 0.0, 1.0);
+                MVector camZ = -forward;
+                MVector camX = up ^ camZ;
+                if (camX.length() < 1e-6) camX = MVector(1.0, 0.0, 0.0);
+                camX.normalize();
+                MVector camY = camZ ^ camX;
+                camY.normalize();
+                double m[4][4] = {
+                    { camX.x, camX.y, camX.z, 0.0 },
+                    { camY.x, camY.y, camY.z, 0.0 },
+                    { camZ.x, camZ.y, camZ.z, 0.0 },
+                    { 0.0,    0.0,    0.0,    1.0 }
+                };
+                MMatrix baseMat(m);
+                MTransformationMatrix baseXf(baseMat);
+                MQuaternion baseQ = baseXf.rotation();
+                offQ = camWorldQ * baseQ.inverse();
+            }
+            MEulerRotation offE = offQ.asEulerRotation();
+            camRotXdeg = offE.x * 180.0 / M_PI;
+            camRotYdeg = offE.y * 180.0 / M_PI;
+            camRotZdeg = offE.z * 180.0 / M_PI;
+
+            // Read the camera's vertical FOV so the baked cam matches
+            // the user's zoom level, not just position and orientation.
+            for (unsigned int i = 0; i < camXfPath.childCount(); ++i) {
+                MObject child = camXfPath.child(i);
+                if (child.hasFn(MFn::kCamera)) {
+                    MStatus fovSt;
+                    MFnCamera cf(child, &fovSt);
+                    if (fovSt == MS::kSuccess) {
+                        double vfovRad = cf.verticalFieldOfView();
+                        camFOVdeg = vfovRad * 180.0 / M_PI;
+                    }
+                    break;
+                }
+            }
+
+            MGlobal::displayInfo(
+                MString("ButterFlight: useCurrentCamera '") +
+                camXfPath.partialPathName() + "' -> offset=(" +
+                camOffXcm + ", " + camOffYcm + ", " + camOffZcm + ") cm, rot=(" +
+                camRotXdeg + ", " + camRotYdeg + ", " + camRotZdeg + ") deg, fov=" +
+                camFOVdeg);
+        } else {
+            MGlobal::displayWarning(
+                "ButterFlight: -useCurrentCamera set but no active 3D view found.");
         }
     }
 

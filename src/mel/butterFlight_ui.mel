@@ -64,6 +64,7 @@ global string $bf_exportMenu;
 // Follow Camera section
 global string $bf_camEnableCheck;
 global string $bf_camNameField;
+global string $bf_camUseCurrentCheck;
 global string $bf_camAutoFrameCheck;
 global string $bf_camOffXField;
 global string $bf_camOffYField;
@@ -561,6 +562,15 @@ global proc butterFlightUI()
                     -enable false
                     -columnWidth2 120 160`;
 
+                global string $bf_camUseCurrentCheck;
+                $bf_camUseCurrentCheck = `checkBoxGrp
+                    -label "Use Current Camera Transformation"
+                    -value1 false
+                    -enable false
+                    -onCommand  "bfCameraUseCurrentToggle 1"
+                    -offCommand "bfCameraUseCurrentToggle 0"
+                    -annotation "Derive follow-cam offset, rotation and FOV from the active viewport camera so the frame-0 view matches what you see now"`;
+
                 global string $bf_camAutoFrameCheck;
                 $bf_camAutoFrameCheck = `checkBoxGrp
                     -label "Auto Frame Distance"
@@ -880,6 +890,7 @@ global proc bfHoverRotToggle(int $state)
 global proc bfCameraToggle(int $state)
 {
     global string $bf_camNameField;
+    global string $bf_camUseCurrentCheck;
     global string $bf_camAutoFrameCheck;
     global string $bf_camFillRatioSlider;
     global string $bf_camOffXField;
@@ -892,18 +903,58 @@ global proc bfCameraToggle(int $state)
     global string $bf_camFOVField;
 
     textFieldGrp    -edit -enable $state $bf_camNameField;
-    checkBoxGrp     -edit -enable $state $bf_camAutoFrameCheck;
-    floatFieldGrp   -edit -enable $state $bf_camOffXField;
-    floatFieldGrp   -edit -enable $state $bf_camOffYField;
-    floatFieldGrp   -edit -enable $state $bf_camRotXField;
-    floatFieldGrp   -edit -enable $state $bf_camRotYField;
-    floatFieldGrp   -edit -enable $state $bf_camRotZField;
+    checkBoxGrp     -edit -enable $state $bf_camUseCurrentCheck;
     floatSliderGrp  -edit -enable $state $bf_camStiffSlider;
-    floatFieldGrp   -edit -enable $state $bf_camFOVField;
 
-    // Re-apply auto-frame logic so Z-offset / fill-ratio reflect it
-    int $af = `checkBoxGrp -query -value1 $bf_camAutoFrameCheck`;
     if ($state == 1) {
+        // Child widgets are driven by the "Use Current Camera" toggle:
+        // when it's on, manual offset/rotation/FOV/auto-frame are overridden.
+        int $uc = `checkBoxGrp -query -value1 $bf_camUseCurrentCheck`;
+        bfCameraUseCurrentToggle $uc;
+    } else {
+        checkBoxGrp    -edit -enable 0 $bf_camAutoFrameCheck;
+        floatFieldGrp  -edit -enable 0 $bf_camOffXField;
+        floatFieldGrp  -edit -enable 0 $bf_camOffYField;
+        floatFieldGrp  -edit -enable 0 $bf_camOffZField;
+        floatFieldGrp  -edit -enable 0 $bf_camRotXField;
+        floatFieldGrp  -edit -enable 0 $bf_camRotYField;
+        floatFieldGrp  -edit -enable 0 $bf_camRotZField;
+        floatFieldGrp  -edit -enable 0 $bf_camFOVField;
+        floatSliderGrp -edit -enable 0 $bf_camFillRatioSlider;
+    }
+}
+
+
+// ============================================================
+// Callback: Use-Current-Camera toggle — when ON, the manual offset,
+// rotation, auto-frame and FOV fields are disabled because they will
+// be derived from the active viewport camera at simulate time.
+// ============================================================
+global proc bfCameraUseCurrentToggle(int $state)
+{
+    global string $bf_camAutoFrameCheck;
+    global string $bf_camFillRatioSlider;
+    global string $bf_camOffXField;
+    global string $bf_camOffYField;
+    global string $bf_camOffZField;
+    global string $bf_camRotXField;
+    global string $bf_camRotYField;
+    global string $bf_camRotZField;
+    global string $bf_camFOVField;
+
+    int $manual = (1 - $state);  // enable manual fields only when NOT using current
+
+    checkBoxGrp    -edit -enable $manual $bf_camAutoFrameCheck;
+    floatFieldGrp  -edit -enable $manual $bf_camOffXField;
+    floatFieldGrp  -edit -enable $manual $bf_camOffYField;
+    floatFieldGrp  -edit -enable $manual $bf_camRotXField;
+    floatFieldGrp  -edit -enable $manual $bf_camRotYField;
+    floatFieldGrp  -edit -enable $manual $bf_camRotZField;
+    floatFieldGrp  -edit -enable $manual $bf_camFOVField;
+
+    if ($manual) {
+        // Defer Z-offset / fill-ratio to the auto-frame sub-toggle.
+        int $af = `checkBoxGrp -query -value1 $bf_camAutoFrameCheck`;
         bfCameraAutoFrameToggle $af;
     } else {
         floatFieldGrp  -edit -enable 0 $bf_camOffZField;
@@ -976,6 +1027,7 @@ global proc bfSimulateCallback()
     global string $bf_flapPeriodField;
     global string $bf_camEnableCheck;
     global string $bf_camNameField;
+    global string $bf_camUseCurrentCheck;
     global string $bf_camAutoFrameCheck;
     global string $bf_camOffXField;
     global string $bf_camOffYField;
@@ -1070,36 +1122,44 @@ global proc bfSimulateCallback()
     if ($camOn) {
         string $camName = `textFieldGrp -query -text $bf_camNameField`;
         if ($camName == "") $camName = "BF_followCam";
-        float  $cox   = `floatFieldGrp  -query -value1 $bf_camOffXField`;
-        float  $coy   = `floatFieldGrp  -query -value1 $bf_camOffYField`;
-        float  $coz   = `floatFieldGrp  -query -value1 $bf_camOffZField`;
-        float  $crx   = `floatFieldGrp  -query -value1 $bf_camRotXField`;
-        float  $cry   = `floatFieldGrp  -query -value1 $bf_camRotYField`;
-        float  $crz   = `floatFieldGrp  -query -value1 $bf_camRotZField`;
         float  $stiff = `floatSliderGrp -query -value  $bf_camStiffSlider`;
-        float  $fov   = `floatFieldGrp  -query -value1 $bf_camFOVField`;
-
-        // Auto frame distance: override Z offset from FOV + species wingspan
-        int    $autoFrame = `checkBoxGrp -query -value1 $bf_camAutoFrameCheck`;
-        if ($autoFrame) {
-            float $fill = `floatSliderGrp -query -value $bf_camFillRatioSlider`;
-            // Wingspan per species (tip-to-tip, Maya cm)
-            int   $sp = `optionMenuGrp -query -select $bf_speciesMenu`;
-            float $wingspan = 10.0;            // Monarch default
-            if ($sp == 2) $wingspan = 14.0;    // Swallowtail
-            $coz = bfCameraAutoDistance($fov, $fill, $wingspan);
-        }
+        int    $useCur = `checkBoxGrp  -query -value1 $bf_camUseCurrentCheck`;
 
         $camFlag = " -createCamera 1"
                  + " -camName \"" + $camName + "\""
-                 + " -camOffsetX " + $cox
-                 + " -camOffsetY " + $coy
-                 + " -camOffsetZ " + $coz
-                 + " -camRotX "    + $crx
-                 + " -camRotY "    + $cry
-                 + " -camRotZ "    + $crz
-                 + " -camStiffness " + $stiff
-                 + " -camFOV "       + $fov;
+                 + " -camStiffness " + $stiff;
+
+        if ($useCur) {
+            // Offsets, rotation and FOV are derived in C++ from the
+            // active 3D view camera — don't pass manual values.
+            $camFlag += " -useCurrentCamera 1";
+        } else {
+            float  $cox = `floatFieldGrp -query -value1 $bf_camOffXField`;
+            float  $coy = `floatFieldGrp -query -value1 $bf_camOffYField`;
+            float  $coz = `floatFieldGrp -query -value1 $bf_camOffZField`;
+            float  $crx = `floatFieldGrp -query -value1 $bf_camRotXField`;
+            float  $cry = `floatFieldGrp -query -value1 $bf_camRotYField`;
+            float  $crz = `floatFieldGrp -query -value1 $bf_camRotZField`;
+            float  $fov = `floatFieldGrp -query -value1 $bf_camFOVField`;
+
+            // Auto frame distance: override Z offset from FOV + species wingspan
+            int    $autoFrame = `checkBoxGrp -query -value1 $bf_camAutoFrameCheck`;
+            if ($autoFrame) {
+                float $fill = `floatSliderGrp -query -value $bf_camFillRatioSlider`;
+                int   $sp = `optionMenuGrp -query -select $bf_speciesMenu`;
+                float $wingspan = 10.0;            // Monarch default
+                if ($sp == 2) $wingspan = 14.0;    // Swallowtail
+                $coz = bfCameraAutoDistance($fov, $fill, $wingspan);
+            }
+
+            $camFlag += " -camOffsetX " + $cox
+                      + " -camOffsetY " + $coy
+                      + " -camOffsetZ " + $coz
+                      + " -camRotX "    + $crx
+                      + " -camRotY "    + $cry
+                      + " -camRotZ "    + $crz
+                      + " -camFOV "     + $fov;
+        }
     }
 
     // Call the C++ bfSimulate command directly
@@ -1208,6 +1268,7 @@ global proc bfReset()
     global string $bf_repulsionRadField;
     global string $bf_camEnableCheck;
     global string $bf_camNameField;
+    global string $bf_camUseCurrentCheck;
     global string $bf_camAutoFrameCheck;
     global string $bf_camOffXField;
     global string $bf_camOffYField;
@@ -1258,6 +1319,7 @@ global proc bfReset()
     // Follow-camera defaults
     checkBoxGrp    -edit -value1 false   $bf_camEnableCheck;
     textFieldGrp   -edit -text "BF_followCam" $bf_camNameField;
+    checkBoxGrp    -edit -value1 false   $bf_camUseCurrentCheck;
     checkBoxGrp    -edit -value1 true    $bf_camAutoFrameCheck;
     floatFieldGrp  -edit -value1 0.0     $bf_camOffXField;
     floatFieldGrp  -edit -value1 5.0     $bf_camOffYField;
