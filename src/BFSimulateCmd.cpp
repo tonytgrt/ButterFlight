@@ -897,7 +897,7 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
 
                     // Blend toward desired (higher rate for tighter tracking)
                     double blendRate = 18.0;
-                    double alpha = 1.0 - std::exp(-blendRate * simDt);
+                    double alpha = 1.0 - std::exp(-blendRate * simDt); 
                     m_state.velocity = m_state.velocity * (1.0 - alpha)
                                      + desiredVel * alpha;
 
