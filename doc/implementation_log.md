@@ -579,3 +579,121 @@ Thorax rotation in hover mode is `MEulerRotation(thetaBeta + userPitch, userYaw,
 3. Optionally uncheck "Use Current Rig Position" and enter X/Y/Z coordinates (cm)
 4. Optionally set Roll, Yaw, Pitch values (degrees)
 5. Click **Simulate** — the butterfly hovers in place with wings flapping for the specified duration
+
+---
+
+## 2026-04-16 — Camera Authoring: Viewport-Derived Offsets, Stationary Rotating Camera, Auto Zoom (Yiding Tian)
+
+### Overview
+
+Extended the cinematic camera system with three related features:
+
+1. **"Use Current Camera Transformation"** toggle for the existing follow camera — derives both the position offset and look-at offset from the active viewport camera at simulate time, instead of relying on manually entered X/Y/Z offsets.
+2. **Stationary rotating camera (panel 10)** — a new camera type whose world position is locked to the viewport camera's position at setup time, but whose rotation animates each frame to keep the butterfly at the same screen-space offset as it was when the user framed the shot.
+3. **Auto-zoom toggle** for the stationary camera — scales focal length per frame so the butterfly's apparent size in the view stays roughly constant, even as the butterfly moves toward or away from the locked camera.
+
+All three features share the same design philosophy: the user frames the shot in the viewport, then the bake captures the viewport camera's transform once at simulate time and applies offset-preserving math per frame so the framing stays consistent through the animation.
+
+### Math — Offset-Preserving Look-At (shared by follow & stationary cams)
+
+Given the viewport camera's world rotation `camWorldQ` and the look-at rotation `lookAtQ_0` (a rotation whose -Z points from the camera position to the butterfly's setup-time position):
+
+```text
+offsetQ   = camWorldQ * lookAtQ_0.inverse()
+finalQ_t  = offsetQ * lookAtQ_t       // per-frame look-at with fixed screen offset
+```
+
+This preserves the user's framing offset (butterfly slightly off-center, body tilt, etc.) while the look-at component tracks the butterfly.
+
+### Math — Auto Zoom
+
+Apparent object size in the view scales as `focal / distance`. Capturing `focal_0` (the viewport camera's focal length at setup) and `d_0` (distance from camera to butterfly at setup), the per-frame focal length that keeps apparent size constant is:
+
+```text
+focal_t = focal_0 * (d_t / d_0)
+```
+
+Clamped to `[2.5 mm, 500 mm]` to avoid pathological extremes.
+
+### Files Modified
+
+#### `src/BFSimulateCmd.cpp`
+
+- **New flags:**
+  - `-ucc` / `-useCurrentCamera` (bool) — drive follow-cam offsets from viewport
+  - `-scm` / `-createStatCam` (bool) — create the stationary camera
+  - `-scn` / `-statCamName` (string, default `"BF_statCam"`)
+  - `-sca` / `-statCamAutoZoom` (bool) — per-frame focal length baking
+- **Viewport derivation block** (runs before the seeding time change, after skeleton read):
+  - Reads `M3dView::active3dView().getCamera()` and `camShape.extendToShape()` for the shape path
+  - Reads the viewport camera's world matrix and the thorax's world position at the current scene time
+  - Captures:
+    - `camWorldPosCm`, `camWorldQ`
+    - `setupDist = (butterfly - camera).length()`
+    - `setupFOVdeg = MFnCamera::verticalFieldOfView()` (converted to degrees)
+  - Computes `baseQ_0` from the look-at basis (forward, up, right) and stores `offsetQ = camWorldQ * baseQ_0.inverse()`
+  - Done once before the sim loop so time-change side effects don't corrupt the reading
+- **Shared sample buffer:**
+
+  ```cpp
+  const bool recordCamSamples = camEnable || (statCamEnable && statCamValid);
+  if (recordCamSamples) { camBfPositions.push_back(posCm); camBfHeadings.push_back(heading); }
+  ```
+
+  Both cameras bake from the same recorded trajectory.
+- **Follow camera — viewport offsets:** when `useCurrentCamera` is true, offsets passed into the existing `bakeFollowCamera` helper are derived from the viewport capture instead of the UI's manual offset fields.
+- **New helper `clearAnimCurveOnPlug(path, attrName)`:** follows plug → connected `kAnimCurveTU/TA/TL`, removes all keys. Needed because `clearAnimCurves(transformPath)` only covers T/R plugs on the transform — shape attributes (`focalLength`) need their own per-plug wipe, so toggling auto-zoom off between runs doesn't leave stale keys.
+- **New helper `bakeStationaryCamera(positions, startFrame, camName, camPosCm, offsetQ, fovDeg, autoZoom, setupDistCm)`:**
+  1. Creates or reuses the camera via MEL `camera -name "..."` (atomic transform+shape with the right name)
+  2. Applies `setVerticalFieldOfView(deg2rad(fovDeg))` to the shape
+  3. Aborts with `displayError` if the transform path is invalid
+  4. `clearAnimCurves(camTransformPath)` + `clearAnimCurveOnPlug(camShapePath, "focalLength")`
+  5. Sets translation **once** via `MFnTransform::setTranslation(..., kWorld)` — stationary
+  6. Captures `focal0 = camFn.focalLength()` **after** FOV is set (so the ratio reference matches the user's framing)
+  7. Per-frame loop:
+     - Builds `baseQ_t` from look-at basis against `positions[i]`
+     - `finalQ_t = offsetQ * baseQ_t`; writes R keys via `ensureAnimCurve + addKey` (kAnimCurveTA)
+     - If `autoZoom && setupDistCm > 1e-3`: `focal_t = focal0 * (forwardLen / setupDistCm)`, clamped to `[2.5, 500]` mm; writes focal key via `ensureAnimCurve(camShapePath, "focalLength", kAnimCurveTU, ...)` + `addKey(..., kTangentLinear, kTangentLinear)`
+- **Bake invocation** after the sim loop:
+
+  ```cpp
+  if (statCamEnable && statCamValid && !camBfPositions.empty()) {
+      bakeStationaryCamera(camBfPositions, startFrame, statCamName,
+                           statCamPosCm, statCamOffsetQ, statCamFOVdeg,
+                           statCamAutoZoom, statCamSetupDist);
+  }
+  ```
+
+#### `src/mel/butterFlight_ui.mel`
+
+- **Follow camera:** added "Use Current Camera Transformation" checkbox above the manual offset fields. When checked, disables the manual X/Y/Z offset fields and the flag `-useCurrentCamera 1` is appended in `bfSimulateCallback`.
+- **New panel "10 Stationary Camera"** (collapsed by default):
+  - "Create Stationary Camera" checkbox (`bfStatCamToggle 1/0`)
+  - "Camera Name" text field (default `BF_statCam`, disabled until enabled)
+  - "Auto Zoom" checkbox (disabled until enabled)
+  - Small text labels explaining position/FOV come from the current viewport camera
+- **New callback `bfStatCamToggle(int $state)`:** enables/disables the name field and auto-zoom checkbox together.
+- **`bfSimulateCallback`:** when "Create Stationary Camera" is on, appends `-createStatCam 1 -statCamName "..." -statCamAutoZoom <0|1>`.
+- **`bfReset`:** resets the stat cam enable=false, name="BF_statCam", auto-zoom=false, then calls `bfStatCamToggle 0` to disable dependents.
+
+### Design Notes
+
+- **Viewport capture happens before the seeding time change**, so the camera offset reflects the frame the user was actually looking at when they clicked Simulate — not whatever intermediate time the seeding block jumps to.
+- **MEL-side camera creation via `camera -name`** — previously the C++ side created the transform+shape and renamed, which was racy and sometimes produced `camera1`. Using the MEL command atomically creates the node with the intended name.
+- **`focal0` is captured after FOV is set**, so the auto-zoom baseline corresponds to the framing the user sees in the viewport rather than whatever the camera shape's initial focal length happened to be.
+- **`clearAnimCurveOnPlug` runs unconditionally** before the bake loop, even when auto-zoom is off, so disabling auto-zoom between runs removes any prior focal-length animation instead of leaving stale keys.
+- **Focal length uses `kAnimCurveTU`** (time → unitless) since `focalLength` in Maya is stored in mm as a plain double; rotation keys use `kAnimCurveTA` (time → angular).
+
+### How to Use
+
+**Follow cam, viewport offsets:**
+
+1. Frame the butterfly in the active viewport camera exactly as you want the follow relationship.
+2. Open panel 9, check **Create Follow Camera** and **Use Current Camera Transformation**.
+3. Click Simulate — the follow camera inherits the current offset and keeps that relative framing as the butterfly moves.
+
+**Stationary rotating camera:**
+
+1. Frame the shot; this is where the stationary camera will be fixed.
+2. Open panel 10, check **Create Stationary Camera**, optionally rename, optionally enable **Auto Zoom**.
+3. Click Simulate — a camera is placed at the viewport's current world position with locked translation; it rotates per frame to track the butterfly with the same screen offset, and (if auto-zoom is on) its focal length scales to keep the butterfly the same apparent size.
