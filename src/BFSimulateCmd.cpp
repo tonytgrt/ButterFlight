@@ -112,6 +112,8 @@ static const char* kStatCamFlag        = "-scm";
 static const char* kStatCamFlagLong    = "-createStatCam";
 static const char* kStatCamNameFlag    = "-scn";
 static const char* kStatCamNameFlagLong= "-statCamName";
+static const char* kStatCamAutoZoomFlag     = "-sca";
+static const char* kStatCamAutoZoomFlagLong = "-statCamAutoZoom";
 
 // ============================================================
 // newSyntax — declare accepted flags
@@ -148,6 +150,7 @@ MSyntax BFSimulateCmd::newSyntax()
     syntax.addFlag(kCamUseCurFlag, kCamUseCurFlagLong, MSyntax::kBoolean);
     syntax.addFlag(kStatCamFlag,     kStatCamFlagLong,     MSyntax::kBoolean);
     syntax.addFlag(kStatCamNameFlag, kStatCamNameFlagLong, MSyntax::kString);
+    syntax.addFlag(kStatCamAutoZoomFlag, kStatCamAutoZoomFlagLong, MSyntax::kBoolean);
     // TODO: add remaining flags (mass, wingArea, gains, eta, etc.)
     return syntax;
 }
@@ -397,6 +400,29 @@ static void clearAnimCurves(const MDagPath& joint)
         for (int i = (int)curveFn.numKeys() - 1; i >= 0; --i)
             curveFn.remove(i);
     }
+}
+
+// ============================================================
+// clearAnimCurveOnPlug — remove all keys on a single attribute's
+// anim curve (used for per-attribute cleanup, e.g. focalLength on
+// the camera shape which clearAnimCurves() doesn't touch).
+// ============================================================
+static void clearAnimCurveOnPlug(const MDagPath& path, const char* attrName)
+{
+    MStatus st;
+    MFnDependencyNode depFn(path.node(), &st);
+    if (st != MS::kSuccess) return;
+    MPlug plug = depFn.findPlug(attrName, true, &st);
+    if (st != MS::kSuccess || !plug.isConnected()) return;
+    MPlugArray conns;
+    plug.connectedTo(conns, true, false);
+    if (conns.length() == 0) return;
+    MObject curveObj = conns[0].node();
+    if (!curveObj.hasFn(MFn::kAnimCurve)) return;
+    MFnAnimCurve curveFn(curveObj, &st);
+    if (st != MS::kSuccess) return;
+    for (int k = (int)curveFn.numKeys() - 1; k >= 0; --k)
+        curveFn.remove(k);
 }
 
 // ============================================================
@@ -774,6 +800,11 @@ static void bakeFollowCamera(
 //                   the user set up the shot; composes on the
 //                   left of the per-frame look-at quaternion.
 //   fovDeg        : vertical FOV (copied from viewport camera)
+//   autoZoom      : when true, write per-frame focalLength keys
+//                   so the butterfly holds a constant screen size
+//   setupDistCm   : distance from camera to butterfly at the time
+//                   the user set up the shot (the reference for
+//                   focal-length scaling)
 // ============================================================
 static void bakeStationaryCamera(
     const std::vector<MPoint>& positions,
@@ -781,7 +812,9 @@ static void bakeStationaryCamera(
     const MString&             camName,
     MPoint                     camPosCm,
     MQuaternion                offsetQ,
-    double                     fovDeg)
+    double                     fovDeg,
+    bool                       autoZoom,
+    double                     setupDistCm)
 {
     if (positions.empty()) {
         MGlobal::displayWarning(
@@ -856,15 +889,39 @@ static void bakeStationaryCamera(
         return;
     }
 
+    // Resolve the shape path so we can key focalLength directly on
+    // the camera shape when auto-zoom is requested.
+    MDagPath camShapePath = camTransformPath;
+    camShapePath.extendToShape();
+
     // Wipe any previous animation, then set translation once so the
     // camera stays put across all frames (no translation keys needed).
     clearAnimCurves(camTransformPath);
+    // clearAnimCurves() only touches T/R plugs on the transform; the
+    // shape's focalLength may have stale keys from a prior auto-zoom
+    // run, so clear it explicitly (works whether or not autoZoom is on).
+    if (camShapePath.isValid())
+        clearAnimCurveOnPlug(camShapePath, "focalLength");
     {
         MFnTransform xfFn(camTransformPath, &st);
         if (st == MS::kSuccess) {
             xfFn.setTranslation(MVector(camPosCm.x, camPosCm.y, camPosCm.z),
                                 MSpace::kWorld);
         }
+    }
+
+    // If auto-zoom is on, capture the reference focal length now
+    // (after setVerticalFieldOfView has set it to match the requested
+    // FOV).  focal_t = focal_0 * (d_t / d_0) keeps (focal / distance)
+    // constant, which keeps the butterfly's apparent size constant.
+    double focal0 = 35.0;
+    bool   zoomValid = autoZoom && setupDistCm > 1e-3 && camShapePath.isValid();
+    if (zoomValid) {
+        MFnCamera camFn(camShapePath.node(), &st);
+        if (st == MS::kSuccess)
+            focal0 = camFn.focalLength();
+        else
+            zoomValid = false;
     }
 
     const int nFrames = (int)positions.size();
@@ -901,6 +958,34 @@ static void bakeStationaryCamera(
 
         const MTime t((double)(startFrame + f), MTime::uiUnit());
         writeRotationKey(camTransformPath, finalRot, t);
+
+        // Per-frame focalLength key for auto-zoom.  Clamp to a sane
+        // lens range so an erratic distance spike doesn't produce a
+        // physically impossible zoom (0mm ≈ fisheye, 500mm ≈ super-tele).
+        if (zoomValid) {
+            double focalT = focal0 * (fwdLen / setupDistCm);
+            if (focalT < 2.5)   focalT = 2.5;
+            if (focalT > 500.0) focalT = 500.0;
+
+            MStatus cst;
+            MObject curveObj = ensureAnimCurve(camShapePath, "focalLength",
+                                               MFnAnimCurve::kAnimCurveTU, cst);
+            if (cst == MS::kSuccess && !curveObj.isNull()) {
+                MFnAnimCurve curveFn(curveObj, &cst);
+                if (cst == MS::kSuccess) {
+                    curveFn.addKey(t, focalT,
+                                   MFnAnimCurve::kTangentLinear,
+                                   MFnAnimCurve::kTangentLinear,
+                                   nullptr, &cst);
+                }
+            }
+        }
+    }
+
+    if (zoomValid) {
+        MGlobal::displayInfo(
+            MString("ButterFlight: stat camera auto-zoom baked (focal_0=") +
+            focal0 + " mm, setupDist=" + setupDistCm + " cm).");
     }
 
     MGlobal::displayInfo(
@@ -1015,12 +1100,15 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
         argData.getFlagArgument(kCamUseCurFlag, 0, camUseCurrent);
 
     // Stationary (rotation-only) camera flags
-    bool    statCamEnable = false;
-    MString statCamName   = "BF_statCam";
+    bool    statCamEnable   = false;
+    bool    statCamAutoZoom = false;
+    MString statCamName     = "BF_statCam";
     if (argData.isFlagSet(kStatCamFlag))
         argData.getFlagArgument(kStatCamFlag, 0, statCamEnable);
     if (argData.isFlagSet(kStatCamNameFlag))
         argData.getFlagArgument(kStatCamNameFlag, 0, statCamName);
+    if (argData.isFlagSet(kStatCamAutoZoomFlag))
+        argData.getFlagArgument(kStatCamAutoZoomFlag, 0, statCamAutoZoom);
     if (argData.isFlagSet(kCamNameFlag))
         argData.getFlagArgument(kCamNameFlag, 0, camName);
     if (argData.isFlagSet(kCamOffXFlag))
@@ -1211,8 +1299,9 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
     //  butterfly stays at the same screen position as the setup frame.
     MPoint      statCamPosCm;
     MQuaternion statCamOffsetQ;
-    double      statCamFOVdeg = 35.0;
-    bool        statCamValid  = false;
+    double      statCamFOVdeg    = 35.0;
+    double      statCamSetupDist = 0.0;  // cam-to-butterfly distance at setup (cm)
+    bool        statCamValid     = false;
     if (statCamEnable) {
         M3dView view = M3dView::active3dView();
         MDagPath viewCamPath;
@@ -1235,6 +1324,7 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
                             bfWorld.y - statCamPosCm.y,
                             bfWorld.z - statCamPosCm.z);
             double fwdLen = forward.length();
+            statCamSetupDist = fwdLen;
             if (fwdLen < 1e-6) {
                 statCamOffsetQ = camWorldQ;  // degenerate: cam on butterfly
             } else {
@@ -1667,7 +1757,9 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
             statCamName,
             statCamPosCm,
             statCamOffsetQ,
-            statCamFOVdeg);
+            statCamFOVdeg,
+            statCamAutoZoom,
+            statCamSetupDist);
     }
 
     // ---- Set playback range to cover baked frames ---------------

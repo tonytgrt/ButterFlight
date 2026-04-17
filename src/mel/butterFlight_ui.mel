@@ -79,6 +79,7 @@ global string $bf_camFillRatioSlider;
 // Stationary Camera section
 global string $bf_statCamEnableCheck;
 global string $bf_statCamNameField;
+global string $bf_statCamAutoZoomCheck;
 
 
 // ============================================================
@@ -714,6 +715,13 @@ global proc butterFlightUI()
                     -enable false
                     -columnWidth2 120 160`;
 
+                global string $bf_statCamAutoZoomCheck;
+                $bf_statCamAutoZoomCheck = `checkBoxGrp
+                    -label "Auto Zoom"
+                    -value1 false
+                    -enable false
+                    -annotation "Automatically key focal length each frame so the butterfly fills the same fraction of the frame as at setup time"`;
+
                 text -label "Position and FOV are captured from the" -align "left" -font "smallPlainLabelFont";
                 text -label "current viewport camera when simulating." -align "left" -font "smallPlainLabelFont";
 
@@ -1004,7 +1012,9 @@ global proc bfCameraUseCurrentToggle(int $state)
 global proc bfStatCamToggle(int $state)
 {
     global string $bf_statCamNameField;
+    global string $bf_statCamAutoZoomCheck;
     textFieldGrp -edit -enable $state $bf_statCamNameField;
+    checkBoxGrp  -edit -enable $state $bf_statCamAutoZoomCheck;
 }
 
 
@@ -1085,6 +1095,7 @@ global proc bfSimulateCallback()
     global string $bf_camFillRatioSlider;
     global string $bf_statCamEnableCheck;
     global string $bf_statCamNameField;
+    global string $bf_statCamAutoZoomCheck;
 
     // --- Validation ---
     string $rig = `textFieldButtonGrp -query -text $bf_rigField`;
@@ -1215,7 +1226,9 @@ global proc bfSimulateCallback()
     if ($statOn) {
         string $statName = `textFieldGrp -query -text $bf_statCamNameField`;
         if ($statName == "") $statName = "BF_statCam";
-        $statCamFlag = " -createStatCam 1 -statCamName \"" + $statName + "\"";
+        int $statZoom = `checkBoxGrp -query -value1 $bf_statCamAutoZoomCheck`;
+        $statCamFlag = " -createStatCam 1 -statCamName \"" + $statName + "\""
+                     + " -statCamAutoZoom " + $statZoom;
     }
 
     // Call the C++ bfSimulate command directly
@@ -1338,6 +1351,7 @@ global proc bfReset()
     global string $bf_camFillRatioSlider;
     global string $bf_statCamEnableCheck;
     global string $bf_statCamNameField;
+    global string $bf_statCamAutoZoomCheck;
 
     textFieldButtonGrp  -edit -text ""   $bf_rigField;
     textFieldButtonGrp  -edit -text ""   $bf_pathField;
@@ -1394,6 +1408,7 @@ global proc bfReset()
     // Stationary-camera defaults
     checkBoxGrp    -edit -value1 false      $bf_statCamEnableCheck;
     textFieldGrp   -edit -text "BF_statCam" $bf_statCamNameField;
+    checkBoxGrp    -edit -value1 false      $bf_statCamAutoZoomCheck;
     bfStatCamToggle 0;
 
     bfUpdateSpecies;
