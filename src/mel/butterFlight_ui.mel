@@ -76,6 +76,10 @@ global string $bf_camStiffSlider;
 global string $bf_camFOVField;
 global string $bf_camFillRatioSlider;
 
+// Stationary Camera section
+global string $bf_statCamEnableCheck;
+global string $bf_statCamNameField;
+
 
 // ============================================================
 // Main window procedure
@@ -564,7 +568,7 @@ global proc butterFlightUI()
 
                 global string $bf_camUseCurrentCheck;
                 $bf_camUseCurrentCheck = `checkBoxGrp
-                    -label "Use Current Camera Transformation"
+                    -label "Use Current Cam Trans"
                     -value1 false
                     -enable false
                     -onCommand  "bfCameraUseCurrentToggle 1"
@@ -681,6 +685,37 @@ global proc butterFlightUI()
                     -precision 2
                     -enable false
                     -columnWidth2 120 160`;
+
+            setParent ..;
+        setParent ..;
+
+
+        // ---- 10. Stationary Camera ----------------------------
+        frameLayout
+            -label "10  Stationary Camera"
+            -collapsable true
+            -collapse true
+            -marginWidth 6 -marginHeight 6;
+
+            columnLayout -adjustableColumn true -rowSpacing 4;
+
+                global string $bf_statCamEnableCheck;
+                $bf_statCamEnableCheck = `checkBoxGrp
+                    -label "Create Stationary Camera"
+                    -value1 false
+                    -onCommand  "bfStatCamToggle 1"
+                    -offCommand "bfStatCamToggle 0"
+                    -annotation "Create a tripod-style camera fixed at the current viewport camera's position that rotates each frame to keep the butterfly at the same screen offset"`;
+
+                global string $bf_statCamNameField;
+                $bf_statCamNameField = `textFieldGrp
+                    -label "Camera Name"
+                    -text "BF_statCam"
+                    -enable false
+                    -columnWidth2 120 160`;
+
+                text -label "Position and FOV are captured from the" -align "left" -font "smallPlainLabelFont";
+                text -label "current viewport camera when simulating." -align "left" -font "smallPlainLabelFont";
 
             setParent ..;
         setParent ..;
@@ -964,6 +999,16 @@ global proc bfCameraUseCurrentToggle(int $state)
 
 
 // ============================================================
+// Callback: Stationary-camera master enable toggle
+// ============================================================
+global proc bfStatCamToggle(int $state)
+{
+    global string $bf_statCamNameField;
+    textFieldGrp -edit -enable $state $bf_statCamNameField;
+}
+
+
+// ============================================================
 // Callback: Auto-frame toggle (enables/disables Z offset field)
 // ============================================================
 global proc bfCameraAutoFrameToggle(int $state)
@@ -1038,6 +1083,8 @@ global proc bfSimulateCallback()
     global string $bf_camStiffSlider;
     global string $bf_camFOVField;
     global string $bf_camFillRatioSlider;
+    global string $bf_statCamEnableCheck;
+    global string $bf_statCamNameField;
 
     // --- Validation ---
     string $rig = `textFieldButtonGrp -query -text $bf_rigField`;
@@ -1162,6 +1209,15 @@ global proc bfSimulateCallback()
         }
     }
 
+    // Build stationary-camera flags
+    string $statCamFlag = "";
+    int    $statOn = `checkBoxGrp -query -value1 $bf_statCamEnableCheck`;
+    if ($statOn) {
+        string $statName = `textFieldGrp -query -text $bf_statCamNameField`;
+        if ($statName == "") $statName = "BF_statCam";
+        $statCamFlag = " -createStatCam 1 -statCamName \"" + $statName + "\"";
+    }
+
     // Call the C++ bfSimulate command directly
     // FPS is read from Maya's scene time unit automatically.
     string $cmd = "bfSimulate -rigRoot \"" + $rig + "\""
@@ -1170,7 +1226,8 @@ global proc bfSimulateCallback()
                   + " -flapPeriod " + $flapPeriod
                   + $pathFlag
                   + $hoverFlag
-                  + $camFlag;
+                  + $camFlag
+                  + $statCamFlag;
     print ("// Executing: " + $cmd + "\n");
 
     if (catch(eval($cmd))) {
@@ -1279,6 +1336,8 @@ global proc bfReset()
     global string $bf_camStiffSlider;
     global string $bf_camFOVField;
     global string $bf_camFillRatioSlider;
+    global string $bf_statCamEnableCheck;
+    global string $bf_statCamNameField;
 
     textFieldButtonGrp  -edit -text ""   $bf_rigField;
     textFieldButtonGrp  -edit -text ""   $bf_pathField;
@@ -1331,6 +1390,11 @@ global proc bfReset()
     floatFieldGrp  -edit -value1 35.0    $bf_camFOVField;
     floatSliderGrp -edit -value 0.7      $bf_camFillRatioSlider;
     bfCameraToggle 0;
+
+    // Stationary-camera defaults
+    checkBoxGrp    -edit -value1 false      $bf_statCamEnableCheck;
+    textFieldGrp   -edit -text "BF_statCam" $bf_statCamNameField;
+    bfStatCamToggle 0;
 
     bfUpdateSpecies;
     bfUpdateMode;
