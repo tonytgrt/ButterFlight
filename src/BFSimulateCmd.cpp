@@ -64,6 +64,8 @@ static const char* kPathNoiseFlag      = "-pn";
 static const char* kPathNoiseFlagLong  = "-pathNoise";
 static const char* kPathNoiseAmpFlag      = "-pna";
 static const char* kPathNoiseAmpFlagLong  = "-pathNoiseAmp";
+static const char* kVelocityFlag          = "-v";
+static const char* kVelocityFlagLong      = "-velocity";
 static const char* kHoverPosXFlag      = "-hpx";
 static const char* kHoverPosXFlagLong  = "-hoverPosX";
 static const char* kHoverPosYFlag      = "-hpy";
@@ -93,6 +95,7 @@ MSyntax BFSimulateCmd::newSyntax()
     syntax.addFlag(kPathSpeedFlag, kPathSpeedFlagLong, MSyntax::kDouble);
     syntax.addFlag(kPathNoiseFlag, kPathNoiseFlagLong, MSyntax::kBoolean);
     syntax.addFlag(kPathNoiseAmpFlag, kPathNoiseAmpFlagLong, MSyntax::kDouble);
+    syntax.addFlag(kVelocityFlag, kVelocityFlagLong, MSyntax::kDouble);
     syntax.addFlag(kHoverPosXFlag, kHoverPosXFlagLong, MSyntax::kDouble);
     syntax.addFlag(kHoverPosYFlag, kHoverPosYFlagLong, MSyntax::kDouble);
     syntax.addFlag(kHoverPosZFlag, kHoverPosZFlagLong, MSyntax::kDouble);
@@ -515,6 +518,16 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
         argData.getFlagArgument(kPathSpeedFlag, 0, pathSpeedScale);
     if (pathSpeedScale <= 0.0) pathSpeedScale = 1.0;
 
+    // Individual velocity parameter (m/s) — when set (>0), overrides the
+    // auto-derived path arc rate and caps free-flight max speed.  Applies
+    // to both path following and free flight simulation.
+    double velocity    = 0.0;   // 0 = not set → use legacy defaults
+    bool   useVelocity = false;
+    if (argData.isFlagSet(kVelocityFlag)) {
+        argData.getFlagArgument(kVelocityFlag, 0, velocity);
+        if (velocity > 0.0) useVelocity = true;
+    }
+
     // Path noise: lateral wandering around the curve so the butterfly
     // doesn't track the path with mechanical precision.
     bool   pathNoiseEnable = false;
@@ -590,7 +603,14 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
     // ---- Initialise wing model and maneuvering controller ----
     BFWingModel wingModel;
     BFManeuverController controller;
-    controller.maxSpeed = wingModel.maxSpeed;
+    if (useVelocity) {
+        // -velocity overrides the default max speed so free flight
+        // converges to the user-requested cruise speed.
+        wingModel.maxSpeed  = velocity;
+        controller.maxSpeed = velocity;
+    } else {
+        controller.maxSpeed = wingModel.maxSpeed;
+    }
 
     // ---- Resolve path curve (optional) --------------------------
     MDagPath curveDagPath;
@@ -649,19 +669,25 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
             (m_state.heading * 180.0 / M_PI) + " deg");
     }
 
-    // If a path is provided and this is a fresh start, snap to curve start
+    // If a path is provided and this is a fresh start, snap to the
+    // nearest point on the curve (not the curve's start point) so the
+    // butterfly doesn't teleport to uMin when the rig is already
+    // positioned near the middle/end of the path.
+    double startArcLen = 0.0;  // arc length (cm) at the snap point
     if (hasPath && startFrame <= 1) {
-        double uMin, uMax;
-        curveFn.getKnotDomain(uMin, uMax);
-        MPoint startPt;  // Maya cm
-        curveFn.getPointAtParam(uMin, startPt, MSpace::kWorld);
+        MPoint currentPosCm(m_state.position.x * kMToCm,
+                            m_state.position.y * kMToCm,
+                            m_state.position.z * kMToCm);
+        double uClosest;
+        MPoint startPt = curveFn.closestPoint(currentPosCm, &uClosest, 1e-4, MSpace::kWorld);
         m_state.position = MPoint(startPt.x * kCmToM, startPt.y * kCmToM, startPt.z * kCmToM);
+        startArcLen = curveFn.findLengthFromParam(uClosest);
 
         MFnTransform rootFn(m_state.skeleton.joints[kThorax]);
         rootFn.setTranslation(MVector(startPt), MSpace::kWorld);  // stays in cm for Maya
 
-        // Initialize heading to face along the curve's start tangent
-        MVector tangent = curveFn.tangent(uMin, MSpace::kWorld);
+        // Initialize heading to face along the curve tangent at the snap point
+        MVector tangent = curveFn.tangent(uClosest, MSpace::kWorld);
         double tx = tangent.x, tz = tangent.z;
         if (std::sqrt(tx * tx + tz * tz) > 1e-6) {
             m_state.heading = std::atan2(-tx, -tz);
@@ -740,6 +766,19 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
     //  cursor traverses the full curve over the full simulation.
     //  arcRate is in cm/substep (curve's native unit).
     double arcCursor = 0.0;
+    if (hasPath && startFrame > 1) {
+        MPoint posCm(m_state.position.x * kMToCm,
+                     m_state.position.y * kMToCm,
+                     m_state.position.z * kMToCm);
+        double uClosest;
+        curveFn.closestPoint(posCm, &uClosest, 1e-4, MSpace::kWorld);
+        arcCursor = curveFn.findLengthFromParam(uClosest);
+    } else if (hasPath) {
+        // Fresh start: begin traversal from the nearest-point snap above
+        // so the cursor doesn't rewind to 0 and drag the butterfly back
+        // to the curve origin.
+        arcCursor = startArcLen;
+    }
     double arcRate   = 0.0;
     double pathNoiseTime = 0.0;  // accumulated sim time for noise oscillator
 
@@ -761,11 +800,25 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
             + pnPhaseVerA + ", " + pnPhaseVerB);
     }
     if (hasPath && duration > 0 && substeps > 0) {
-        arcRate = totalCurveLen / ((double)duration * substeps) * pathSpeedScale;
-        MGlobal::displayInfo(
-            MString("ButterFlight: arcRate=") + arcRate +
-            " cm/substep (curveLen=" + totalCurveLen +
-            " cm, scale=" + pathSpeedScale + ")");
+        if (useVelocity) {
+            // Velocity-driven: cursor advances at user-requested m/s.
+            // arcRate (cm/substep) = velocity (m/s) * 100 (cm/m) / (fps * substeps),
+            // so over one playback second we cover `velocity * 100` cm.
+            // NOTE: pathSpeedScale multiplier disabled — velocity alone
+            // determines cursor rate now.
+            // arcRate = velocity * kMToCm / (fps * substeps) * pathSpeedScale;
+            arcRate = velocity * kMToCm / (fps * substeps);
+            MGlobal::displayInfo(
+                MString("ButterFlight: arcRate=") + arcRate +
+                " cm/substep (velocity=" + velocity + " m/s)");
+        } else {
+            // NOTE: pathSpeedScale multiplier disabled.
+            // arcRate = totalCurveLen / ((double)duration * substeps) * pathSpeedScale;
+            arcRate = totalCurveLen / ((double)duration * substeps);
+            MGlobal::displayInfo(
+                MString("ButterFlight: arcRate=") + arcRate +
+                " cm/substep (curveLen=" + totalCurveLen + " cm)");
+        }
     }
 
     MGlobal::displayInfo(
@@ -910,8 +963,31 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
                     if (arcCursor >= totalCurveLen) {
                         double distToEnd = (MVector(curveEndPtM)
                                           - MVector(m_state.position)).length();
-                        if (distToEnd < 0.1)
+                        if (distToEnd < 0.1) {
                             pathActive = false;
+
+                            // Re-seed velocity at the user's cruise speed
+                            // along the curve's end-tangent.  Without this,
+                            // free flight inherits the path spring's
+                            // decaying near-zero velocity (the spring's
+                            // pull shrinks to ~0 at the curve end), which
+                            // made the post-path free flight noticeably
+                            // slower than the path-following phase.
+                            double cruise = useVelocity ? velocity
+                                                        : wingModel.maxSpeed;
+                            MVector endDir = tangent;
+                            double tLen = endDir.length();
+                            if (tLen > 1e-6) {
+                                endDir /= tLen;
+                                m_state.velocity = endDir * cruise;
+                            } else if (m_state.velocity.length() > 1e-6) {
+                                // Fallback: preserve current direction,
+                                // renormalize to cruise speed.
+                                MVector v = m_state.velocity;
+                                v.normalize();
+                                m_state.velocity = v * cruise;
+                            }
+                        }
                     }
                 }
 

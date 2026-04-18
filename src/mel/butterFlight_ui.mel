@@ -18,6 +18,9 @@ global string $bf_pathSpeedField;
 global string $bf_pathNoiseCheck;
 global string $bf_pathNoiseAmpField;
 
+// Butterfly velocity (applies to free flight and path following)
+global string $bf_velocityField;
+
 // Wind section
 global string $bf_windEnableCheck;
 global string $bf_windDirXField;
@@ -168,6 +171,15 @@ global proc butterFlightUI()
                     menuItem -label "Swarm";
                     menuItem -label "Hover";
 
+                global string $bf_velocityField;
+                $bf_velocityField = `floatFieldGrp
+                    -label "Velocity (m/s)"
+                    -numberOfFields 1
+                    -value1 0.5
+                    -precision 3
+                    -annotation "Butterfly cruise speed. Applies to both free flight (as max speed) and path following (as cursor rate). 0 = use legacy defaults."
+                    -columnWidth2 120 160`;
+
             setParent ..;
         setParent ..;
 
@@ -193,14 +205,16 @@ global proc butterFlightUI()
                     -placeholderText "Select NURBS curve"
                     -columnWidth3 0 220 70`;
 
-                global string $bf_pathSpeedField;
-                $bf_pathSpeedField = `floatFieldGrp
-                    -label "Path Speed Scale"
-                    -numberOfFields 1
-                    -value1 1.0
-                    -precision 3
-                    -annotation "Multiplier for auto-derived path speed (1.0 = full curve over full duration)"
-                    -columnWidth2 140 140`;
+                // --- Path Speed Scale field disabled -----------------
+                // Velocity (m/s) now fully controls path-following speed.
+                // global string $bf_pathSpeedField;
+                // $bf_pathSpeedField = `floatFieldGrp
+                //     -label "Path Speed Scale"
+                //     -numberOfFields 1
+                //     -value1 1.0
+                //     -precision 3
+                //     -annotation "Multiplier for auto-derived path speed (1.0 = full curve over full duration)"
+                //     -columnWidth2 140 140`;
 
                 global string $bf_pathNoiseCheck;
                 $bf_pathNoiseCheck = `checkBoxGrp
@@ -741,6 +755,7 @@ global proc bfSimulateCallback()
     global string $bf_pathSpeedField;
     global string $bf_pathNoiseCheck;
     global string $bf_pathNoiseAmpField;
+    global string $bf_velocityField;
     global string $bf_hoverUseRigCheck;
     global string $bf_hoverPosXField;
     global string $bf_hoverPosYField;
@@ -800,14 +815,23 @@ global proc bfSimulateCallback()
     string $pathFlag = "";
     if ($path != "" && $mode == 2) {
         $pathFlag = " -path \"" + $path + "\"";
-        float $psScale = `floatFieldGrp -query -value1 $bf_pathSpeedField`;
-        $pathFlag += " -pathSpeed " + $psScale;
+        // --- Path Speed Scale disabled ------------------------------
+        // float $psScale = `floatFieldGrp -query -value1 $bf_pathSpeedField`;
+        // $pathFlag += " -pathSpeed " + $psScale;
         int $pNoise = `checkBoxGrp -query -value1 $bf_pathNoiseCheck`;
         $pathFlag += " -pathNoise " + $pNoise;
         if ($pNoise) {
             float $pnAmp = `floatFieldGrp -query -value1 $bf_pathNoiseAmpField`;
             $pathFlag += " -pathNoiseAmp " + $pnAmp;
         }
+    }
+
+    // Build velocity flag (applies to free flight and path following).
+    // 0 or negative = use built-in defaults; otherwise pass through.
+    string $velFlag = "";
+    float $velocity = `floatFieldGrp -query -value1 $bf_velocityField`;
+    if ($velocity > 0.0 && ($mode == 1 || $mode == 2)) {
+        $velFlag = " -velocity " + $velocity;
     }
 
     // Build hover flags
@@ -837,6 +861,7 @@ global proc bfSimulateCallback()
                   + " -duration " + $duration
                   + " -flapPeriod " + $flapPeriod
                   + $pathFlag
+                  + $velFlag
                   + $hoverFlag;
     print ("// Executing: " + $cmd + "\n");
 
@@ -910,6 +935,7 @@ global proc bfReset()
     global string $bf_pathSpeedField;
     global string $bf_pathNoiseCheck;
     global string $bf_pathNoiseAmpField;
+    global string $bf_velocityField;
     global string $bf_speciesMenu;
     global string $bf_modeMenu;
     global string $bf_vortexGainXField;
@@ -936,9 +962,10 @@ global proc bfReset()
 
     textFieldButtonGrp  -edit -text ""   $bf_rigField;
     textFieldButtonGrp  -edit -text ""   $bf_pathField;
-    floatFieldGrp       -edit -value1 1.0 $bf_pathSpeedField;
+    // floatFieldGrp       -edit -value1 1.0 $bf_pathSpeedField;  // scale disabled
     checkBoxGrp         -edit -value1 false $bf_pathNoiseCheck;
     floatFieldGrp       -edit -value1 5.0 $bf_pathNoiseAmpField;
+    floatFieldGrp       -edit -value1 0.5 $bf_velocityField;
 
     checkBoxGrp         -edit -value1 true $bf_hoverUseRigCheck;
     floatFieldGrp       -edit -value1 0.0  $bf_hoverPosXField;
