@@ -33,6 +33,8 @@ set(SOURCES
     src/BFAerodynamics.cpp
     src/BFCurlNoise.cpp
     src/BFManeuverController.cpp
+    src/BFFlocking.cpp
+    src/BFSwarmManager.cpp
     src/test/test_aerodynamics.cpp
     src/test/test_integration.cpp
 )
@@ -44,6 +46,8 @@ set(HEADERS
     src/BFAerodynamics.h
     src/BFCurlNoise.h
     src/BFManeuverController.h
+    src/BFFlocking.h
+    src/BFSwarmManager.h
     src/test/BFTestAeroCmd.h
     src/test/BFTestIntegrationCmd.h
 )

@@ -54,6 +54,7 @@ global string $bf_hoverRotZField;
 
 // Swarm section
 global string $bf_swarmFrame;
+global string $bf_swarmEnableCheck;
 global string $bf_agentCountField;
 global string $bf_spawnSpreadField;
 global string $bf_repulsionRadField;
@@ -188,7 +189,6 @@ global proc butterFlightUI()
                     -columnWidth2 100 200`;
                     menuItem -label "Free Flight";
                     menuItem -label "Path Following";
-                    menuItem -label "Swarm";
                     menuItem -label "Hover";
 
                 global string $bf_velocityField;
@@ -475,38 +475,47 @@ global proc butterFlightUI()
         setParent ..;
 
 
-        // ---- 7. Swarm Settings (conditional) ------------------
+        // ---- 7. Swarm Settings (independent of mode) -----------
         global string $bf_swarmFrame;
         $bf_swarmFrame = `frameLayout
             -label "7  Swarm Settings"
             -collapsable true
             -collapse false
-            -visible false
             -marginWidth 6 -marginHeight 6`;
 
             columnLayout -adjustableColumn true -rowSpacing 4;
+
+                global string $bf_swarmEnableCheck;
+                $bf_swarmEnableCheck = `checkBoxGrp
+                    -label "Enable Swarm"
+                    -value1 false
+                    -onCommand  "bfSwarmToggle 1"
+                    -offCommand "bfSwarmToggle 0"`;
 
                 global string $bf_agentCountField;
                 $bf_agentCountField = `intFieldGrp
                     -label "Agent Count"
                     -numberOfFields 1
                     -value1 10
+                    -enable false
                     -columnWidth2 100 180`;
 
                 global string $bf_spawnSpreadField;
                 $bf_spawnSpreadField = `floatFieldGrp
-                    -label "Spawn Spread (m)"
+                    -label "Spawn Spread (cm)"
                     -numberOfFields 1
-                    -value1 2.0
-                    -precision 3
+                    -value1 200.0
+                    -precision 1
+                    -enable false
                     -columnWidth2 120 160`;
 
                 global string $bf_repulsionRadField;
                 $bf_repulsionRadField = `floatFieldGrp
-                    -label "Repulsion Radius (m)"
+                    -label "Repulsion Radius (cm)"
                     -numberOfFields 1
-                    -value1 0.5
-                    -precision 3
+                    -value1 50.0
+                    -precision 1
+                    -enable false
                     -columnWidth2 120 160`;
 
             setParent ..;
@@ -784,7 +793,7 @@ global proc butterFlightUI()
     showWindow butterFlightWin;
 
     // Apply initial defaults
-    optionMenuGrp -edit -select 4 $bf_modeMenu;
+    optionMenuGrp -edit -select 3 $bf_modeMenu;
     bfUpdateMode;
     bfUpdateSpecies;
 }
@@ -853,10 +862,9 @@ global proc bfUpdateMode()
     global string $bf_hoverFrame;
 
     int $idx = `optionMenuGrp -query -select $bf_modeMenu`;
-    // 1=Free Flight, 2=Path Following, 3=Swarm, 4=Hover
+    // 1=Free Flight, 2=Path Following, 3=Hover
     frameLayout -edit -visible ($idx == 2) $bf_pathFrame;
-    frameLayout -edit -visible ($idx == 3) $bf_swarmFrame;
-    frameLayout -edit -visible ($idx == 4) $bf_hoverFrame;
+    frameLayout -edit -visible ($idx == 3) $bf_hoverFrame;
 }
 
 
@@ -942,6 +950,19 @@ global proc bfHoverRotToggle(int $state)
 
 
 // ============================================================
+// Callback: Swarm enable/disable toggle
+// ============================================================
+global proc bfSwarmToggle(int $state)
+{
+    global string $bf_agentCountField;
+    global string $bf_spawnSpreadField;
+    global string $bf_repulsionRadField;
+
+    intFieldGrp   -edit -enable $state $bf_agentCountField;
+    floatFieldGrp -edit -enable $state $bf_spawnSpreadField;
+    floatFieldGrp -edit -enable $state $bf_repulsionRadField;
+}
+
 // Callback: Follow-camera master enable toggle
 // ============================================================
 global proc bfCameraToggle(int $state)
@@ -1170,6 +1191,27 @@ global proc bfSimulateCallback()
         }
     }
 
+    // Build swarm flags (independent of mode)
+    global string $bf_swarmEnableCheck;
+    global string $bf_agentCountField;
+    global string $bf_spawnSpreadField;
+    global string $bf_repulsionRadField;
+
+    string $swarmFlag = "";
+    int $swarmEnabled = `checkBoxGrp -query -value1 $bf_swarmEnableCheck`;
+    if ($swarmEnabled) {
+        int    $agents    = `intFieldGrp   -query -value1 $bf_agentCountField`;
+        float  $spread    = `floatFieldGrp -query -value1 $bf_spawnSpreadField`;
+        float  $repulsion = `floatFieldGrp -query -value1 $bf_repulsionRadField`;
+        $swarmFlag = " -agentCount " + $agents
+                   + " -spawnSpread " + $spread
+                   + " -repulsionRadius " + $repulsion;
+    }
+
+    // Map MEL mode index to C++ mode: 1=Free, 2=Path, 3=Hover→4
+    int $cppMode = $mode;
+    if ($mode == 3) $cppMode = 4;
+
     // Build velocity flag (applies to free flight and path following).
     // 0 or negative = use built-in defaults; otherwise pass through.
     string $velFlag = "";
@@ -1180,7 +1222,7 @@ global proc bfSimulateCallback()
 
     // Build hover flags
     string $hoverFlag = "";
-    if ($mode == 4) {
+    if ($mode == 3) {
         $hoverFlag = " -mode 4";
         int $useRig = `checkBoxGrp -query -value1 $bf_hoverUseRigCheck`;
         if (!$useRig) {
@@ -1262,6 +1304,8 @@ global proc bfSimulateCallback()
                   + " -duration " + $duration
                   + " -flapPeriod " + $flapPeriod
                   + $pathFlag
+                  + $hoverFlag
+                  + $swarmFlag;
                   + $velFlag
                   + $hoverFlag
                   + $camFlag
@@ -1398,7 +1442,7 @@ global proc bfReset()
     bfHoverRotToggle 0;
 
     optionMenuGrp -edit -select 1        $bf_speciesMenu;
-    optionMenuGrp -edit -select 4        $bf_modeMenu;
+    optionMenuGrp -edit -select 3        $bf_modeMenu;
 
     floatFieldGrp -edit -value1 22.0     $bf_vortexGainXField;
     floatFieldGrp -edit -value1 5.5      $bf_vortexGainYField;
@@ -1409,9 +1453,12 @@ global proc bfReset()
     intFieldGrp   -edit -value1 1        $bf_startFrameField;
     intFieldGrp   -edit -value1 120      $bf_durationField;
     floatFieldGrp -edit -value1 1.0      $bf_flapPeriodField;
+    global string $bf_swarmEnableCheck;
+    checkBoxGrp   -edit -value1 false    $bf_swarmEnableCheck;
     intFieldGrp   -edit -value1 10       $bf_agentCountField;
-    floatFieldGrp -edit -value1 2.0      $bf_spawnSpreadField;
-    floatFieldGrp -edit -value1 0.5      $bf_repulsionRadField;
+    floatFieldGrp -edit -value1 200.0    $bf_spawnSpreadField;
+    floatFieldGrp -edit -value1 50.0     $bf_repulsionRadField;
+    bfSwarmToggle 0;
 
     checkBoxGrp   -edit -value1 false    $bf_windEnableCheck;
     bfWindToggle 0;
