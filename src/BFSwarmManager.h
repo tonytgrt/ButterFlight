@@ -64,6 +64,12 @@ public:
     /// @param pathMode   If true, use fixed-frequency phase advance.
     void stepFollowers(const BFState& leader, double dt, bool pathMode);
 
+    /// Apply a common max-speed cap to every agent's wing model and
+    /// controller.  Call after spawn() (and whenever the leader's
+    /// cruise speed changes) so followers can't outrun the leader.
+    /// @param maxSpeed   Speed cap in m/s.
+    void setAgentMaxSpeed(double maxSpeed);
+
     /// Write keyframes for all followers at the given frame time.
     /// Converts positions from metres to cm for Maya.
     void writeFollowerKeys(const MTime& time);

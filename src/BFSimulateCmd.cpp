@@ -1611,9 +1611,19 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
         status = swarmMgr.spawn(rigName, swarmAgentCount);
         if (status != MS::kSuccess) return status;
         swarmMgr.clearFollowerAnimCurves();
+
+        // Propagate the leader's cruise speed to every follower so
+        // they can't outrun (or lag below) the leader's velocity cap.
+        // Uses the user-supplied -velocity if set, else the wing
+        // model's species default.
+        double followerMaxSpeed = useVelocity ? velocity
+                                              : wingModel.maxSpeed;
+        swarmMgr.setAgentMaxSpeed(followerMaxSpeed);
+
         MGlobal::displayInfo(
             MString("ButterFlight: Swarm mode — ") + swarmAgentCount +
-            " total agents (1 leader + " + (swarmAgentCount - 1) + " followers)");
+            " total agents (1 leader + " + (swarmAgentCount - 1) +
+            " followers), followerMaxSpeed=" + followerMaxSpeed + " m/s");
     }
 
     // ---- Camera sample buffers -------------------------------------

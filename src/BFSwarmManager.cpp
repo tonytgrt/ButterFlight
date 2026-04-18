@@ -201,7 +201,9 @@ MStatus BFSwarmManager::spawn(const MString& sourceRootName,
     MString rootLeafName = sourceRootFn.name();
 
     // ---- Random number generator --------------------------------
-    std::mt19937 rng(42);
+    // Seed from random_device so each spawn gives a different layout.
+    std::random_device rd;
+    std::mt19937 rng(rd());
     std::uniform_real_distribution<double> spreadDist(-spawnSpread, spawnSpread);
     std::uniform_real_distribution<double> phaseDist(-maxPhaseJitter, maxPhaseJitter);
 
@@ -298,15 +300,50 @@ void BFSwarmManager::stepFollowers(const BFState& leader,
         applyAngles(agent.state.skeleton, agent.state.angles,
                     agent.state.heading);
 
-        // 3. Velocity = leader velocity + flocking correction
-        //    flockAccels[i+1] is this follower's flocking accel
-        agent.state.velocity = leader.velocity + flockAccels[i + 1] * dt;
+        // 3. Build desired velocity.
+        //    The previous version just did `leader.velocity + flock*dt`
+        //    and reset velocity every substep — which meant the flocking
+        //    accelerations never integrated, so alignment/cohesion had
+        //    essentially no effect, and followers that lagged behind
+        //    the leader had no mechanism to catch up.  Now we compose:
+        //      (a) leader.velocity  — the follower's base travel speed
+        //      (b) seek toward leader position  — closes distance
+        //      (c) flocking        — separation from other followers
+        //    and smoothly blend the follower's velocity toward this
+        //    target so motion stays stable.
+        const double maxSpd = agent.controller.maxSpeed;
 
-        // Clamp speed
-        double speed = agent.state.velocity.length();
-        if (speed > agent.controller.maxSpeed) {
-            agent.state.velocity *= agent.controller.maxSpeed / speed;
+        // (b) Seek-leader: direction toward leader, magnitude grows
+        //     with distance but saturates at maxSpeed.
+        MVector toLeader(leader.position.x - agent.state.position.x,
+                         leader.position.y - agent.state.position.y,
+                         leader.position.z - agent.state.position.z);
+        double dL = toLeader.length();
+        MVector seekVel(0.0, 0.0, 0.0);
+        if (dL > 1e-4) {
+            // Gain 1.5/s — half a metre of lag produces ~0.75 m/s pull.
+            double seekMag = std::min(dL * 1.5, maxSpd);
+            seekVel = (toLeader / dL) * seekMag;
         }
+
+        // (c) Flocking: treat as velocity offset (already in m/s-ish
+        //     units after weights).  dt gate keeps per-substep kick
+        //     small so nearby agents don't jitter.
+        MVector flockVel = flockAccels[i + 1] * dt;
+
+        // Compose desired velocity and clamp to maxSpeed.
+        MVector desiredVel = leader.velocity + seekVel * 0.5 + flockVel;
+        double desiredSpeed = desiredVel.length();
+        if (desiredSpeed > maxSpd && desiredSpeed > 1e-9) {
+            desiredVel *= maxSpd / desiredSpeed;
+        }
+
+        // Smooth blend toward desired (exponential, ~6/s response).
+        //   alpha ≈ 1 - e^(-6 dt) — independent of substep count.
+        const double blendRate = 6.0;
+        double alpha = 1.0 - std::exp(-blendRate * dt);
+        agent.state.velocity = agent.state.velocity * (1.0 - alpha)
+                             + desiredVel * alpha;
 
         // 4. Integrate position
         agent.state.position.x += agent.state.velocity.x * dt;
@@ -323,6 +360,18 @@ void BFSwarmManager::stepFollowers(const BFState& leader,
         // 6. Cycle boundary smoothing
         if (agent.state.flapCycle != prevCycle)
             agent.controller.smoothParameters(agent.state);
+    }
+}
+
+// ============================================================
+// setAgentMaxSpeed — sync every follower's speed cap with leader
+// ============================================================
+void BFSwarmManager::setAgentMaxSpeed(double maxSpeed)
+{
+    if (maxSpeed <= 0.0) return;
+    for (auto& agent : m_agents) {
+        agent.wingModel.maxSpeed  = maxSpeed;
+        agent.controller.maxSpeed = maxSpeed;
     }
 }
 
