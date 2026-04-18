@@ -40,8 +40,29 @@ static constexpr double kCmToM = 0.01;
 static constexpr double kMToCm = 100.0;
 
 // ============================================================
-// findRigRoot — walk up from the thorax to the topmost group
+// findRigRoot — walk up from the thorax to the highest ancestor
+// whose subtree contains ONLY rig-related nodes (joints, meshes,
+// transforms). Stop before climbing into a parent that also holds
+// cameras, lights, or other non-rig content.
 // ============================================================
+static bool subtreeIsRigOnly(const MDagPath& root)
+{
+    MStatus st;
+    MItDag it(MItDag::kDepthFirst, MFn::kInvalid, &st);
+    if (st != MS::kSuccess) return false;
+    it.reset(root, MItDag::kDepthFirst, MFn::kInvalid);
+    for (; !it.isDone(); it.next()) {
+        MObject obj = it.currentItem();
+        if (obj.hasFn(MFn::kCamera) ||
+            obj.hasFn(MFn::kLight)  ||
+            obj.hasFn(MFn::kNurbsCurve) ||
+            obj.hasFn(MFn::kNurbsSurface)) {
+            return false;
+        }
+    }
+    return true;
+}
+
 MStatus BFSwarmManager::findRigRoot(const MDagPath& thoraxPath,
                                     MDagPath&       outRigRoot)
 {
@@ -55,12 +76,15 @@ MStatus BFSwarmManager::findRigRoot(const MDagPath& thoraxPath,
 
         MObject parentObj = fn.parent(0, &st);
         if (st != MS::kSuccess) break;
+        if (parentObj.hasFn(MFn::kWorld)) break;
 
-        MDagPath parentPath;
         MFnDagNode parentFn(parentObj, &st);
         if (st != MS::kSuccess) break;
+        MDagPath parentPath;
         st = parentFn.getPath(parentPath);
         if (st != MS::kSuccess) break;
+
+        if (!subtreeIsRigOnly(parentPath)) break;
 
         current = parentPath;
     }
@@ -81,9 +105,10 @@ MStatus BFSwarmManager::duplicateRig(const MDagPath& rigRoot,
 
     MString rigFullName = rigRoot.fullPathName();
 
-    // Duplicate the rig group, then rebind all skinClusters so
-    // the copied meshes deform from the NEW joints, not the originals.
-    MString cmd = "duplicate -rr \"" + rigFullName + "\"";
+    // duplicate -un: duplicates the rig together with its upstream
+    // network (skinCluster, tweak, etc.), so the copied meshes
+    // deform from the NEW joints automatically — no rebind needed.
+    MString cmd = "duplicate -rr -un \"" + rigFullName + "\"";
     MCommandResult cmdResult;
     st = MGlobal::executeCommand(cmd, cmdResult);
     if (st != MS::kSuccess) {
@@ -100,54 +125,6 @@ MStatus BFSwarmManager::duplicateRig(const MDagPath& rigRoot,
     }
 
     MString newGroupName = resultNames[0];
-
-    // ---- Rebind skin: for each mesh in the duplicate, find the
-    //      matching source mesh, bind to new joints, copy weights.
-    MString rebindCmd =
-        "{\n"
-        "  string $srcGrp = \"" + rigFullName + "\";\n"
-        "  string $dstGrp = \"" + newGroupName + "\";\n"
-        "  string $srcMeshes[] = `listRelatives -ad -type \"mesh\" $srcGrp`;\n"
-        "  string $dstMeshes[] = `listRelatives -ad -type \"mesh\" $dstGrp`;\n"
-        "  string $dstJoints[] = `listRelatives -ad -type \"joint\" $dstGrp`;\n"
-        "  if (size($dstJoints) > 0)\n"
-        "  for ($i = 0; $i < size($dstMeshes); $i++) {\n"
-        "    string $dstXform[] = `listRelatives -parent $dstMeshes[$i]`;\n"
-        "    if (size($dstXform) == 0) continue;\n"
-        "    // Find matching source mesh by comparing short names\n"
-        "    string $srcSkin = \"\";\n"
-        "    for ($j = 0; $j < size($srcMeshes); $j++) {\n"
-        "      string $sn1 = `match \"[^|]+$\" $srcMeshes[$j]`;\n"
-        "      string $sn2 = `match \"[^|]+$\" $dstMeshes[$i]`;\n"
-        "      if ($sn1 == $sn2) {\n"
-        "        string $hist[] = `listHistory $srcMeshes[$j]`;\n"
-        "        for ($h in $hist) {\n"
-        "          if (`nodeType $h` == \"skinCluster\") {\n"
-        "            $srcSkin = $h;\n"
-        "            break;\n"
-        "          }\n"
-        "        }\n"
-        "        break;\n"
-        "      }\n"
-        "    }\n"
-        "    if ($srcSkin == \"\") continue;\n"
-        "    // Bind the duplicate mesh to the duplicate joints\n"
-        "    select -cl;\n"
-        "    select $dstJoints;\n"
-        "    select -add $dstXform[0];\n"
-        "    string $newSkin[] = `skinCluster -toSelectedBones`;\n"
-        "    // Copy weights from source skinCluster\n"
-        "    copySkinWeights -ss $srcSkin -ds $newSkin[0]"
-        " -noMirror -sa \"closestPoint\" -ia \"closestJoint\";\n"
-        "  }\n"
-        "  select -cl;\n"
-        "}\n";
-    st = MGlobal::executeCommand(rebindCmd);
-    if (st != MS::kSuccess) {
-        MGlobal::displayWarning(
-            "BFSwarmManager: Skin rebind had issues for '" + newGroupName +
-            "'. Meshes may not deform correctly.");
-    }
 
     MSelectionList sel;
     st = sel.add(newGroupName);
