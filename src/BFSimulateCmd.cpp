@@ -1588,12 +1588,14 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
                 MString("ButterFlight: arcRate=") + arcRate +
                 " cm/substep (velocity=" + velocity + " m/s)");
         } else {
-            // NOTE: pathSpeedScale multiplier disabled.
-            // arcRate = totalCurveLen / ((double)duration * substeps) * pathSpeedScale;
-            arcRate = totalCurveLen / ((double)duration * substeps);
+            // Scale-driven: cursor covers the full curve over the full
+            // duration, multiplied by pathSpeedScale.  Scale=1.0 ⇒
+            // reaches end exactly at the last frame.
+            arcRate = totalCurveLen / ((double)duration * substeps) * pathSpeedScale;
             MGlobal::displayInfo(
                 MString("ButterFlight: arcRate=") + arcRate +
-                " cm/substep (curveLen=" + totalCurveLen + " cm)");
+                " cm/substep (curveLen=" + totalCurveLen +
+                " cm, scale=" + pathSpeedScale + ")");
         }
     }
 
