@@ -1614,6 +1614,8 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
         MGlobal::displayInfo(
             MString("ButterFlight: Swarm mode — ") + swarmAgentCount +
             " total agents (1 leader + " + (swarmAgentCount - 1) + " followers)");
+    }
+
     // ---- Camera sample buffers -------------------------------------
     // Shared by follow-camera and stationary-camera bakes; we record
     // one sample per output frame if either camera is requested.
