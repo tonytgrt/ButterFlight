@@ -14,6 +14,7 @@ global string $bf_modeMenu;
 // Path Following section
 global string $bf_pathFrame;
 global string $bf_pathField;
+global string $bf_pathFromStartCheck;
 global string $bf_pathSpeedEnableCheck;
 global string $bf_pathSpeedField;
 global string $bf_pathNoiseCheck;
@@ -226,6 +227,16 @@ global proc butterFlightUI()
                     -placeholderText "Select NURBS curve"
                     -columnWidth3 0 220 70`;
 
+                // --- Start location on curve ---------------------------
+                // Off (default): snap to the point on the curve nearest
+                //  the butterfly's current rig position.
+                // On: always start from the curve's first CV.
+                global string $bf_pathFromStartCheck;
+                $bf_pathFromStartCheck = `checkBoxGrp
+                    -label "Start from Path Start"
+                    -value1 false
+                    -annotation "If off, snap to the nearest point on the curve. If on, always begin at the curve's first CV."`;
+
                 // --- Path Speed Scale (optional override of Velocity) ---
                 // When enabled, cursor rate is derived from curve length
                 // and duration instead of the Velocity (m/s) field.
@@ -244,7 +255,7 @@ global proc butterFlightUI()
                     -value1 1.0
                     -precision 3
                     -enable false
-                    -annotation "Multiplier for auto-derived path speed (1.0 = full curve over full duration)"
+                    -annotation "Multiplier for auto-derived path speed (1.0 = remaining curve length over full duration)"
                     -columnWidth2 140 140`;
 
                 global string $bf_pathNoiseCheck;
@@ -1144,6 +1155,7 @@ global proc bfSimulateCallback()
     global string $bf_maxSpeedField;
     global string $bf_windowKField;
     global string $bf_pathField;
+    global string $bf_pathFromStartCheck;
     global string $bf_pathSpeedEnableCheck;
     global string $bf_pathSpeedField;
     global string $bf_pathNoiseCheck;
@@ -1225,8 +1237,10 @@ global proc bfSimulateCallback()
     int    $pathScaleOn = 0;
     if ($path != "" && $mode == 2) {
         $pathFlag = " -path \"" + $path + "\"";
+        int $fromStart = `checkBoxGrp -query -value1 $bf_pathFromStartCheck`;
+        $pathFlag += " -pathFromStart " + $fromStart;
         // When "Use Path Speed Scale" is checked, derive cursor rate
-        // from curve length × scale ÷ duration instead of velocity.
+        // from remaining curve length × scale ÷ duration instead of velocity.
         $pathScaleOn = `checkBoxGrp -query -value1 $bf_pathSpeedEnableCheck`;
         if ($pathScaleOn) {
             float $psScale = `floatFieldGrp -query -value1 $bf_pathSpeedField`;
@@ -1429,6 +1443,7 @@ global proc bfReset()
 {
     global string $bf_rigField;
     global string $bf_pathField;
+    global string $bf_pathFromStartCheck;
     global string $bf_pathSpeedEnableCheck;
     global string $bf_pathSpeedField;
     global string $bf_pathNoiseCheck;
@@ -1476,6 +1491,7 @@ global proc bfReset()
 
     textFieldButtonGrp  -edit -text ""   $bf_rigField;
     textFieldButtonGrp  -edit -text ""   $bf_pathField;
+    checkBoxGrp         -edit -value1 false $bf_pathFromStartCheck;
     checkBoxGrp         -edit -value1 false $bf_pathSpeedEnableCheck;
     floatFieldGrp       -edit -value1 1.0   $bf_pathSpeedField;
     bfPathSpeedToggle 0;

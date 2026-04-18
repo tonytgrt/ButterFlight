@@ -73,6 +73,8 @@ static const char* kPathNoiseFlag      = "-pn";
 static const char* kPathNoiseFlagLong  = "-pathNoise";
 static const char* kPathNoiseAmpFlag      = "-pna";
 static const char* kPathNoiseAmpFlagLong  = "-pathNoiseAmp";
+static const char* kPathFromStartFlag     = "-pfs";
+static const char* kPathFromStartFlagLong = "-pathFromStart";
 static const char* kVelocityFlag          = "-v";
 static const char* kVelocityFlagLong      = "-velocity";
 static const char* kHoverPosXFlag      = "-hpx";
@@ -140,6 +142,7 @@ MSyntax BFSimulateCmd::newSyntax()
     syntax.addFlag(kPathSpeedFlag, kPathSpeedFlagLong, MSyntax::kDouble);
     syntax.addFlag(kPathNoiseFlag, kPathNoiseFlagLong, MSyntax::kBoolean);
     syntax.addFlag(kPathNoiseAmpFlag, kPathNoiseAmpFlagLong, MSyntax::kDouble);
+    syntax.addFlag(kPathFromStartFlag, kPathFromStartFlagLong, MSyntax::kBoolean);
     syntax.addFlag(kVelocityFlag, kVelocityFlagLong, MSyntax::kDouble);
     syntax.addFlag(kHoverPosXFlag, kHoverPosXFlagLong, MSyntax::kDouble);
     syntax.addFlag(kHoverPosYFlag, kHoverPosYFlagLong, MSyntax::kDouble);
@@ -1073,6 +1076,13 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
     if (pathNoiseAmpCm < 0.0) pathNoiseAmpCm = 0.0;
     double pathNoiseAmpM = pathNoiseAmpCm * kCmToM;
 
+    // Path start-location mode.  Default (false) = snap to the nearest
+    // point on the curve to the butterfly's current rig position.
+    // When true, always start from the curve's first CV (legacy).
+    bool pathFromStart = false;
+    if (argData.isFlagSet(kPathFromStartFlag))
+        argData.getFlagArgument(kPathFromStartFlag, 0, pathFromStart);
+
     // ---- Detect hover mode (mode == 4) ----------------------------
     bool hoverMode = false;
     bool hoverHasCustomPos = false;
@@ -1445,25 +1455,37 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
             (m_state.heading * 180.0 / M_PI) + " deg");
     }
 
-    // If a path is provided and this is a fresh start, snap to the
-    // nearest point on the curve (not the curve's start point) so the
-    // butterfly doesn't teleport to uMin when the rig is already
-    // positioned near the middle/end of the path.
+    // If a path is provided and this is a fresh start, snap the rig
+    // onto the curve.  Two modes:
+    //   pathFromStart = true  → snap to the curve's first CV (uMin).
+    //   pathFromStart = false → snap to the point on the curve nearest
+    //                           the current rig position (so the user
+    //                           can pre-position the butterfly anywhere
+    //                           along the path).
     double startArcLen = 0.0;  // arc length (cm) at the snap point
     if (hasPath && startFrame <= 1) {
-        MPoint currentPosCm(m_state.position.x * kMToCm,
-                            m_state.position.y * kMToCm,
-                            m_state.position.z * kMToCm);
-        double uClosest;
-        MPoint startPt = curveFn.closestPoint(currentPosCm, &uClosest, 1e-4, MSpace::kWorld);
+        double uSnap;
+        MPoint startPt;
+        if (pathFromStart) {
+            double uMinK, uMaxK;
+            curveFn.getKnotDomain(uMinK, uMaxK);
+            uSnap = uMinK;
+            curveFn.getPointAtParam(uSnap, startPt, MSpace::kWorld);
+            startArcLen = 0.0;
+        } else {
+            MPoint currentPosCm(m_state.position.x * kMToCm,
+                                m_state.position.y * kMToCm,
+                                m_state.position.z * kMToCm);
+            startPt = curveFn.closestPoint(currentPosCm, &uSnap, 1e-4, MSpace::kWorld);
+            startArcLen = curveFn.findLengthFromParam(uSnap);
+        }
         m_state.position = MPoint(startPt.x * kCmToM, startPt.y * kCmToM, startPt.z * kCmToM);
-        startArcLen = curveFn.findLengthFromParam(uClosest);
 
         MFnTransform rootFn(m_state.skeleton.joints[kThorax]);
         rootFn.setTranslation(MVector(startPt), MSpace::kWorld);  // stays in cm for Maya
 
         // Initialize heading to face along the curve tangent at the snap point
-        MVector tangent = curveFn.tangent(uClosest, MSpace::kWorld);
+        MVector tangent = curveFn.tangent(uSnap, MSpace::kWorld);
         double tx = tangent.x, tz = tangent.z;
         if (std::sqrt(tx * tx + tz * tz) > 1e-6) {
             m_state.heading = std::atan2(-tx, -tz);
@@ -1588,14 +1610,18 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
                 MString("ButterFlight: arcRate=") + arcRate +
                 " cm/substep (velocity=" + velocity + " m/s)");
         } else {
-            // Scale-driven: cursor covers the full curve over the full
-            // duration, multiplied by pathSpeedScale.  Scale=1.0 ⇒
-            // reaches end exactly at the last frame.
-            arcRate = totalCurveLen / ((double)duration * substeps) * pathSpeedScale;
+            // Scale-driven: cursor covers the REMAINING curve length
+            // (from the initial snap point to the curve end) over the
+            // full duration, multiplied by pathSpeedScale.  Scale=1.0 ⇒
+            // reaches the curve end exactly at the last frame regardless
+            // of where along the curve the butterfly started.
+            double remainingLen = totalCurveLen - arcCursor;
+            if (remainingLen < 0.0) remainingLen = 0.0;
+            arcRate = remainingLen / ((double)duration * substeps) * pathSpeedScale;
             MGlobal::displayInfo(
                 MString("ButterFlight: arcRate=") + arcRate +
-                " cm/substep (curveLen=" + totalCurveLen +
-                " cm, scale=" + pathSpeedScale + ")");
+                " cm/substep (remaining=" + remainingLen +
+                " cm of " + totalCurveLen + ", scale=" + pathSpeedScale + ")");
         }
     }
 
