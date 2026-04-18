@@ -64,6 +64,26 @@ global string $bf_durationField;
 global string $bf_flapPeriodField;
 global string $bf_exportMenu;
 
+// Follow Camera section
+global string $bf_camEnableCheck;
+global string $bf_camNameField;
+global string $bf_camUseCurrentCheck;
+global string $bf_camAutoFrameCheck;
+global string $bf_camOffXField;
+global string $bf_camOffYField;
+global string $bf_camOffZField;
+global string $bf_camRotXField;
+global string $bf_camRotYField;
+global string $bf_camRotZField;
+global string $bf_camStiffSlider;
+global string $bf_camFOVField;
+global string $bf_camFillRatioSlider;
+
+// Stationary Camera section
+global string $bf_statCamEnableCheck;
+global string $bf_statCamNameField;
+global string $bf_statCamAutoZoomCheck;
+
 
 // ============================================================
 // Main window procedure
@@ -537,6 +557,192 @@ global proc butterFlightUI()
         setParent ..;
 
 
+        // ---- 9. Follow Camera ---------------------------------
+        frameLayout
+            -label "9  Follow Camera"
+            -collapsable true
+            -collapse true
+            -marginWidth 6 -marginHeight 6;
+
+            columnLayout -adjustableColumn true -rowSpacing 4;
+
+                global string $bf_camEnableCheck;
+                $bf_camEnableCheck = `checkBoxGrp
+                    -label "Create Follow Camera"
+                    -value1 false
+                    -onCommand  "bfCameraToggle 1"
+                    -offCommand "bfCameraToggle 0"
+                    -annotation "Bake a spring-arm camera that follows the butterfly"`;
+
+                global string $bf_camNameField;
+                $bf_camNameField = `textFieldGrp
+                    -label "Camera Name"
+                    -text "BF_followCam"
+                    -enable false
+                    -columnWidth2 120 160`;
+
+                global string $bf_camUseCurrentCheck;
+                $bf_camUseCurrentCheck = `checkBoxGrp
+                    -label "Use Current Cam Trans"
+                    -value1 false
+                    -enable false
+                    -onCommand  "bfCameraUseCurrentToggle 1"
+                    -offCommand "bfCameraUseCurrentToggle 0"
+                    -annotation "Derive follow-cam offset, rotation and FOV from the active viewport camera so the frame-0 view matches what you see now"`;
+
+                global string $bf_camAutoFrameCheck;
+                $bf_camAutoFrameCheck = `checkBoxGrp
+                    -label "Auto Frame Distance"
+                    -value1 true
+                    -enable false
+                    -onCommand  "bfCameraAutoFrameToggle 1"
+                    -offCommand "bfCameraAutoFrameToggle 0"
+                    -annotation "Auto-compute Z offset from FOV and wingspan"`;
+
+                global string $bf_camFillRatioSlider;
+                $bf_camFillRatioSlider = `floatSliderGrp
+                    -label "Frame Fill Ratio"
+                    -field true
+                    -minValue 0.3
+                    -maxValue 1.0
+                    -fieldMinValue 0.1
+                    -fieldMaxValue 1.0
+                    -value 0.7
+                    -precision 2
+                    -enable false
+                    -annotation "Portion of the frame the butterfly should occupy"
+                    -columnWidth3 100 60 140`;
+
+                separator -height 6 -style "in";
+
+                text -label "Local Offset (cm)  [+Z = behind]:" -align "left";
+
+                global string $bf_camOffXField;
+                $bf_camOffXField = `floatFieldGrp
+                    -label "Offset X"
+                    -numberOfFields 1
+                    -value1 0.0
+                    -precision 3
+                    -enable false
+                    -columnWidth2 100 180`;
+
+                global string $bf_camOffYField;
+                $bf_camOffYField = `floatFieldGrp
+                    -label "Offset Y"
+                    -numberOfFields 1
+                    -value1 5.0
+                    -precision 3
+                    -enable false
+                    -columnWidth2 100 180`;
+
+                global string $bf_camOffZField;
+                $bf_camOffZField = `floatFieldGrp
+                    -label "Offset Z"
+                    -numberOfFields 1
+                    -value1 30.0
+                    -precision 3
+                    -enable false
+                    -annotation "Distance behind the butterfly (auto-computed when Auto Frame is on)"
+                    -columnWidth2 100 180`;
+
+                separator -height 6 -style "in";
+
+                text -label "Rotation Offset (deg):" -align "left";
+
+                global string $bf_camRotXField;
+                $bf_camRotXField = `floatFieldGrp
+                    -label "Rot X (pitch)"
+                    -numberOfFields 1
+                    -value1 0.0
+                    -precision 3
+                    -enable false
+                    -columnWidth2 100 180`;
+
+                global string $bf_camRotYField;
+                $bf_camRotYField = `floatFieldGrp
+                    -label "Rot Y (yaw)"
+                    -numberOfFields 1
+                    -value1 0.0
+                    -precision 3
+                    -enable false
+                    -columnWidth2 100 180`;
+
+                global string $bf_camRotZField;
+                $bf_camRotZField = `floatFieldGrp
+                    -label "Rot Z (roll)"
+                    -numberOfFields 1
+                    -value1 0.0
+                    -precision 3
+                    -enable false
+                    -columnWidth2 100 180`;
+
+                separator -height 6 -style "in";
+
+                global string $bf_camStiffSlider;
+                $bf_camStiffSlider = `floatSliderGrp
+                    -label "Spring Stiffness"
+                    -field true
+                    -minValue 0.5
+                    -maxValue 30.0
+                    -fieldMinValue 0.1
+                    -fieldMaxValue 100.0
+                    -value 10.0
+                    -precision 2
+                    -enable false
+                    -annotation "Higher = snappier follow, lower = more lag"
+                    -columnWidth3 100 60 140`;
+
+                global string $bf_camFOVField;
+                $bf_camFOVField = `floatFieldGrp
+                    -label "Camera FOV (deg)"
+                    -numberOfFields 1
+                    -value1 35.0
+                    -precision 2
+                    -enable false
+                    -columnWidth2 120 160`;
+
+            setParent ..;
+        setParent ..;
+
+
+        // ---- 10. Stationary Camera ----------------------------
+        frameLayout
+            -label "10  Stationary Camera"
+            -collapsable true
+            -collapse true
+            -marginWidth 6 -marginHeight 6;
+
+            columnLayout -adjustableColumn true -rowSpacing 4;
+
+                global string $bf_statCamEnableCheck;
+                $bf_statCamEnableCheck = `checkBoxGrp
+                    -label "Create Stationary Camera"
+                    -value1 false
+                    -onCommand  "bfStatCamToggle 1"
+                    -offCommand "bfStatCamToggle 0"
+                    -annotation "Create a tripod-style camera fixed at the current viewport camera's position that rotates each frame to keep the butterfly at the same screen offset"`;
+
+                global string $bf_statCamNameField;
+                $bf_statCamNameField = `textFieldGrp
+                    -label "Camera Name"
+                    -text "BF_statCam"
+                    -enable false
+                    -columnWidth2 120 160`;
+
+                global string $bf_statCamAutoZoomCheck;
+                $bf_statCamAutoZoomCheck = `checkBoxGrp
+                    -label "Auto Zoom"
+                    -value1 false
+                    -enable false
+                    -annotation "Automatically key focal length each frame so the butterfly fills the same fraction of the frame as at setup time"`;
+
+                text -label "Position and FOV are captured from the" -align "left" -font "smallPlainLabelFont";
+                text -label "current viewport camera when simulating." -align "left" -font "smallPlainLabelFont";
+
+            setParent ..;
+        setParent ..;
+
+
         // ---- Action Buttons -----------------------------------
         separator -height 10 -style "in";
 
@@ -736,6 +942,128 @@ global proc bfHoverRotToggle(int $state)
 
 
 // ============================================================
+// Callback: Follow-camera master enable toggle
+// ============================================================
+global proc bfCameraToggle(int $state)
+{
+    global string $bf_camNameField;
+    global string $bf_camUseCurrentCheck;
+    global string $bf_camAutoFrameCheck;
+    global string $bf_camFillRatioSlider;
+    global string $bf_camOffXField;
+    global string $bf_camOffYField;
+    global string $bf_camOffZField;
+    global string $bf_camRotXField;
+    global string $bf_camRotYField;
+    global string $bf_camRotZField;
+    global string $bf_camStiffSlider;
+    global string $bf_camFOVField;
+
+    textFieldGrp    -edit -enable $state $bf_camNameField;
+    checkBoxGrp     -edit -enable $state $bf_camUseCurrentCheck;
+    floatSliderGrp  -edit -enable $state $bf_camStiffSlider;
+
+    if ($state == 1) {
+        // Child widgets are driven by the "Use Current Camera" toggle:
+        // when it's on, manual offset/rotation/FOV/auto-frame are overridden.
+        int $uc = `checkBoxGrp -query -value1 $bf_camUseCurrentCheck`;
+        bfCameraUseCurrentToggle $uc;
+    } else {
+        checkBoxGrp    -edit -enable 0 $bf_camAutoFrameCheck;
+        floatFieldGrp  -edit -enable 0 $bf_camOffXField;
+        floatFieldGrp  -edit -enable 0 $bf_camOffYField;
+        floatFieldGrp  -edit -enable 0 $bf_camOffZField;
+        floatFieldGrp  -edit -enable 0 $bf_camRotXField;
+        floatFieldGrp  -edit -enable 0 $bf_camRotYField;
+        floatFieldGrp  -edit -enable 0 $bf_camRotZField;
+        floatFieldGrp  -edit -enable 0 $bf_camFOVField;
+        floatSliderGrp -edit -enable 0 $bf_camFillRatioSlider;
+    }
+}
+
+
+// ============================================================
+// Callback: Use-Current-Camera toggle — when ON, the manual offset,
+// rotation, auto-frame and FOV fields are disabled because they will
+// be derived from the active viewport camera at simulate time.
+// ============================================================
+global proc bfCameraUseCurrentToggle(int $state)
+{
+    global string $bf_camAutoFrameCheck;
+    global string $bf_camFillRatioSlider;
+    global string $bf_camOffXField;
+    global string $bf_camOffYField;
+    global string $bf_camOffZField;
+    global string $bf_camRotXField;
+    global string $bf_camRotYField;
+    global string $bf_camRotZField;
+    global string $bf_camFOVField;
+
+    int $manual = (1 - $state);  // enable manual fields only when NOT using current
+
+    checkBoxGrp    -edit -enable $manual $bf_camAutoFrameCheck;
+    floatFieldGrp  -edit -enable $manual $bf_camOffXField;
+    floatFieldGrp  -edit -enable $manual $bf_camOffYField;
+    floatFieldGrp  -edit -enable $manual $bf_camRotXField;
+    floatFieldGrp  -edit -enable $manual $bf_camRotYField;
+    floatFieldGrp  -edit -enable $manual $bf_camRotZField;
+    floatFieldGrp  -edit -enable $manual $bf_camFOVField;
+
+    if ($manual) {
+        // Defer Z-offset / fill-ratio to the auto-frame sub-toggle.
+        int $af = `checkBoxGrp -query -value1 $bf_camAutoFrameCheck`;
+        bfCameraAutoFrameToggle $af;
+    } else {
+        floatFieldGrp  -edit -enable 0 $bf_camOffZField;
+        floatSliderGrp -edit -enable 0 $bf_camFillRatioSlider;
+    }
+}
+
+
+// ============================================================
+// Callback: Stationary-camera master enable toggle
+// ============================================================
+global proc bfStatCamToggle(int $state)
+{
+    global string $bf_statCamNameField;
+    global string $bf_statCamAutoZoomCheck;
+    textFieldGrp -edit -enable $state $bf_statCamNameField;
+    checkBoxGrp  -edit -enable $state $bf_statCamAutoZoomCheck;
+}
+
+
+// ============================================================
+// Callback: Auto-frame toggle (enables/disables Z offset field)
+// ============================================================
+global proc bfCameraAutoFrameToggle(int $state)
+{
+    global string $bf_camOffZField;
+    global string $bf_camFillRatioSlider;
+
+    // When auto-frame is ON, manual Z is disabled and fill ratio drives it.
+    floatFieldGrp  -edit -enable (1 - $state) $bf_camOffZField;
+    floatSliderGrp -edit -enable $state       $bf_camFillRatioSlider;
+}
+
+
+// ============================================================
+// Helper: compute auto-frame Z distance from FOV + wingspan
+//   distance = (wingspan/2) / (fillRatio * tan(fovDeg/2 * pi/180))
+// ============================================================
+global proc float bfCameraAutoDistance(float $fovDeg, float $fillRatio,
+                                       float $wingspanCm)
+{
+    if ($fillRatio <= 0.0) $fillRatio = 0.7;
+    if ($fovDeg   <= 1.0) $fovDeg    = 35.0;
+    float $halfFovRad = ($fovDeg * 0.5) * (3.14159265358979 / 180.0);
+    float $tanHalf = tan($halfFovRad);
+    if ($tanHalf < 1e-6) $tanHalf = 1e-6;
+    float $dist = ($wingspanCm * 0.5) / ($fillRatio * $tanHalf);
+    return $dist;
+}
+
+
+// ============================================================
 // Callback: Simulate button
 // ============================================================
 global proc bfSimulateCallback()
@@ -767,6 +1095,22 @@ global proc bfSimulateCallback()
     global string $bf_startFrameField;
     global string $bf_durationField;
     global string $bf_flapPeriodField;
+    global string $bf_camEnableCheck;
+    global string $bf_camNameField;
+    global string $bf_camUseCurrentCheck;
+    global string $bf_camAutoFrameCheck;
+    global string $bf_camOffXField;
+    global string $bf_camOffYField;
+    global string $bf_camOffZField;
+    global string $bf_camRotXField;
+    global string $bf_camRotYField;
+    global string $bf_camRotZField;
+    global string $bf_camStiffSlider;
+    global string $bf_camFOVField;
+    global string $bf_camFillRatioSlider;
+    global string $bf_statCamEnableCheck;
+    global string $bf_statCamNameField;
+    global string $bf_statCamAutoZoomCheck;
 
     // --- Validation ---
     string $rig = `textFieldButtonGrp -query -text $bf_rigField`;
@@ -854,6 +1198,63 @@ global proc bfSimulateCallback()
         }
     }
 
+    // Build follow-camera flags
+    string $camFlag = "";
+    int    $camOn   = `checkBoxGrp -query -value1 $bf_camEnableCheck`;
+    if ($camOn) {
+        string $camName = `textFieldGrp -query -text $bf_camNameField`;
+        if ($camName == "") $camName = "BF_followCam";
+        float  $stiff = `floatSliderGrp -query -value  $bf_camStiffSlider`;
+        int    $useCur = `checkBoxGrp  -query -value1 $bf_camUseCurrentCheck`;
+
+        $camFlag = " -createCamera 1"
+                 + " -camName \"" + $camName + "\""
+                 + " -camStiffness " + $stiff;
+
+        if ($useCur) {
+            // Offsets, rotation and FOV are derived in C++ from the
+            // active 3D view camera — don't pass manual values.
+            $camFlag += " -useCurrentCamera 1";
+        } else {
+            float  $cox = `floatFieldGrp -query -value1 $bf_camOffXField`;
+            float  $coy = `floatFieldGrp -query -value1 $bf_camOffYField`;
+            float  $coz = `floatFieldGrp -query -value1 $bf_camOffZField`;
+            float  $crx = `floatFieldGrp -query -value1 $bf_camRotXField`;
+            float  $cry = `floatFieldGrp -query -value1 $bf_camRotYField`;
+            float  $crz = `floatFieldGrp -query -value1 $bf_camRotZField`;
+            float  $fov = `floatFieldGrp -query -value1 $bf_camFOVField`;
+
+            // Auto frame distance: override Z offset from FOV + species wingspan
+            int    $autoFrame = `checkBoxGrp -query -value1 $bf_camAutoFrameCheck`;
+            if ($autoFrame) {
+                float $fill = `floatSliderGrp -query -value $bf_camFillRatioSlider`;
+                int   $sp = `optionMenuGrp -query -select $bf_speciesMenu`;
+                float $wingspan = 10.0;            // Monarch default
+                if ($sp == 2) $wingspan = 14.0;    // Swallowtail
+                $coz = bfCameraAutoDistance($fov, $fill, $wingspan);
+            }
+
+            $camFlag += " -camOffsetX " + $cox
+                      + " -camOffsetY " + $coy
+                      + " -camOffsetZ " + $coz
+                      + " -camRotX "    + $crx
+                      + " -camRotY "    + $cry
+                      + " -camRotZ "    + $crz
+                      + " -camFOV "     + $fov;
+        }
+    }
+
+    // Build stationary-camera flags
+    string $statCamFlag = "";
+    int    $statOn = `checkBoxGrp -query -value1 $bf_statCamEnableCheck`;
+    if ($statOn) {
+        string $statName = `textFieldGrp -query -text $bf_statCamNameField`;
+        if ($statName == "") $statName = "BF_statCam";
+        int $statZoom = `checkBoxGrp -query -value1 $bf_statCamAutoZoomCheck`;
+        $statCamFlag = " -createStatCam 1 -statCamName \"" + $statName + "\""
+                     + " -statCamAutoZoom " + $statZoom;
+    }
+
     // Call the C++ bfSimulate command directly
     // FPS is read from Maya's scene time unit automatically.
     string $cmd = "bfSimulate -rigRoot \"" + $rig + "\""
@@ -862,7 +1263,9 @@ global proc bfSimulateCallback()
                   + " -flapPeriod " + $flapPeriod
                   + $pathFlag
                   + $velFlag
-                  + $hoverFlag;
+                  + $hoverFlag
+                  + $camFlag
+                  + $statCamFlag;
     print ("// Executing: " + $cmd + "\n");
 
     if (catch(eval($cmd))) {
@@ -959,6 +1362,22 @@ global proc bfReset()
     global string $bf_agentCountField;
     global string $bf_spawnSpreadField;
     global string $bf_repulsionRadField;
+    global string $bf_camEnableCheck;
+    global string $bf_camNameField;
+    global string $bf_camUseCurrentCheck;
+    global string $bf_camAutoFrameCheck;
+    global string $bf_camOffXField;
+    global string $bf_camOffYField;
+    global string $bf_camOffZField;
+    global string $bf_camRotXField;
+    global string $bf_camRotYField;
+    global string $bf_camRotZField;
+    global string $bf_camStiffSlider;
+    global string $bf_camFOVField;
+    global string $bf_camFillRatioSlider;
+    global string $bf_statCamEnableCheck;
+    global string $bf_statCamNameField;
+    global string $bf_statCamAutoZoomCheck;
 
     textFieldButtonGrp  -edit -text ""   $bf_rigField;
     textFieldButtonGrp  -edit -text ""   $bf_pathField;
@@ -996,6 +1415,28 @@ global proc bfReset()
 
     checkBoxGrp   -edit -value1 false    $bf_windEnableCheck;
     bfWindToggle 0;
+
+    // Follow-camera defaults
+    checkBoxGrp    -edit -value1 false   $bf_camEnableCheck;
+    textFieldGrp   -edit -text "BF_followCam" $bf_camNameField;
+    checkBoxGrp    -edit -value1 false   $bf_camUseCurrentCheck;
+    checkBoxGrp    -edit -value1 true    $bf_camAutoFrameCheck;
+    floatFieldGrp  -edit -value1 0.0     $bf_camOffXField;
+    floatFieldGrp  -edit -value1 5.0     $bf_camOffYField;
+    floatFieldGrp  -edit -value1 30.0    $bf_camOffZField;
+    floatFieldGrp  -edit -value1 0.0     $bf_camRotXField;
+    floatFieldGrp  -edit -value1 0.0     $bf_camRotYField;
+    floatFieldGrp  -edit -value1 0.0     $bf_camRotZField;
+    floatSliderGrp -edit -value 10.0     $bf_camStiffSlider;
+    floatFieldGrp  -edit -value1 35.0    $bf_camFOVField;
+    floatSliderGrp -edit -value 0.7      $bf_camFillRatioSlider;
+    bfCameraToggle 0;
+
+    // Stationary-camera defaults
+    checkBoxGrp    -edit -value1 false      $bf_statCamEnableCheck;
+    textFieldGrp   -edit -text "BF_statCam" $bf_statCamNameField;
+    checkBoxGrp    -edit -value1 false      $bf_statCamAutoZoomCheck;
+    bfStatCamToggle 0;
 
     bfUpdateSpecies;
     bfUpdateMode;
