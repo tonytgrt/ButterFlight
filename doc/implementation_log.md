@@ -697,3 +697,37 @@ Clamped to `[2.5 mm, 500 mm]` to avoid pathological extremes.
 1. Frame the shot; this is where the stationary camera will be fixed.
 2. Open panel 10, check **Create Stationary Camera**, optionally rename, optionally enable **Auto Zoom**.
 3. Click Simulate — a camera is placed at the viewport's current world position with locked translation; it rotates per frame to track the butterfly with the same screen offset, and (if auto-zoom is on) its focal length scales to keep the butterfly the same apparent size.
+
+---
+
+## 2026-04-18 — Path Start Mode & Remaining-Length Speed Scale (Yiding Tian)
+
+Two small fixes driven by a regression that surfaced after Cecilia's nearest-point path-start change (commit `df563b4`).
+
+### Problem
+
+With "nearest-point snap" as the new default, the restored Path Speed Scale was still computing `arcRate = totalCurveLen / (duration × substeps)`. When the butterfly snapped into the middle of the curve, scale = 1.0 still allocated speed as if it had to cover the full curve, so the cursor reached the end halfway through the sim and the butterfly fell into free flight for the rest of the animation.
+
+### Fix 1 — Path-start-mode toggle
+
+Made start-from-curve-start vs start-from-nearest-point a mutually exclusive user choice.
+
+- **[src/BFSimulateCmd.cpp](src/BFSimulateCmd.cpp)** — new flag `-pfs` / `-pathFromStart` (bool, default `false`). Fresh-start snap block branches: when true, snaps to `uMin` (legacy behavior); when false, snaps to `closestPoint` (Cecilia's default). `startArcLen` and initial heading are computed from the same `uSnap` in both branches.
+- **[src/mel/butterFlight_ui.mel](src/mel/butterFlight_ui.mel)** — new checkbox **"Start from Path Start"** in panel 4 (default off, preserving the nearest-point default). `bfSimulateCallback` appends `-pathFromStart <0|1>` whenever a path is set; `bfReset` clears it.
+
+### Fix 2 — Speed scale uses remaining length
+
+The scale formula now reflects how much path is actually left from the snap point.
+
+- **[src/BFSimulateCmd.cpp](src/BFSimulateCmd.cpp)** — `else` branch of arcRate computation now uses `remainingLen = totalCurveLen - arcCursor`:
+
+  ```cpp
+  arcRate = remainingLen / ((double)duration * substeps) * pathSpeedScale;
+  ```
+
+  At scale = 1.0 the cursor reaches the curve end exactly at the last frame regardless of where along the curve the butterfly started.
+- **[src/mel/butterFlight_ui.mel](src/mel/butterFlight_ui.mel)** — `Path Speed Scale` annotation updated to "1.0 = remaining curve length over full duration".
+
+### Interaction with Velocity
+
+Unchanged — velocity-driven mode (`-velocity > 0` and the "Use Path Speed Scale" checkbox off) still uses `velocity * kMToCm / (fps * substeps)` and is independent of where the snap put the cursor.
