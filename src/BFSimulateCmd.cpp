@@ -71,11 +71,11 @@ static double evalDecelMult(double tDecel, int mode)
     return m;
 }
 
-// Evaluate the yaw-blend factor for a normalized progress t ∈ [0, 1]
+// Evaluate the angle-blend factor for a normalized progress t ∈ [0, 1]
 // through the blend window.  Returns 0 at blend start (use path
-// heading) and 1 at blend end (use target yaw).
+// rotation) and 1 at blend end (use target rotation).
 // Mode: 0 = linear, 1 = exponential ease-out (fast start, slow end).
-static double evalYawBlendFactor(double tBlend, int mode)
+static double evalBlendFactor(double tBlend, int mode)
 {
     if (tBlend < 0.0) tBlend = 0.0;
     if (tBlend > 1.0) tBlend = 1.0;
@@ -87,14 +87,39 @@ static double evalYawBlendFactor(double tBlend, int mode)
     return (1.0 - std::exp(-k * tBlend)) / (1.0 - std::exp(-k));
 }
 
-// Shortest-path lerp between two angles in radians.  Interpolates
-// through the [-π, π] delta rather than going the long way around.
-static double lerpAngleRad(double fromRad, double toRad, double t)
+// Spherical linear interpolation between two unit quaternions.
+// Picks the short-arc path (flips q2 if the dot product is negative)
+// and falls back to normalized lerp when the quaternions are nearly
+// aligned to avoid numerical blow-up near theta = 0.
+static MQuaternion qSlerp(const MQuaternion& q1,
+                          const MQuaternion& q2,
+                          double t)
 {
-    double delta = toRad - fromRad;
-    while (delta >  M_PI) delta -= 2.0 * M_PI;
-    while (delta < -M_PI) delta += 2.0 * M_PI;
-    return fromRad + delta * t;
+    double dot = q1.x * q2.x + q1.y * q2.y + q1.z * q2.z + q1.w * q2.w;
+    MQuaternion q2b = q2;
+    if (dot < 0.0) {
+        q2b.x = -q2b.x; q2b.y = -q2b.y;
+        q2b.z = -q2b.z; q2b.w = -q2b.w;
+        dot = -dot;
+    }
+    MQuaternion r;
+    if (dot > 0.9995) {
+        r.x = q1.x + t * (q2b.x - q1.x);
+        r.y = q1.y + t * (q2b.y - q1.y);
+        r.z = q1.z + t * (q2b.z - q1.z);
+        r.w = q1.w + t * (q2b.w - q1.w);
+        r.normalizeIt();
+        return r;
+    }
+    double theta    = std::acos(dot);
+    double sinTheta = std::sin(theta);
+    double a = std::sin((1.0 - t) * theta) / sinTheta;
+    double b = std::sin(       t  * theta) / sinTheta;
+    r.x = a * q1.x + b * q2b.x;
+    r.y = a * q1.y + b * q2b.y;
+    r.z = a * q1.z + b * q2b.z;
+    r.w = a * q1.w + b * q2b.w;
+    return r;
 }
 
 // Compute ∫_0^1 dt / mult(t) for the chosen decel curve (with floor).
@@ -147,14 +172,18 @@ static const char* kPathDecelPctFlag       = "-pdp";
 static const char* kPathDecelPctFlagLong   = "-pathDecelPct";
 static const char* kPathDecelModeFlag      = "-pdm";
 static const char* kPathDecelModeFlagLong  = "-pathDecelMode";
-static const char* kPathYawBlendFlag        = "-pyb";
-static const char* kPathYawBlendFlagLong    = "-pathYawBlend";
-static const char* kPathYawAngleFlag        = "-pya";
-static const char* kPathYawAngleFlagLong    = "-pathYawAngle";
-static const char* kPathYawPctFlag          = "-pyp";
-static const char* kPathYawPctFlagLong      = "-pathYawPct";
-static const char* kPathYawModeFlag         = "-pym";
-static const char* kPathYawModeFlagLong     = "-pathYawMode";
+static const char* kPathAngleBlendFlag      = "-pab";
+static const char* kPathAngleBlendFlagLong  = "-pathAngleBlend";
+static const char* kPathBlendRollFlag       = "-par";
+static const char* kPathBlendRollFlagLong   = "-pathBlendRoll";
+static const char* kPathBlendPitchFlag      = "-pap";
+static const char* kPathBlendPitchFlagLong  = "-pathBlendPitch";
+static const char* kPathBlendYawFlag        = "-pay";
+static const char* kPathBlendYawFlagLong    = "-pathBlendYaw";
+static const char* kPathBlendPctFlag        = "-pbp";
+static const char* kPathBlendPctFlagLong    = "-pathBlendPct";
+static const char* kPathBlendModeFlag       = "-pbm";
+static const char* kPathBlendModeFlagLong   = "-pathBlendMode";
 static const char* kVelocityFlag          = "-v";
 static const char* kVelocityFlagLong      = "-velocity";
 static const char* kHoverPosXFlag      = "-hpx";
@@ -226,10 +255,12 @@ MSyntax BFSimulateCmd::newSyntax()
     syntax.addFlag(kPathDecelFlag,     kPathDecelFlagLong,     MSyntax::kBoolean);
     syntax.addFlag(kPathDecelPctFlag,  kPathDecelPctFlagLong,  MSyntax::kDouble);
     syntax.addFlag(kPathDecelModeFlag, kPathDecelModeFlagLong, MSyntax::kLong);
-    syntax.addFlag(kPathYawBlendFlag,  kPathYawBlendFlagLong,  MSyntax::kBoolean);
-    syntax.addFlag(kPathYawAngleFlag,  kPathYawAngleFlagLong,  MSyntax::kDouble);
-    syntax.addFlag(kPathYawPctFlag,    kPathYawPctFlagLong,    MSyntax::kDouble);
-    syntax.addFlag(kPathYawModeFlag,   kPathYawModeFlagLong,   MSyntax::kLong);
+    syntax.addFlag(kPathAngleBlendFlag, kPathAngleBlendFlagLong, MSyntax::kBoolean);
+    syntax.addFlag(kPathBlendRollFlag,  kPathBlendRollFlagLong,  MSyntax::kDouble);
+    syntax.addFlag(kPathBlendPitchFlag, kPathBlendPitchFlagLong, MSyntax::kDouble);
+    syntax.addFlag(kPathBlendYawFlag,   kPathBlendYawFlagLong,   MSyntax::kDouble);
+    syntax.addFlag(kPathBlendPctFlag,   kPathBlendPctFlagLong,   MSyntax::kDouble);
+    syntax.addFlag(kPathBlendModeFlag,  kPathBlendModeFlagLong,  MSyntax::kLong);
     syntax.addFlag(kVelocityFlag, kVelocityFlagLong, MSyntax::kDouble);
     syntax.addFlag(kHoverPosXFlag, kHoverPosXFlagLong, MSyntax::kDouble);
     syntax.addFlag(kHoverPosYFlag, kHoverPosYFlagLong, MSyntax::kDouble);
@@ -1188,27 +1219,45 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
     if (pathDecelPct > 100.0) pathDecelPct = 100.0;
     const double pathDecelStartFrac = 1.0 - pathDecelPct / 100.0;
 
-    // Path yaw blend: over the last pathYawPct% of the curve, blend the
-    // butterfly's heading away from the curve tangent toward a
-    // user-specified final yaw angle (degrees, Maya Y-axis).  Intended
-    // to pair with path deceleration for a controlled stop.
-    // pathYawMode: 0 = linear, 1 = exponential (default).
-    bool   pathYawBlend   = false;
-    double pathYawAngleDeg = 0.0;
-    double pathYawPct     = 10.0;
-    int    pathYawMode    = 1;
-    if (argData.isFlagSet(kPathYawBlendFlag))
-        argData.getFlagArgument(kPathYawBlendFlag, 0, pathYawBlend);
-    if (argData.isFlagSet(kPathYawAngleFlag))
-        argData.getFlagArgument(kPathYawAngleFlag, 0, pathYawAngleDeg);
-    if (argData.isFlagSet(kPathYawPctFlag))
-        argData.getFlagArgument(kPathYawPctFlag, 0, pathYawPct);
-    if (argData.isFlagSet(kPathYawModeFlag))
-        argData.getFlagArgument(kPathYawModeFlag, 0, pathYawMode);
-    if (pathYawPct < 0.1)   pathYawPct = 0.1;
-    if (pathYawPct > 100.0) pathYawPct = 100.0;
-    const double pathYawStartFrac  = 1.0 - pathYawPct / 100.0;
-    const double pathYawTargetRad  = deg2rad(pathYawAngleDeg);
+    // Path angle blend: over the last pathBlendPct% of the curve,
+    // apply a local-space rotation OFFSET on top of the path-derived
+    // thorax rotation, ramped from identity at blend start to the
+    // user-specified (roll, pitch, yaw) at blend end.  Quaternion
+    // slerp is used for the ramp; the offset is composed in the
+    // joint's local frame as finalQ = pathQ * offsetQ_at_factor.
+    //   Axis convention on BF_thorax (matches hover mode):
+    //     "Roll"  → rotateX (slot 0)
+    //     "Yaw"   → rotateY (slot 1)
+    //     "Pitch" → rotateZ (slot 2)
+    //   pathBlendMode: 0 = linear, 1 = exponential (default).
+    bool   pathAngleBlend    = false;
+    double pathBlendRollDeg  = 0.0;
+    double pathBlendPitchDeg = 0.0;
+    double pathBlendYawDeg   = 0.0;
+    double pathBlendPct      = 10.0;
+    int    pathBlendMode     = 1;
+    if (argData.isFlagSet(kPathAngleBlendFlag))
+        argData.getFlagArgument(kPathAngleBlendFlag, 0, pathAngleBlend);
+    if (argData.isFlagSet(kPathBlendRollFlag))
+        argData.getFlagArgument(kPathBlendRollFlag, 0, pathBlendRollDeg);
+    if (argData.isFlagSet(kPathBlendPitchFlag))
+        argData.getFlagArgument(kPathBlendPitchFlag, 0, pathBlendPitchDeg);
+    if (argData.isFlagSet(kPathBlendYawFlag))
+        argData.getFlagArgument(kPathBlendYawFlag, 0, pathBlendYawDeg);
+    if (argData.isFlagSet(kPathBlendPctFlag))
+        argData.getFlagArgument(kPathBlendPctFlag, 0, pathBlendPct);
+    if (argData.isFlagSet(kPathBlendModeFlag))
+        argData.getFlagArgument(kPathBlendModeFlag, 0, pathBlendMode);
+    if (pathBlendPct < 0.1)   pathBlendPct = 0.1;
+    if (pathBlendPct > 100.0) pathBlendPct = 100.0;
+    const double pathBlendStartFrac = 1.0 - pathBlendPct / 100.0;
+    // Build the full offset quaternion from local XYZ Euler.
+    // Slot mapping per the rig convention above (Roll→X, Yaw→Y, Pitch→Z).
+    const MQuaternion pathBlendTargetQ =
+        MEulerRotation(deg2rad(pathBlendRollDeg),
+                       deg2rad(pathBlendYawDeg),
+                       deg2rad(pathBlendPitchDeg),
+                       MEulerRotation::kXYZ).asQuaternion();
 
     // ---- Detect hover mode (mode == 4) ----------------------------
     bool hoverMode = false;
@@ -1824,8 +1873,14 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
     }
 
     // ---- Simulation loop (full dynamics) ---------------------
+    //  Path angle-blend state: updated per substep inside the loop;
+    //  consumed once per frame after writeAllKeys to override the
+    //  thorax key with the blended pose.
+    bool        pathBlendApplied = false;
+    MQuaternion pathBlendedThoraxQ;
     for (int f = startFrame; f < startFrame + duration; ++f) {
 
+        pathBlendApplied = false;
         // Run multiple physics substeps per output frame so that
         // wing kinematics and body dynamics are fps-independent.
         for (int s = 0; s < substeps; ++s) {
@@ -1977,21 +2032,38 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
                     if (std::sqrt(tx * tx + tz * tz) > 1e-6)
                         m_state.heading = std::atan2(-tx, -tz);
 
-                    // Optional yaw blend: over the last pathYawPct% of
-                    // the curve, blend from the tangent-derived heading
-                    // toward a user-specified final yaw angle so the
-                    // butterfly ends facing a desired direction
-                    // regardless of the curve's end-tangent.
-                    if (pathYawBlend && totalCurveLen > 1e-6) {
+                    // Optional angle blend: over the last pathBlendPct%
+                    // of the curve, apply a user-specified local
+                    // rotation OFFSET on top of the path-derived thorax
+                    // pose, ramped from identity (factor 0) to the full
+                    // target offset (factor 1) via quaternion slerp.
+                    // Composition is local: finalQ = pathQ * offsetQ.
+                    // This preserves the existing wing-bob (thetaBeta)
+                    // and curve-tangent yaw and only adds the target on
+                    // top, instead of replacing them.
+                    if (pathAngleBlend && totalCurveLen > 1e-6) {
                         double progress = arcCursor / totalCurveLen;
-                        if (progress > pathYawStartFrac) {
-                            double tBlend = (progress - pathYawStartFrac) /
-                                            (1.0 - pathYawStartFrac);
-                            double factor = evalYawBlendFactor(tBlend,
-                                                               pathYawMode);
-                            m_state.heading = lerpAngleRad(m_state.heading,
-                                                           pathYawTargetRad,
-                                                           factor);
+                        if (progress > pathBlendStartFrac) {
+                            double tBlend = (progress - pathBlendStartFrac) /
+                                            (1.0 - pathBlendStartFrac);
+                            double factor = evalBlendFactor(tBlend,
+                                                            pathBlendMode);
+                            MQuaternion pathQ = MEulerRotation(
+                                deg2rad(m_state.angles.thetaBeta),
+                                m_state.heading,
+                                0.0,
+                                MEulerRotation::kXYZ).asQuaternion();
+                            // Slerp from identity to full offset.
+                            MQuaternion identityQ;  // default = identity
+                            MQuaternion partialOffsetQ =
+                                qSlerp(identityQ, pathBlendTargetQ, factor);
+                            // Apply offset in local frame (right-multiply).
+                            pathBlendedThoraxQ = pathQ * partialOffsetQ;
+                            pathBlendApplied = true;
+                            // Sync heading to the blended yaw so the
+                            // camera and free-flight transition use it.
+                            m_state.heading =
+                                pathBlendedThoraxQ.asEulerRotation().y;
                         }
                     }
 
@@ -2068,6 +2140,15 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
                     m_state.heading,
                     hoverRollRad),
                 frameTime);
+        }
+
+        // Path angle blend: if the final substep of this frame landed
+        // inside the blend window, overwrite the thorax key with the
+        // slerp-blended pose (full local roll/pitch/yaw, not just yaw).
+        if (pathBlendApplied) {
+            writeRotationKey(m_state.skeleton.joints[kThorax],
+                             pathBlendedThoraxQ.asEulerRotation(),
+                             frameTime);
         }
         MPoint posCm(m_state.position.x * kMToCm,
                      m_state.position.y * kMToCm,

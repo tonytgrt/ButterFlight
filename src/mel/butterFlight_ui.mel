@@ -22,10 +22,12 @@ global string $bf_pathNoiseAmpField;
 global string $bf_pathDecelCheck;
 global string $bf_pathDecelPctField;
 global string $bf_pathDecelModeMenu;
-global string $bf_pathYawBlendCheck;
-global string $bf_pathYawAngleField;
-global string $bf_pathYawPctField;
-global string $bf_pathYawModeMenu;
+global string $bf_pathAngleBlendCheck;
+global string $bf_pathBlendRollField;
+global string $bf_pathBlendPitchField;
+global string $bf_pathBlendYawField;
+global string $bf_pathBlendPctField;
+global string $bf_pathBlendModeMenu;
 
 // Butterfly velocity (applies to free flight and path following)
 global string $bf_velocityField;
@@ -312,45 +314,65 @@ global proc butterFlightUI()
                 optionMenuGrp -edit -select 2 $bf_pathDecelModeMenu;
 
                 separator -height 6 -style "in";
-                text -label "Yaw Blend:" -align "left" -font "boldLabelFont";
+                text -label "Angle Blend:" -align "left" -font "boldLabelFont";
 
-                global string $bf_pathYawBlendCheck;
-                $bf_pathYawBlendCheck = `checkBoxGrp
-                    -label "Enable Yaw Blend"
+                global string $bf_pathAngleBlendCheck;
+                $bf_pathAngleBlendCheck = `checkBoxGrp
+                    -label "Enable Angle Blend"
                     -value1 false
-                    -onCommand  "bfPathYawBlendToggle 1"
-                    -offCommand "bfPathYawBlendToggle 0"
-                    -annotation "Blend body yaw from the curve tangent toward a target angle over the last N% of the path"`;
+                    -onCommand  "bfPathAngleBlendToggle 1"
+                    -offCommand "bfPathAngleBlendToggle 0"
+                    -annotation "Quaternion-slerp body rotation from the curve tangent toward a target local (roll, pitch, yaw) over the last N% of the path"`;
 
-                global string $bf_pathYawAngleField;
-                $bf_pathYawAngleField = `floatFieldGrp
+                global string $bf_pathBlendRollField;
+                $bf_pathBlendRollField = `floatFieldGrp
+                    -label "Final Roll (deg)"
+                    -numberOfFields 1
+                    -value1 0.0
+                    -precision 2
+                    -enable false
+                    -annotation "Target local roll (rotateZ) on the final frame"
+                    -columnWidth2 140 140`;
+
+                global string $bf_pathBlendPitchField;
+                $bf_pathBlendPitchField = `floatFieldGrp
+                    -label "Final Pitch (deg)"
+                    -numberOfFields 1
+                    -value1 0.0
+                    -precision 2
+                    -enable false
+                    -annotation "Target local pitch (rotateX) on the final frame"
+                    -columnWidth2 140 140`;
+
+                global string $bf_pathBlendYawField;
+                $bf_pathBlendYawField = `floatFieldGrp
                     -label "Final Yaw (deg)"
                     -numberOfFields 1
                     -value1 0.0
                     -precision 2
                     -enable false
-                    -annotation "Target BF_body yaw angle on the final frame (Maya Y axis, degrees)"
+                    -annotation "Target local yaw (rotateY) on the final frame"
                     -columnWidth2 140 140`;
 
-                global string $bf_pathYawPctField;
-                $bf_pathYawPctField = `floatFieldGrp
+                global string $bf_pathBlendPctField;
+                $bf_pathBlendPctField = `floatFieldGrp
                     -label "Blend Window (%)"
                     -numberOfFields 1
                     -value1 10.0
                     -precision 2
                     -enable false
-                    -annotation "Size of the yaw blend window as a percentage of the total path (e.g. 10 = last 10% of the path)"
+                    -annotation "Size of the angle blend window as a percentage of the total path (e.g. 10 = last 10% of the path)"
                     -columnWidth2 140 140`;
 
-                global string $bf_pathYawModeMenu;
-                $bf_pathYawModeMenu = `optionMenuGrp
+                global string $bf_pathBlendModeMenu;
+                $bf_pathBlendModeMenu = `optionMenuGrp
                     -label "Blend Mode"
                     -enable false
                     -annotation "Linear = constant turn rate; Exponential = quick initial turn then gentle settle"
                     -columnWidth2 140 160`;
                     menuItem -label "Linear";
                     menuItem -label "Exponential";
-                optionMenuGrp -edit -select 2 $bf_pathYawModeMenu;
+                optionMenuGrp -edit -select 2 $bf_pathBlendModeMenu;
 
             setParent ..;
         setParent ..;
@@ -996,16 +1018,20 @@ global proc bfPathDecelToggle(int $state)
 
 
 // ============================================================
-// Callback: Path Yaw Blend enable toggled
+// Callback: Path Angle Blend enable toggled
 // ============================================================
-global proc bfPathYawBlendToggle(int $state)
+global proc bfPathAngleBlendToggle(int $state)
 {
-    global string $bf_pathYawAngleField;
-    global string $bf_pathYawPctField;
-    global string $bf_pathYawModeMenu;
-    floatFieldGrp -edit -enable $state $bf_pathYawAngleField;
-    floatFieldGrp -edit -enable $state $bf_pathYawPctField;
-    optionMenuGrp -edit -enable $state $bf_pathYawModeMenu;
+    global string $bf_pathBlendRollField;
+    global string $bf_pathBlendPitchField;
+    global string $bf_pathBlendYawField;
+    global string $bf_pathBlendPctField;
+    global string $bf_pathBlendModeMenu;
+    floatFieldGrp -edit -enable $state $bf_pathBlendRollField;
+    floatFieldGrp -edit -enable $state $bf_pathBlendPitchField;
+    floatFieldGrp -edit -enable $state $bf_pathBlendYawField;
+    floatFieldGrp -edit -enable $state $bf_pathBlendPctField;
+    optionMenuGrp -edit -enable $state $bf_pathBlendModeMenu;
 }
 
 
@@ -1268,10 +1294,12 @@ global proc bfSimulateCallback()
     global string $bf_pathDecelCheck;
     global string $bf_pathDecelPctField;
     global string $bf_pathDecelModeMenu;
-    global string $bf_pathYawBlendCheck;
-    global string $bf_pathYawAngleField;
-    global string $bf_pathYawPctField;
-    global string $bf_pathYawModeMenu;
+    global string $bf_pathAngleBlendCheck;
+    global string $bf_pathBlendRollField;
+    global string $bf_pathBlendPitchField;
+    global string $bf_pathBlendYawField;
+    global string $bf_pathBlendPctField;
+    global string $bf_pathBlendModeMenu;
     global string $bf_velocityField;
     global string $bf_hoverUseRigCheck;
     global string $bf_hoverPosXField;
@@ -1374,16 +1402,20 @@ global proc bfSimulateCallback()
             int $pdmCpp = $pdm - 1;
             $pathFlag += " -pathDecelPct " + $pdp + " -pathDecelMode " + $pdmCpp;
         }
-        int $pYaw = `checkBoxGrp -query -value1 $bf_pathYawBlendCheck`;
-        $pathFlag += " -pathYawBlend " + $pYaw;
-        if ($pYaw) {
-            float $pya = `floatFieldGrp -query -value1 $bf_pathYawAngleField`;
-            float $pyp = `floatFieldGrp -query -value1 $bf_pathYawPctField`;
-            int   $pym = `optionMenuGrp -query -select $bf_pathYawModeMenu`;
-            int $pymCpp = $pym - 1;
-            $pathFlag += " -pathYawAngle " + $pya
-                       + " -pathYawPct "   + $pyp
-                       + " -pathYawMode "  + $pymCpp;
+        int $pAB = `checkBoxGrp -query -value1 $bf_pathAngleBlendCheck`;
+        $pathFlag += " -pathAngleBlend " + $pAB;
+        if ($pAB) {
+            float $pbr = `floatFieldGrp -query -value1 $bf_pathBlendRollField`;
+            float $pbt = `floatFieldGrp -query -value1 $bf_pathBlendPitchField`;
+            float $pby = `floatFieldGrp -query -value1 $bf_pathBlendYawField`;
+            float $pbp = `floatFieldGrp -query -value1 $bf_pathBlendPctField`;
+            int   $pbm = `optionMenuGrp -query -select $bf_pathBlendModeMenu`;
+            int $pbmCpp = $pbm - 1;
+            $pathFlag += " -pathBlendRoll "  + $pbr
+                       + " -pathBlendPitch " + $pbt
+                       + " -pathBlendYaw "   + $pby
+                       + " -pathBlendPct "   + $pbp
+                       + " -pathBlendMode "  + $pbmCpp;
         }
     }
 
@@ -1584,10 +1616,12 @@ global proc bfReset()
     global string $bf_pathDecelCheck;
     global string $bf_pathDecelPctField;
     global string $bf_pathDecelModeMenu;
-    global string $bf_pathYawBlendCheck;
-    global string $bf_pathYawAngleField;
-    global string $bf_pathYawPctField;
-    global string $bf_pathYawModeMenu;
+    global string $bf_pathAngleBlendCheck;
+    global string $bf_pathBlendRollField;
+    global string $bf_pathBlendPitchField;
+    global string $bf_pathBlendYawField;
+    global string $bf_pathBlendPctField;
+    global string $bf_pathBlendModeMenu;
     global string $bf_velocityField;
     global string $bf_speciesMenu;
     global string $bf_modeMenu;
@@ -1641,11 +1675,13 @@ global proc bfReset()
     floatFieldGrp       -edit -value1 10.0  $bf_pathDecelPctField;
     optionMenuGrp       -edit -select 2     $bf_pathDecelModeMenu;
     bfPathDecelToggle 0;
-    checkBoxGrp         -edit -value1 false $bf_pathYawBlendCheck;
-    floatFieldGrp       -edit -value1 0.0   $bf_pathYawAngleField;
-    floatFieldGrp       -edit -value1 10.0  $bf_pathYawPctField;
-    optionMenuGrp       -edit -select 2     $bf_pathYawModeMenu;
-    bfPathYawBlendToggle 0;
+    checkBoxGrp         -edit -value1 false $bf_pathAngleBlendCheck;
+    floatFieldGrp       -edit -value1 0.0   $bf_pathBlendRollField;
+    floatFieldGrp       -edit -value1 0.0   $bf_pathBlendPitchField;
+    floatFieldGrp       -edit -value1 0.0   $bf_pathBlendYawField;
+    floatFieldGrp       -edit -value1 10.0  $bf_pathBlendPctField;
+    optionMenuGrp       -edit -select 2     $bf_pathBlendModeMenu;
+    bfPathAngleBlendToggle 0;
     floatFieldGrp       -edit -value1 0.5 $bf_velocityField;
 
     checkBoxGrp         -edit -value1 true $bf_hoverUseRigCheck;
