@@ -2,7 +2,7 @@
 #
 # Version:  C:/Program Files/Autodesk/Maya2026/plug-ins/xgen/
 # Author:   24112
-# Date:     Sun Apr 19 12:43:54 2026
+# Date:     Sun Apr 19 21:37:36 2026
 
 FileVersion 18
 
@@ -80,7 +80,7 @@ RendermanRenderer
 	custom__arnold_useAuxRenderPatch	0
 	custom__arnold_auxRenderPatch	0
 	custom__arnold_multithreading	0
-	custom_color_grassColor	 [rand(0,0.5), rand(0.3, 0.8),rand(0,0.2)]
+	custom_color_grassColor	[rand(0,0.5), rand(0.3, 0.8),rand(0,0.2)]
 	endAttrs
 
 SplinePrimitive
