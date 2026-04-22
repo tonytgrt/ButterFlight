@@ -75,6 +75,12 @@ static const char* kPathNoiseAmpFlag      = "-pna";
 static const char* kPathNoiseAmpFlagLong  = "-pathNoiseAmp";
 static const char* kPathFromStartFlag     = "-pfs";
 static const char* kPathFromStartFlagLong = "-pathFromStart";
+static const char* kPathDecelFlag          = "-pdc";
+static const char* kPathDecelFlagLong      = "-pathDecel";
+static const char* kPathDecelPctFlag       = "-pdp";
+static const char* kPathDecelPctFlagLong   = "-pathDecelPct";
+static const char* kPathDecelModeFlag      = "-pdm";
+static const char* kPathDecelModeFlagLong  = "-pathDecelMode";
 static const char* kVelocityFlag          = "-v";
 static const char* kVelocityFlagLong      = "-velocity";
 static const char* kHoverPosXFlag      = "-hpx";
@@ -143,6 +149,9 @@ MSyntax BFSimulateCmd::newSyntax()
     syntax.addFlag(kPathNoiseFlag, kPathNoiseFlagLong, MSyntax::kBoolean);
     syntax.addFlag(kPathNoiseAmpFlag, kPathNoiseAmpFlagLong, MSyntax::kDouble);
     syntax.addFlag(kPathFromStartFlag, kPathFromStartFlagLong, MSyntax::kBoolean);
+    syntax.addFlag(kPathDecelFlag,     kPathDecelFlagLong,     MSyntax::kBoolean);
+    syntax.addFlag(kPathDecelPctFlag,  kPathDecelPctFlagLong,  MSyntax::kDouble);
+    syntax.addFlag(kPathDecelModeFlag, kPathDecelModeFlagLong, MSyntax::kLong);
     syntax.addFlag(kVelocityFlag, kVelocityFlagLong, MSyntax::kDouble);
     syntax.addFlag(kHoverPosXFlag, kHoverPosXFlagLong, MSyntax::kDouble);
     syntax.addFlag(kHoverPosYFlag, kHoverPosYFlagLong, MSyntax::kDouble);
@@ -1083,6 +1092,24 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
     if (argData.isFlagSet(kPathFromStartFlag))
         argData.getFlagArgument(kPathFromStartFlag, 0, pathFromStart);
 
+    // Path deceleration: smoothly fade cursor rate to zero near the end
+    // of the curve so the butterfly comes to rest instead of coasting
+    // at full speed on the last frame.  pathDecelPct is the size of the
+    // decel window as a percentage of the full curve (e.g. 10 = last 10%).
+    // pathDecelMode: 0 = linear fade, 1 = exponential fade (default).
+    bool   pathDecel     = false;
+    double pathDecelPct  = 10.0;
+    int    pathDecelMode = 1;
+    if (argData.isFlagSet(kPathDecelFlag))
+        argData.getFlagArgument(kPathDecelFlag, 0, pathDecel);
+    if (argData.isFlagSet(kPathDecelPctFlag))
+        argData.getFlagArgument(kPathDecelPctFlag, 0, pathDecelPct);
+    if (argData.isFlagSet(kPathDecelModeFlag))
+        argData.getFlagArgument(kPathDecelModeFlag, 0, pathDecelMode);
+    if (pathDecelPct < 0.1)   pathDecelPct = 0.1;
+    if (pathDecelPct > 100.0) pathDecelPct = 100.0;
+    const double pathDecelStartFrac = 1.0 - pathDecelPct / 100.0;
+
     // ---- Detect hover mode (mode == 4) ----------------------------
     bool hoverMode = false;
     bool hoverHasCustomPos = false;
@@ -1734,8 +1761,32 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
 
                 // 3b. Path-following: time-based cursor steering.
                 if (pathActive) {
+                    // Optional deceleration: fade the per-substep arc
+                    // advance to zero over the last pathDecelPct% of the
+                    // curve so the butterfly comes to rest at the end
+                    // instead of still moving on the last frame.
+                    double effectiveArcRate = arcRate;
+                    if (pathDecel && totalCurveLen > 1e-6) {
+                        double progress = arcCursor / totalCurveLen;
+                        if (progress > pathDecelStartFrac) {
+                            double tDecel = (progress - pathDecelStartFrac) /
+                                            (1.0 - pathDecelStartFrac);
+                            if (tDecel > 1.0) tDecel = 1.0;
+                            double mult;
+                            if (pathDecelMode == 0) {
+                                mult = 1.0 - tDecel;
+                            } else {
+                                const double k = 3.0;
+                                mult = (std::exp(-k * tDecel) - std::exp(-k))
+                                     / (1.0 - std::exp(-k));
+                            }
+                            if (mult < 0.0) mult = 0.0;
+                            effectiveArcRate = arcRate * mult;
+                        }
+                    }
+
                     // Advance cursor (time-based, not position-based)
-                    arcCursor += arcRate;
+                    arcCursor += effectiveArcRate;
                     if (arcCursor > totalCurveLen) arcCursor = totalCurveLen;
 
                     double uTarget = curveFn.findParamFromLength(arcCursor);
@@ -1785,7 +1836,7 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
                     // cursor rate controls effective speed, not physics.
                     MVector desiredVel = toTarget * 15.0;
                     // Add tangent bias so direction stays smooth on curves
-                    double tangentBias = arcRate * kCmToM / simDt * 0.3;
+                    double tangentBias = effectiveArcRate * kCmToM / simDt * 0.3;
                     desiredVel += tangent * tangentBias;
 
                     // Blend toward desired (higher rate for tighter tracking)

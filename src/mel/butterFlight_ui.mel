@@ -19,6 +19,9 @@ global string $bf_pathSpeedEnableCheck;
 global string $bf_pathSpeedField;
 global string $bf_pathNoiseCheck;
 global string $bf_pathNoiseAmpField;
+global string $bf_pathDecelCheck;
+global string $bf_pathDecelPctField;
+global string $bf_pathDecelModeMenu;
 
 // Butterfly velocity (applies to free flight and path following)
 global string $bf_velocityField;
@@ -272,6 +275,37 @@ global proc butterFlightUI()
                     -precision 2
                     -annotation "Lateral swing amplitude in Maya cm"
                     -columnWidth2 140 140`;
+
+                separator -height 6 -style "in";
+                text -label "Deceleration:" -align "left" -font "boldLabelFont";
+
+                global string $bf_pathDecelCheck;
+                $bf_pathDecelCheck = `checkBoxGrp
+                    -label "Enable Deceleration"
+                    -value1 false
+                    -onCommand  "bfPathDecelToggle 1"
+                    -offCommand "bfPathDecelToggle 0"
+                    -annotation "Smoothly fade cursor speed to zero near the end of the path so the butterfly comes to rest instead of still moving on the final frame"`;
+
+                global string $bf_pathDecelPctField;
+                $bf_pathDecelPctField = `floatFieldGrp
+                    -label "Decel Window (%)"
+                    -numberOfFields 1
+                    -value1 10.0
+                    -precision 2
+                    -enable false
+                    -annotation "Size of the decel window as a percentage of the total path (e.g. 10 = last 10% of the path is the decel zone)"
+                    -columnWidth2 140 140`;
+
+                global string $bf_pathDecelModeMenu;
+                $bf_pathDecelModeMenu = `optionMenuGrp
+                    -label "Fade Mode"
+                    -enable false
+                    -annotation "Linear = constant deceleration; Exponential = quick initial slowdown then gentle tail"
+                    -columnWidth2 140 160`;
+                    menuItem -label "Linear";
+                    menuItem -label "Exponential";
+                optionMenuGrp -edit -select 2 $bf_pathDecelModeMenu;
 
             setParent ..;
         setParent ..;
@@ -905,6 +939,18 @@ global proc bfPathSpeedToggle(int $state)
 
 
 // ============================================================
+// Callback: Path Deceleration enable toggled
+// ============================================================
+global proc bfPathDecelToggle(int $state)
+{
+    global string $bf_pathDecelPctField;
+    global string $bf_pathDecelModeMenu;
+    floatFieldGrp -edit -enable $state $bf_pathDecelPctField;
+    optionMenuGrp -edit -enable $state $bf_pathDecelModeMenu;
+}
+
+
+// ============================================================
 // Helper: recompute Velocity-field enable state
 // Velocity is disabled only when Path Following mode is active AND
 // the Use Path Speed Scale toggle is on.
@@ -1160,6 +1206,9 @@ global proc bfSimulateCallback()
     global string $bf_pathSpeedField;
     global string $bf_pathNoiseCheck;
     global string $bf_pathNoiseAmpField;
+    global string $bf_pathDecelCheck;
+    global string $bf_pathDecelPctField;
+    global string $bf_pathDecelModeMenu;
     global string $bf_velocityField;
     global string $bf_hoverUseRigCheck;
     global string $bf_hoverPosXField;
@@ -1251,6 +1300,16 @@ global proc bfSimulateCallback()
         if ($pNoise) {
             float $pnAmp = `floatFieldGrp -query -value1 $bf_pathNoiseAmpField`;
             $pathFlag += " -pathNoiseAmp " + $pnAmp;
+        }
+        int $pDecel = `checkBoxGrp -query -value1 $bf_pathDecelCheck`;
+        $pathFlag += " -pathDecel " + $pDecel;
+        if ($pDecel) {
+            float $pdp = `floatFieldGrp -query -value1 $bf_pathDecelPctField`;
+            int   $pdm = `optionMenuGrp -query -select $bf_pathDecelModeMenu`;
+            // Menu is 1-indexed (1=Linear, 2=Exponential);
+            // C++ expects 0=linear, 1=exponential.
+            int $pdmCpp = $pdm - 1;
+            $pathFlag += " -pathDecelPct " + $pdp + " -pathDecelMode " + $pdmCpp;
         }
     }
 
@@ -1448,6 +1507,9 @@ global proc bfReset()
     global string $bf_pathSpeedField;
     global string $bf_pathNoiseCheck;
     global string $bf_pathNoiseAmpField;
+    global string $bf_pathDecelCheck;
+    global string $bf_pathDecelPctField;
+    global string $bf_pathDecelModeMenu;
     global string $bf_velocityField;
     global string $bf_speciesMenu;
     global string $bf_modeMenu;
@@ -1497,6 +1559,10 @@ global proc bfReset()
     bfPathSpeedToggle 0;
     checkBoxGrp         -edit -value1 false $bf_pathNoiseCheck;
     floatFieldGrp       -edit -value1 5.0 $bf_pathNoiseAmpField;
+    checkBoxGrp         -edit -value1 false $bf_pathDecelCheck;
+    floatFieldGrp       -edit -value1 10.0  $bf_pathDecelPctField;
+    optionMenuGrp       -edit -select 2     $bf_pathDecelModeMenu;
+    bfPathDecelToggle 0;
     floatFieldGrp       -edit -value1 0.5 $bf_velocityField;
 
     checkBoxGrp         -edit -value1 true $bf_hoverUseRigCheck;
