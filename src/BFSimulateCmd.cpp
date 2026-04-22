@@ -71,6 +71,32 @@ static double evalDecelMult(double tDecel, int mode)
     return m;
 }
 
+// Evaluate the yaw-blend factor for a normalized progress t ∈ [0, 1]
+// through the blend window.  Returns 0 at blend start (use path
+// heading) and 1 at blend end (use target yaw).
+// Mode: 0 = linear, 1 = exponential ease-out (fast start, slow end).
+static double evalYawBlendFactor(double tBlend, int mode)
+{
+    if (tBlend < 0.0) tBlend = 0.0;
+    if (tBlend > 1.0) tBlend = 1.0;
+    if (mode == 0) {
+        return tBlend;
+    }
+    // Normalized (1 - exp(-k*t)) so factor(0)=0, factor(1)=1.
+    const double k = 3.0;
+    return (1.0 - std::exp(-k * tBlend)) / (1.0 - std::exp(-k));
+}
+
+// Shortest-path lerp between two angles in radians.  Interpolates
+// through the [-π, π] delta rather than going the long way around.
+static double lerpAngleRad(double fromRad, double toRad, double t)
+{
+    double delta = toRad - fromRad;
+    while (delta >  M_PI) delta -= 2.0 * M_PI;
+    while (delta < -M_PI) delta += 2.0 * M_PI;
+    return fromRad + delta * t;
+}
+
 // Compute ∫_0^1 dt / mult(t) for the chosen decel curve (with floor).
 // Used to convert decel-zone arc length into equivalent substep count
 // when solving for the arcRate that makes the cursor reach the curve
@@ -121,6 +147,14 @@ static const char* kPathDecelPctFlag       = "-pdp";
 static const char* kPathDecelPctFlagLong   = "-pathDecelPct";
 static const char* kPathDecelModeFlag      = "-pdm";
 static const char* kPathDecelModeFlagLong  = "-pathDecelMode";
+static const char* kPathYawBlendFlag        = "-pyb";
+static const char* kPathYawBlendFlagLong    = "-pathYawBlend";
+static const char* kPathYawAngleFlag        = "-pya";
+static const char* kPathYawAngleFlagLong    = "-pathYawAngle";
+static const char* kPathYawPctFlag          = "-pyp";
+static const char* kPathYawPctFlagLong      = "-pathYawPct";
+static const char* kPathYawModeFlag         = "-pym";
+static const char* kPathYawModeFlagLong     = "-pathYawMode";
 static const char* kVelocityFlag          = "-v";
 static const char* kVelocityFlagLong      = "-velocity";
 static const char* kHoverPosXFlag      = "-hpx";
@@ -192,6 +226,10 @@ MSyntax BFSimulateCmd::newSyntax()
     syntax.addFlag(kPathDecelFlag,     kPathDecelFlagLong,     MSyntax::kBoolean);
     syntax.addFlag(kPathDecelPctFlag,  kPathDecelPctFlagLong,  MSyntax::kDouble);
     syntax.addFlag(kPathDecelModeFlag, kPathDecelModeFlagLong, MSyntax::kLong);
+    syntax.addFlag(kPathYawBlendFlag,  kPathYawBlendFlagLong,  MSyntax::kBoolean);
+    syntax.addFlag(kPathYawAngleFlag,  kPathYawAngleFlagLong,  MSyntax::kDouble);
+    syntax.addFlag(kPathYawPctFlag,    kPathYawPctFlagLong,    MSyntax::kDouble);
+    syntax.addFlag(kPathYawModeFlag,   kPathYawModeFlagLong,   MSyntax::kLong);
     syntax.addFlag(kVelocityFlag, kVelocityFlagLong, MSyntax::kDouble);
     syntax.addFlag(kHoverPosXFlag, kHoverPosXFlagLong, MSyntax::kDouble);
     syntax.addFlag(kHoverPosYFlag, kHoverPosYFlagLong, MSyntax::kDouble);
@@ -1150,6 +1188,28 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
     if (pathDecelPct > 100.0) pathDecelPct = 100.0;
     const double pathDecelStartFrac = 1.0 - pathDecelPct / 100.0;
 
+    // Path yaw blend: over the last pathYawPct% of the curve, blend the
+    // butterfly's heading away from the curve tangent toward a
+    // user-specified final yaw angle (degrees, Maya Y-axis).  Intended
+    // to pair with path deceleration for a controlled stop.
+    // pathYawMode: 0 = linear, 1 = exponential (default).
+    bool   pathYawBlend   = false;
+    double pathYawAngleDeg = 0.0;
+    double pathYawPct     = 10.0;
+    int    pathYawMode    = 1;
+    if (argData.isFlagSet(kPathYawBlendFlag))
+        argData.getFlagArgument(kPathYawBlendFlag, 0, pathYawBlend);
+    if (argData.isFlagSet(kPathYawAngleFlag))
+        argData.getFlagArgument(kPathYawAngleFlag, 0, pathYawAngleDeg);
+    if (argData.isFlagSet(kPathYawPctFlag))
+        argData.getFlagArgument(kPathYawPctFlag, 0, pathYawPct);
+    if (argData.isFlagSet(kPathYawModeFlag))
+        argData.getFlagArgument(kPathYawModeFlag, 0, pathYawMode);
+    if (pathYawPct < 0.1)   pathYawPct = 0.1;
+    if (pathYawPct > 100.0) pathYawPct = 100.0;
+    const double pathYawStartFrac  = 1.0 - pathYawPct / 100.0;
+    const double pathYawTargetRad  = deg2rad(pathYawAngleDeg);
+
     // ---- Detect hover mode (mode == 4) ----------------------------
     bool hoverMode = false;
     bool hoverHasCustomPos = false;
@@ -1916,6 +1976,24 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
                     double tx = tangent.x, tz = tangent.z;
                     if (std::sqrt(tx * tx + tz * tz) > 1e-6)
                         m_state.heading = std::atan2(-tx, -tz);
+
+                    // Optional yaw blend: over the last pathYawPct% of
+                    // the curve, blend from the tangent-derived heading
+                    // toward a user-specified final yaw angle so the
+                    // butterfly ends facing a desired direction
+                    // regardless of the curve's end-tangent.
+                    if (pathYawBlend && totalCurveLen > 1e-6) {
+                        double progress = arcCursor / totalCurveLen;
+                        if (progress > pathYawStartFrac) {
+                            double tBlend = (progress - pathYawStartFrac) /
+                                            (1.0 - pathYawStartFrac);
+                            double factor = evalYawBlendFactor(tBlend,
+                                                               pathYawMode);
+                            m_state.heading = lerpAngleRad(m_state.heading,
+                                                           pathYawTargetRad,
+                                                           factor);
+                        }
+                    }
 
                     // End-of-curve: transition to free flight
                     if (arcCursor >= totalCurveLen) {
