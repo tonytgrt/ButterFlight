@@ -46,6 +46,46 @@ static inline double deg2rad(double d) { return d * M_PI / 180.0; }
 static constexpr double kCmToM = 0.01;
 static constexpr double kMToCm = 100.0;
 
+// ---- Path deceleration tuning -------------------------------
+// Small velocity floor applied to the decel multiplier so the cursor
+// always advances (mult curves reach 0 at t=1 and would otherwise
+// asymptote, preventing the butterfly from ever reaching the curve end).
+static constexpr double kDecelMinMult = 0.05;
+
+// Evaluate the decel multiplier for a normalized progress t ∈ [0, 1]
+// through the decel zone, for the given mode (0 = linear, 1 = exp).
+// Applies the kDecelMinMult floor.
+static double evalDecelMult(double tDecel, int mode)
+{
+    if (tDecel < 0.0) tDecel = 0.0;
+    if (tDecel > 1.0) tDecel = 1.0;
+    double m;
+    if (mode == 0) {
+        m = 1.0 - tDecel;
+    } else {
+        const double k = 3.0;
+        m = (std::exp(-k * tDecel) - std::exp(-k))
+          / (1.0 - std::exp(-k));
+    }
+    if (m < kDecelMinMult) m = kDecelMinMult;
+    return m;
+}
+
+// Compute ∫_0^1 dt / mult(t) for the chosen decel curve (with floor).
+// Used to convert decel-zone arc length into equivalent substep count
+// when solving for the arcRate that makes the cursor reach the curve
+// end at the last frame under deceleration.
+static double computeDecelIntegral(int mode)
+{
+    const int kSamples = 512;
+    double sum = 0.0;
+    for (int i = 0; i < kSamples; ++i) {
+        double t = (i + 0.5) / (double)kSamples;
+        sum += 1.0 / evalDecelMult(t, mode);
+    }
+    return sum / (double)kSamples;
+}
+
 // ---- Command name registered with Maya ---------------------
 const char* BFSimulateCmd::kCommandName = "bfSimulate";
 
@@ -1642,9 +1682,40 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
             // full duration, multiplied by pathSpeedScale.  Scale=1.0 ⇒
             // reaches the curve end exactly at the last frame regardless
             // of where along the curve the butterfly started.
+            //
+            // When deceleration is enabled, the effective length the
+            // cursor needs to "consume" per substep grows because the
+            // cursor slows down in the decel zone.  We split the path
+            // into pre-decel (full speed) and decel zone (multiplier
+            // fades, integral-weighted) and compute the effective
+            // length so the cursor still reaches the curve end at the
+            // last frame under deceleration.
+            //
+            //   L_pre    = length traversed at full speed
+            //   L_decel  = length traversed under the fade curve
+            //   I        = ∫_0^1 dt/mult(t) for the selected curve
+            //   arcRate  = (L_pre + L_decel * I) / N * pathSpeedScale
             double remainingLen = totalCurveLen - arcCursor;
             if (remainingLen < 0.0) remainingLen = 0.0;
-            arcRate = remainingLen / ((double)duration * substeps) * pathSpeedScale;
+
+            double effectiveLen = remainingLen;
+            if (pathDecel && totalCurveLen > 1e-6) {
+                double decelStartLen = pathDecelStartFrac * totalCurveLen;
+                double lPre   = decelStartLen - arcCursor;
+                if (lPre < 0.0) lPre = 0.0;
+                double lDecel = totalCurveLen -
+                                std::max(decelStartLen, arcCursor);
+                if (lDecel < 0.0) lDecel = 0.0;
+                double decelIntegral = computeDecelIntegral(pathDecelMode);
+                effectiveLen = lPre + lDecel * decelIntegral;
+                MGlobal::displayInfo(
+                    MString("ButterFlight: decel compensation — ") +
+                    "lPre=" + lPre + " cm, lDecel=" + lDecel +
+                    " cm, I=" + decelIntegral +
+                    ", effectiveLen=" + effectiveLen + " cm");
+            }
+            arcRate = effectiveLen /
+                      ((double)duration * substeps) * pathSpeedScale;
             MGlobal::displayInfo(
                 MString("ButterFlight: arcRate=") + arcRate +
                 " cm/substep (remaining=" + remainingLen +
@@ -1762,26 +1833,22 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
                 // 3b. Path-following: time-based cursor steering.
                 if (pathActive) {
                     // Optional deceleration: fade the per-substep arc
-                    // advance to zero over the last pathDecelPct% of the
-                    // curve so the butterfly comes to rest at the end
-                    // instead of still moving on the last frame.
+                    // advance to kDecelMinMult over the last
+                    // pathDecelPct% of the curve so the butterfly slows
+                    // down at the end instead of still moving at full
+                    // speed on the final frame.  The scale-driven
+                    // arcRate has already been boosted to compensate
+                    // for this fade (see arcRate setup above), so the
+                    // cursor still reaches the curve end at the last
+                    // frame when pathSpeedScale = 1.0.
                     double effectiveArcRate = arcRate;
                     if (pathDecel && totalCurveLen > 1e-6) {
                         double progress = arcCursor / totalCurveLen;
                         if (progress > pathDecelStartFrac) {
                             double tDecel = (progress - pathDecelStartFrac) /
                                             (1.0 - pathDecelStartFrac);
-                            if (tDecel > 1.0) tDecel = 1.0;
-                            double mult;
-                            if (pathDecelMode == 0) {
-                                mult = 1.0 - tDecel;
-                            } else {
-                                const double k = 3.0;
-                                mult = (std::exp(-k * tDecel) - std::exp(-k))
-                                     / (1.0 - std::exp(-k));
-                            }
-                            if (mult < 0.0) mult = 0.0;
-                            effectiveArcRate = arcRate * mult;
+                            effectiveArcRate =
+                                arcRate * evalDecelMult(tDecel, pathDecelMode);
                         }
                     }
 
