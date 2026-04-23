@@ -1630,14 +1630,43 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
     // onto the curve.  Two modes:
     //   pathFromStart = true  → snap to the curve's first CV (uMin).
     //   pathFromStart = false → snap to the point on the curve nearest
-    //                           the current rig position (so the user
-    //                           can pre-position the butterfly anywhere
-    //                           along the path).
+    //                           the current rig position.  In this mode
+    //                           we do NOT teleport on frame 0; instead
+    //                           we set up an "approach phase" that
+    //                           interpolates position (quadratic, with
+    //                           a linear speed ramp), heading (linear
+    //                           shortest-path), and velocity from the
+    //                           rig's start state to the curve snap
+    //                           point.  Path following kicks in once
+    //                           the butterfly arrives.
     double startArcLen = 0.0;  // arc length (cm) at the snap point
-    if (hasPath && startFrame <= 1) {
+    // Approach-phase state — defaults to "off" (immediate snap path).
+    bool        approachActive          = false;
+    MPoint      approachStartPosM;      // rig position when sim begins (m)
+    MPoint      approachEndPosM;        // snap point on curve (m)
+    double      approachStartHeading    = 0.0;
+    double      approachEndHeading      = 0.0;
+    // Full rig quaternion captured at approach setup (local thorax
+    // rotation), preserved for the rotation slerp during approach.
+    MQuaternion approachStartRotQ;
+    double      approachDistCm          = 0.0;
+    double      approachTotalSubsteps   = 0.0;
+    double      approachSubstepCounter  = 0.0;
+    // Peak speed reached at handoff (cm/substep).  Equals arcRate when
+    // the natural duration (2D/arcRate) exceeds the visibility floor;
+    // otherwise scales down so the longer-than-natural approach still
+    // arrives exactly at the snap point at tNorm=1.
+    double      approachPeakRate        = 0.0;
+    // The "from path start" snap-to-uMin behaviour only applies on a
+    // fresh start.  For everything else (fresh start without
+    // pathFromStart, OR continuing animation), we snap to the nearest
+    // point on the curve and run an approach phase if the rig isn't
+    // already there.
+    bool useFromStart = pathFromStart && startFrame <= 1;
+    if (hasPath) {
         double uSnap;
         MPoint startPt;
-        if (pathFromStart) {
+        if (useFromStart) {
             double uMinK, uMaxK;
             curveFn.getKnotDomain(uMinK, uMaxK);
             uSnap = uMinK;
@@ -1650,16 +1679,77 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
             startPt = curveFn.closestPoint(currentPosCm, &uSnap, 1e-4, MSpace::kWorld);
             startArcLen = curveFn.findLengthFromParam(uSnap);
         }
-        m_state.position = MPoint(startPt.x * kCmToM, startPt.y * kCmToM, startPt.z * kCmToM);
-
-        MFnTransform rootFn(m_state.skeleton.joints[kThorax]);
-        rootFn.setTranslation(MVector(startPt), MSpace::kWorld);  // stays in cm for Maya
-
-        // Initialize heading to face along the curve tangent at the snap point
+        // Tangent-derived target heading at the snap point.
         MVector tangent = curveFn.tangent(uSnap, MSpace::kWorld);
         double tx = tangent.x, tz = tangent.z;
-        if (std::sqrt(tx * tx + tz * tz) > 1e-6) {
-            m_state.heading = std::atan2(-tx, -tz);
+        double tangentHeading = m_state.heading;
+        if (std::sqrt(tx * tx + tz * tz) > 1e-6)
+            tangentHeading = std::atan2(-tx, -tz);
+
+        if (!useFromStart) {
+            MPoint currentPosCm(m_state.position.x * kMToCm,
+                                m_state.position.y * kMToCm,
+                                m_state.position.z * kMToCm);
+            MVector diffCm(startPt.x - currentPosCm.x,
+                           startPt.y - currentPosCm.y,
+                           startPt.z - currentPosCm.z);
+            approachDistCm = diffCm.length();
+        }
+
+        // Threshold below which an approach is pointless (already there).
+        const double kApproachMinDistCm = 0.5;
+
+        if (!useFromStart && approachDistCm > kApproachMinDistCm) {
+            // Set up approach phase: keep current rig position/heading.
+            // Position is interpolated per-substep until the butterfly
+            // reaches the snap point, then path-following takes over
+            // from arcCursor = startArcLen.  Works for both fresh starts
+            // and continuations from a previous frame.
+            approachActive       = true;
+            approachStartPosM    = m_state.position;  // already metres
+            approachEndPosM      = MPoint(startPt.x * kCmToM,
+                                          startPt.y * kCmToM,
+                                          startPt.z * kCmToM);
+            approachStartHeading = m_state.heading;
+            approachEndHeading   = tangentHeading;
+            // Capture the rig's full local thorax rotation so the
+            // angle slerp (during the approach) preserves any prior
+            // pitch/roll instead of snapping to (thetaBeta, heading, 0).
+            {
+                MStatus rotSt;
+                MFnTransform thoraxFn(m_state.skeleton.joints[kThorax],
+                                      &rotSt);
+                if (rotSt == MS::kSuccess) {
+                    MEulerRotation rigEuler;
+                    thoraxFn.getRotation(rigEuler);
+                    approachStartRotQ = rigEuler.asQuaternion();
+                }
+            }
+            // Don't move the rig — leave it at its current pose so the
+            // first interpolated frame matches what the user sees now.
+            MGlobal::displayInfo(
+                MString("ButterFlight: approach SET UP (startFrame=")
+                + startFrame + ") — start=("
+                + (m_state.position.x * kMToCm) + ", "
+                + (m_state.position.y * kMToCm) + ", "
+                + (m_state.position.z * kMToCm) + ") cm, snap=("
+                + startPt.x + ", " + startPt.y + ", " + startPt.z
+                + ") cm, dist=" + approachDistCm + " cm, headingDelta="
+                + ((approachEndHeading - approachStartHeading) * 180.0 / M_PI)
+                + " deg");
+        } else if (useFromStart) {
+            // pathFromStart fresh start: teleport to curve origin.
+            m_state.position = MPoint(startPt.x * kCmToM,
+                                      startPt.y * kCmToM,
+                                      startPt.z * kCmToM);
+            MFnTransform rootFn(m_state.skeleton.joints[kThorax]);
+            rootFn.setTranslation(MVector(startPt), MSpace::kWorld);
+            m_state.heading = tangentHeading;
+        } else {
+            // Already on the curve (or within the threshold): no need
+            // to interpolate, just align heading and let path following
+            // take over from the next substep.
+            m_state.heading = tangentHeading;
         }
     }
 
@@ -1734,20 +1824,11 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
     //  along the curve at a fixed rate per substep.  At scale 1.0 the
     //  cursor traverses the full curve over the full simulation.
     //  arcRate is in cm/substep (curve's native unit).
-    double arcCursor = 0.0;
-    if (hasPath && startFrame > 1) {
-        MPoint posCm(m_state.position.x * kMToCm,
-                     m_state.position.y * kMToCm,
-                     m_state.position.z * kMToCm);
-        double uClosest;
-        curveFn.closestPoint(posCm, &uClosest, 1e-4, MSpace::kWorld);
-        arcCursor = curveFn.findLengthFromParam(uClosest);
-    } else if (hasPath) {
-        // Fresh start: begin traversal from the nearest-point snap above
-        // so the cursor doesn't rewind to 0 and drag the butterfly back
-        // to the curve origin.
-        arcCursor = startArcLen;
-    }
+    // arcCursor begins at the snap point's arc length — already
+    // computed in the snap block above for both fresh-start and
+    // continuation cases.  Approach phase (if active) doesn't
+    // advance the cursor until it completes.
+    double arcCursor = hasPath ? startArcLen : 0.0;
     double arcRate   = 0.0;
     double pathNoiseTime = 0.0;  // accumulated sim time for noise oscillator
 
@@ -1818,13 +1899,59 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
                     " cm, I=" + decelIntegral +
                     ", effectiveLen=" + effectiveLen + " cm");
             }
-            arcRate = effectiveLen /
-                      ((double)duration * substeps) * pathSpeedScale;
+            // When an approach phase is active, some substeps are
+            // consumed flying to the curve and don't advance the
+            // cursor.  Solve for arcRate so the cursor still reaches
+            // the curve end on the last frame:
+            //   N_curve = N_total - N_approach
+            //   N_approach = 2 * D_approach / arcRate
+            //   arcRate * N_curve = effectiveLen * scale
+            //   ⇒ arcRate = (effectiveLen * scale + 2 * D_approach)
+            //               / N_total
+            double approachExtra = approachActive
+                ? 2.0 * approachDistCm
+                : 0.0;
+            arcRate = (effectiveLen * pathSpeedScale + approachExtra)
+                    / ((double)duration * substeps);
             MGlobal::displayInfo(
                 MString("ButterFlight: arcRate=") + arcRate +
                 " cm/substep (remaining=" + remainingLen +
-                " cm of " + totalCurveLen + ", scale=" + pathSpeedScale + ")");
+                " cm of " + totalCurveLen + ", scale=" + pathSpeedScale +
+                ", approachExtra=" + approachExtra + " cm)");
         }
+    }
+
+    // Resolve approach duration in substeps once arcRate is known.
+    //   Natural N = 2D / arcRate (so handoff speed equals arcRate).
+    //   Floor:    N >= kApproachMinFrames * substeps so the motion
+    //             always spans enough output frames to be visible
+    //             (without this, fast paths or short distances could
+    //             make the approach complete inside a single frame and
+    //             look like an instant teleport).
+    //   When the floor extends N beyond natural, peak handoff speed
+    //   drops to 2D/N (smaller than arcRate); the spring then ramps
+    //   the butterfly up to cruise speed in a few substeps.
+    if (approachActive && arcRate > 1e-9) {
+        const double kApproachMinFrames = 24.0;  // ~1 sec @ 24 fps
+        double naturalSubsteps = 2.0 * approachDistCm / arcRate;
+        double minSubsteps     = kApproachMinFrames * (double)substeps;
+        approachTotalSubsteps  = std::max(naturalSubsteps, minSubsteps);
+        if (approachTotalSubsteps < 2.0) approachTotalSubsteps = 2.0;
+        // Peak speed (cm/substep) consistent with the chosen N:
+        //   D = (peak / 2) * N  →  peak = 2D / N
+        approachPeakRate = 2.0 * approachDistCm / approachTotalSubsteps;
+        MGlobal::displayInfo(
+            MString("ButterFlight: approach phase — ") +
+            (int)approachTotalSubsteps + " substeps (~" +
+            (approachTotalSubsteps / (double)substeps) +
+            " frames) over " + approachDistCm +
+            " cm; peak=" + approachPeakRate +
+            " cm/substep (arcRate=" + arcRate + " cm/substep)");
+    } else if (approachActive) {
+        // Degenerate arcRate; skip approach.
+        approachActive = false;
+        m_state.position = approachEndPosM;
+        m_state.heading  = approachEndHeading;
     }
 
     MGlobal::displayInfo(
@@ -1873,9 +2000,12 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
     //  thorax key with the blended pose.
     bool        pathBlendApplied = false;
     MQuaternion pathBlendedThoraxQ;
+    bool        approachThoraxApplied = false;
+    MQuaternion approachThoraxQ;
     for (int f = startFrame; f < startFrame + duration; ++f) {
 
-        pathBlendApplied = false;
+        pathBlendApplied      = false;
+        approachThoraxApplied = false;
         // Run multiple physics substeps per output frame so that
         // wing kinematics and body dynamics are fps-independent.
         for (int s = 0; s < substeps; ++s) {
@@ -1941,7 +2071,88 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
                     controller.step(m_state, simDt);
 
                 // 3b. Path-following: time-based cursor steering.
-                if (pathActive) {
+                //  When an approach phase is active (butterfly hasn't
+                //  reached the curve yet), bypass cursor/spring logic
+                //  and interpolate directly from the rig's start state
+                //  to the snap point on the curve.  Position uses a
+                //  quadratic time curve so the speed ramps linearly
+                //  from 0 to arcRate over the approach window;
+                //  heading uses a shortest-path linear lerp.
+                bool skipPathPositionIntegration = false;
+                if (pathActive && approachActive) {
+                    approachSubstepCounter += 1.0;
+                    double tNorm = approachSubstepCounter / approachTotalSubsteps;
+                    if (tNorm >= 1.0) tNorm = 1.0;
+
+                    // Quadratic position interpolation (linear speed ramp):
+                    //   position(t) = start + (end - start) * t²
+                    //   speed(t)    = arcRate * t  (cm/substep)
+                    double progress = tNorm * tNorm;
+                    m_state.position = MPoint(
+                        approachStartPosM.x + (approachEndPosM.x - approachStartPosM.x) * progress,
+                        approachStartPosM.y + (approachEndPosM.y - approachStartPosM.y) * progress,
+                        approachStartPosM.z + (approachEndPosM.z - approachStartPosM.z) * progress);
+
+                    // Linear shortest-path heading lerp (used by the
+                    // camera / free-flight transition; full local
+                    // rotation is handled separately via slerp below).
+                    double dHead = approachEndHeading - approachStartHeading;
+                    while (dHead >  M_PI) dHead -= 2.0 * M_PI;
+                    while (dHead < -M_PI) dHead += 2.0 * M_PI;
+                    m_state.heading = approachStartHeading + dHead * tNorm;
+
+                    // Velocity (m/sim-sec) along approach direction.
+                    // Convert peak cm/substep to m/sim-sec via:
+                    //   speed = peakRate (cm/substep) * kCmToM / simDt
+                    // so at tNorm=1 it equals the path-following
+                    // steady-state velocity (cursor advance per substep
+                    // expressed in physics units).  Without this
+                    // simRate-aware factor, post-handoff velocity would
+                    // be ~simRate× too small and the butterfly would
+                    // appear to stop briefly at the snap point.
+                    MVector dirM(approachEndPosM.x - approachStartPosM.x,
+                                 approachEndPosM.y - approachStartPosM.y,
+                                 approachEndPosM.z - approachStartPosM.z);
+                    double dirLenM = dirM.length();
+                    if (dirLenM > 1e-9 && simDt > 1e-12) {
+                        dirM /= dirLenM;
+                        double speedMps = approachPeakRate * tNorm
+                                        * kCmToM / simDt;
+                        m_state.velocity = dirM * speedMps;
+                    }
+
+                    // Slerp the FULL local thorax rotation from the rig
+                    // start pose to (thetaBeta, tangentHeading, 0)
+                    // using the live thetaBeta so the wing bob is
+                    // continuous through handoff.  Stored for the
+                    // per-frame thorax key override below — without
+                    // this, applyAngles/writeAllKeys would write
+                    // (thetaBeta, heading, 0) and instantly wipe the
+                    // rig's prior X/Z rotation values.
+                    {
+                        MQuaternion targetQ = MEulerRotation(
+                            deg2rad(m_state.angles.thetaBeta),
+                            approachEndHeading,
+                            0.0,
+                            MEulerRotation::kXYZ).asQuaternion();
+                        approachThoraxQ = qSlerp(approachStartRotQ,
+                                                 targetQ, tNorm);
+                        approachThoraxApplied = true;
+                    }
+
+                    // We set position directly — don't double-step it
+                    // via velocity integration below.
+                    skipPathPositionIntegration = true;
+
+                    if (tNorm >= 1.0) {
+                        // Handoff: snap to exact end pose and let
+                        // normal path-following take over next substep.
+                        approachActive = false;
+                        m_state.position = approachEndPosM;
+                        m_state.heading  = approachEndHeading;
+                    }
+                }
+                if (pathActive && !approachActive) {
                     // Optional deceleration: fade the per-substep arc
                     // advance to kDecelMinMult over the last
                     // pathDecelPct% of the curve so the butterfly slows
@@ -2098,7 +2309,9 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
 
                 // 3d. In path mode, controller.step() was skipped, so
                 //     integrate position here from the spring velocity.
-                if (pathActive) {
+                //     Skip during the approach phase: position was
+                //     already set directly by the approach interpolator.
+                if (pathActive && !skipPathPositionIntegration) {
                     m_state.position.x += m_state.velocity.x * simDt;
                     m_state.position.y += m_state.velocity.y * simDt;
                     m_state.position.z += m_state.velocity.z * simDt;
@@ -2128,6 +2341,18 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
                     m_state.heading,
                     hoverRollRad),
                 frameTime);
+        }
+
+        // Path approach: if any substep of this frame ran the approach
+        // interpolator, overwrite the thorax key with the slerped
+        // local rotation so all three axes (rotateX/Y/Z) transition
+        // smoothly from the rig's prior pose to the path-aligned pose
+        // — instead of writeAllKeys' default of (thetaBeta, heading, 0)
+        // which immediately discards the rig's pre-existing X and Z.
+        if (approachThoraxApplied) {
+            writeRotationKey(m_state.skeleton.joints[kThorax],
+                             approachThoraxQ.asEulerRotation(),
+                             frameTime);
         }
 
         // Path angle blend: if the final substep of this frame landed

@@ -2,7 +2,7 @@
 #
 # Version:  C:/Program Files/Autodesk/Maya2026/plug-ins/xgen/
 # Author:   24112
-# Date:     Wed Apr 22 20:09:32 2026
+# Date:     Thu Apr 23 00:09:14 2026
 
 FileVersion 18
 
@@ -140,7 +140,7 @@ RandomGenerator
 	endAttrs
 
 GLRenderer
-	percent			6.885
+	percent			5.48
 	startPercent		0.0
 	inCameraOnly		true
 	inCameraMargin		0.0
