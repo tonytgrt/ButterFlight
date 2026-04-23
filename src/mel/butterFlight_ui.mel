@@ -23,9 +23,9 @@ global string $bf_pathDecelCheck;
 global string $bf_pathDecelPctField;
 global string $bf_pathDecelModeMenu;
 global string $bf_pathAngleBlendCheck;
-global string $bf_pathBlendRollField;
-global string $bf_pathBlendPitchField;
-global string $bf_pathBlendYawField;
+global string $bf_pathBlendRotXField;
+global string $bf_pathBlendRotYField;
+global string $bf_pathBlendRotZField;
 global string $bf_pathBlendPctField;
 global string $bf_pathBlendModeMenu;
 
@@ -322,36 +322,36 @@ global proc butterFlightUI()
                     -value1 false
                     -onCommand  "bfPathAngleBlendToggle 1"
                     -offCommand "bfPathAngleBlendToggle 0"
-                    -annotation "Quaternion-slerp body rotation from the curve tangent toward a target local (roll, pitch, yaw) over the last N% of the path"`;
+                    -annotation "Quaternion-slerp the BF_thorax rotation from the path-derived pose toward the EXACT (rotateX, rotateY, rotateZ) values below over the last N% of the path"`;
 
-                global string $bf_pathBlendRollField;
-                $bf_pathBlendRollField = `floatFieldGrp
-                    -label "Final Roll (deg)"
+                global string $bf_pathBlendRotXField;
+                $bf_pathBlendRotXField = `floatFieldGrp
+                    -label "Final Rotate X (deg)"
                     -numberOfFields 1
                     -value1 0.0
                     -precision 2
                     -enable false
-                    -annotation "Target local roll (rotateZ) on the final frame"
+                    -annotation "Exact target value for BF_thorax.rotateX on the final frame"
                     -columnWidth2 140 140`;
 
-                global string $bf_pathBlendPitchField;
-                $bf_pathBlendPitchField = `floatFieldGrp
-                    -label "Final Pitch (deg)"
+                global string $bf_pathBlendRotYField;
+                $bf_pathBlendRotYField = `floatFieldGrp
+                    -label "Final Rotate Y (deg)"
                     -numberOfFields 1
                     -value1 0.0
                     -precision 2
                     -enable false
-                    -annotation "Target local pitch (rotateX) on the final frame"
+                    -annotation "Exact target value for BF_thorax.rotateY on the final frame"
                     -columnWidth2 140 140`;
 
-                global string $bf_pathBlendYawField;
-                $bf_pathBlendYawField = `floatFieldGrp
-                    -label "Final Yaw (deg)"
+                global string $bf_pathBlendRotZField;
+                $bf_pathBlendRotZField = `floatFieldGrp
+                    -label "Final Rotate Z (deg)"
                     -numberOfFields 1
                     -value1 0.0
                     -precision 2
                     -enable false
-                    -annotation "Target local yaw (rotateY) on the final frame"
+                    -annotation "Exact target value for BF_thorax.rotateZ on the final frame"
                     -columnWidth2 140 140`;
 
                 global string $bf_pathBlendPctField;
@@ -1022,14 +1022,14 @@ global proc bfPathDecelToggle(int $state)
 // ============================================================
 global proc bfPathAngleBlendToggle(int $state)
 {
-    global string $bf_pathBlendRollField;
-    global string $bf_pathBlendPitchField;
-    global string $bf_pathBlendYawField;
+    global string $bf_pathBlendRotXField;
+    global string $bf_pathBlendRotYField;
+    global string $bf_pathBlendRotZField;
     global string $bf_pathBlendPctField;
     global string $bf_pathBlendModeMenu;
-    floatFieldGrp -edit -enable $state $bf_pathBlendRollField;
-    floatFieldGrp -edit -enable $state $bf_pathBlendPitchField;
-    floatFieldGrp -edit -enable $state $bf_pathBlendYawField;
+    floatFieldGrp -edit -enable $state $bf_pathBlendRotXField;
+    floatFieldGrp -edit -enable $state $bf_pathBlendRotYField;
+    floatFieldGrp -edit -enable $state $bf_pathBlendRotZField;
     floatFieldGrp -edit -enable $state $bf_pathBlendPctField;
     optionMenuGrp -edit -enable $state $bf_pathBlendModeMenu;
 }
@@ -1295,9 +1295,9 @@ global proc bfSimulateCallback()
     global string $bf_pathDecelPctField;
     global string $bf_pathDecelModeMenu;
     global string $bf_pathAngleBlendCheck;
-    global string $bf_pathBlendRollField;
-    global string $bf_pathBlendPitchField;
-    global string $bf_pathBlendYawField;
+    global string $bf_pathBlendRotXField;
+    global string $bf_pathBlendRotYField;
+    global string $bf_pathBlendRotZField;
     global string $bf_pathBlendPctField;
     global string $bf_pathBlendModeMenu;
     global string $bf_velocityField;
@@ -1405,17 +1405,17 @@ global proc bfSimulateCallback()
         int $pAB = `checkBoxGrp -query -value1 $bf_pathAngleBlendCheck`;
         $pathFlag += " -pathAngleBlend " + $pAB;
         if ($pAB) {
-            float $pbr = `floatFieldGrp -query -value1 $bf_pathBlendRollField`;
-            float $pbt = `floatFieldGrp -query -value1 $bf_pathBlendPitchField`;
-            float $pby = `floatFieldGrp -query -value1 $bf_pathBlendYawField`;
+            float $prx = `floatFieldGrp -query -value1 $bf_pathBlendRotXField`;
+            float $pry = `floatFieldGrp -query -value1 $bf_pathBlendRotYField`;
+            float $prz = `floatFieldGrp -query -value1 $bf_pathBlendRotZField`;
             float $pbp = `floatFieldGrp -query -value1 $bf_pathBlendPctField`;
             int   $pbm = `optionMenuGrp -query -select $bf_pathBlendModeMenu`;
             int $pbmCpp = $pbm - 1;
-            $pathFlag += " -pathBlendRoll "  + $pbr
-                       + " -pathBlendPitch " + $pbt
-                       + " -pathBlendYaw "   + $pby
-                       + " -pathBlendPct "   + $pbp
-                       + " -pathBlendMode "  + $pbmCpp;
+            $pathFlag += " -pathBlendRotX " + $prx
+                       + " -pathBlendRotY " + $pry
+                       + " -pathBlendRotZ " + $prz
+                       + " -pathBlendPct "  + $pbp
+                       + " -pathBlendMode " + $pbmCpp;
         }
     }
 
@@ -1617,9 +1617,9 @@ global proc bfReset()
     global string $bf_pathDecelPctField;
     global string $bf_pathDecelModeMenu;
     global string $bf_pathAngleBlendCheck;
-    global string $bf_pathBlendRollField;
-    global string $bf_pathBlendPitchField;
-    global string $bf_pathBlendYawField;
+    global string $bf_pathBlendRotXField;
+    global string $bf_pathBlendRotYField;
+    global string $bf_pathBlendRotZField;
     global string $bf_pathBlendPctField;
     global string $bf_pathBlendModeMenu;
     global string $bf_velocityField;
@@ -1676,9 +1676,9 @@ global proc bfReset()
     optionMenuGrp       -edit -select 2     $bf_pathDecelModeMenu;
     bfPathDecelToggle 0;
     checkBoxGrp         -edit -value1 false $bf_pathAngleBlendCheck;
-    floatFieldGrp       -edit -value1 0.0   $bf_pathBlendRollField;
-    floatFieldGrp       -edit -value1 0.0   $bf_pathBlendPitchField;
-    floatFieldGrp       -edit -value1 0.0   $bf_pathBlendYawField;
+    floatFieldGrp       -edit -value1 0.0   $bf_pathBlendRotXField;
+    floatFieldGrp       -edit -value1 0.0   $bf_pathBlendRotYField;
+    floatFieldGrp       -edit -value1 0.0   $bf_pathBlendRotZField;
     floatFieldGrp       -edit -value1 10.0  $bf_pathBlendPctField;
     optionMenuGrp       -edit -select 2     $bf_pathBlendModeMenu;
     bfPathAngleBlendToggle 0;
