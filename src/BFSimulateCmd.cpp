@@ -2273,15 +2273,29 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
                         if (distToEnd < 0.1) {
                             pathActive = false;
 
-                            // Re-seed velocity at the user's cruise speed
-                            // along the curve's end-tangent.  Without this,
-                            // free flight inherits the path spring's
-                            // decaying near-zero velocity (the spring's
-                            // pull shrinks to ~0 at the curve end), which
-                            // made the post-path free flight noticeably
-                            // slower than the path-following phase.
-                            double cruise = useVelocity ? velocity
-                                                        : wingModel.maxSpeed;
+                            // Re-seed velocity at the path's actual cruise
+                            // speed along the curve's end-tangent.  The
+                            // cursor advances arcRate cm per simDt seconds,
+                            // so converting to m/s gives the same effective
+                            // speed the butterfly was travelling along the
+                            // path.  This keeps the post-path free flight
+                            // continuous with the path-following phase.
+                            double pathCruise = (simDt > 1e-9)
+                                ? (arcRate * kCmToM / simDt)
+                                : 0.0;
+                            double cruise = pathCruise;
+                            if (cruise <= 1e-6) {
+                                cruise = useVelocity ? velocity
+                                                     : wingModel.maxSpeed;
+                            }
+                            // Lift the speed cap so controller.step() (which
+                            // resumes once pathActive=false) doesn't
+                            // immediately clamp the freshly-seeded cruise
+                            // velocity back down to the default maxSpeed.
+                            if (cruise > wingModel.maxSpeed) {
+                                wingModel.maxSpeed  = cruise;
+                                controller.maxSpeed = cruise;
+                            }
                             MVector endDir = tangent;
                             double tLen = endDir.length();
                             if (tLen > 1e-6) {
@@ -2325,7 +2339,7 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
 
             // 5. Step swarm followers (velocity from leader + flocking).
             if (swarmActive)
-                swarmMgr.stepFollowers(m_state, simDt, hasPath);
+                swarmMgr.stepFollowers(m_state, simDt, hasPath, hoverMode);
         }
 
         // Write one keyframe per output frame (after all substeps).

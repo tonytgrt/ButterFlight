@@ -207,6 +207,14 @@ MStatus BFSwarmManager::spawn(const MString& sourceRootName,
     std::uniform_real_distribution<double> spreadDist(-spawnSpread, spawnSpread);
     std::uniform_real_distribution<double> phaseDist(-maxPhaseJitter, maxPhaseJitter);
 
+    // Per-agent wander / gain / speed-scale distributions.  Keeping
+    // variation modest (±20% speed, seek gain 1.0..2.0) preserves the
+    // "same speed as leader" feel while still breaking the lockstep
+    // motion that made followers look mechanical.
+    std::uniform_real_distribution<double> wanderPhaseDist(0.0, 2.0 * M_PI);
+    std::uniform_real_distribution<double> seekGainDist(1.0, 2.0);
+    std::uniform_real_distribution<double> speedScaleDist(0.85, 1.15);
+
     // ---- Duplicate for each follower ----------------------------
     for (int i = 0; i < followerN; ++i) {
         MDagPath newRootJoint;
@@ -242,6 +250,15 @@ MStatus BFSwarmManager::spawn(const MString& sourceRootName,
         double jitter = phaseDist(rng);
         for (int a = 0; a < BFState::kNumAngles; ++a)
             m_agents[i].state.perAnglePhase[a] += jitter;
+
+        // Per-agent wander phases — 6 independent offsets feed the
+        // sum-of-sines wander force in stepFollowers().  Fresh draws
+        // per agent mean no two followers share the same trajectory.
+        for (int k = 0; k < 6; ++k)
+            m_agents[i].wanderPhase[k] = wanderPhaseDist(rng);
+        m_agents[i].wanderTime = 0.0;
+        m_agents[i].seekGain   = seekGainDist(rng);
+        m_agents[i].speedScale = speedScaleDist(rng);
     }
 
     MGlobal::displayInfo(
@@ -260,7 +277,8 @@ MStatus BFSwarmManager::spawn(const MString& sourceRootName,
 //   4. Integrate position
 // ============================================================
 void BFSwarmManager::stepFollowers(const BFState& leader,
-                                   double dt, bool pathMode)
+                                   double dt, bool pathMode,
+                                   bool hoverMode)
 {
     const int N = (int)m_agents.size();
     if (N == 0) return;
@@ -300,64 +318,93 @@ void BFSwarmManager::stepFollowers(const BFState& leader,
         applyAngles(agent.state.skeleton, agent.state.angles,
                     agent.state.heading);
 
-        // 3. Build desired velocity.
-        //    The previous version just did `leader.velocity + flock*dt`
-        //    and reset velocity every substep — which meant the flocking
-        //    accelerations never integrated, so alignment/cohesion had
-        //    essentially no effect, and followers that lagged behind
-        //    the leader had no mechanism to catch up.  Now we compose:
-        //      (a) leader.velocity  — the follower's base travel speed
-        //      (b) seek toward leader position  — closes distance
-        //      (c) flocking        — separation from other followers
-        //    and smoothly blend the follower's velocity toward this
-        //    target so motion stays stable.
-        const double maxSpd = agent.controller.maxSpeed;
+        // 3. Movement logic — hover branch freezes position.
+        if (hoverMode) {
+            // Leader isn't moving, so followers shouldn't either.
+            // They still flap (step 1) but stay at their spawn
+            // position with zero velocity.  Heading is left at
+            // whatever spawn() produced (typically 0).
+            agent.state.velocity = MVector::zero;
+        } else {
+            // (a) Seek-leader: direction toward leader, magnitude grows
+            //     with distance but saturates at maxSpeed.  Per-agent
+            //     seekGain varies this pull so followers converge at
+            //     different rates rather than in lockstep.
+            const double maxSpd = agent.controller.maxSpeed;
+            MVector toLeader(leader.position.x - agent.state.position.x,
+                             leader.position.y - agent.state.position.y,
+                             leader.position.z - agent.state.position.z);
+            double dL = toLeader.length();
+            MVector seekVel(0.0, 0.0, 0.0);
+            if (dL > 1e-4) {
+                double seekMag = std::min(dL * agent.seekGain, maxSpd);
+                seekVel = (toLeader / dL) * seekMag;
+            }
 
-        // (b) Seek-leader: direction toward leader, magnitude grows
-        //     with distance but saturates at maxSpeed.
-        MVector toLeader(leader.position.x - agent.state.position.x,
-                         leader.position.y - agent.state.position.y,
-                         leader.position.z - agent.state.position.z);
-        double dL = toLeader.length();
-        MVector seekVel(0.0, 0.0, 0.0);
-        if (dL > 1e-4) {
-            // Gain 1.5/s — half a metre of lag produces ~0.75 m/s pull.
-            double seekMag = std::min(dL * 1.5, maxSpd);
-            seekVel = (toLeader / dL) * seekMag;
+            // (b) Flocking: treat as velocity offset (already in m/s-ish
+            //     units after weights).  dt gate keeps per-substep kick
+            //     small so nearby agents don't jitter.
+            MVector flockVel = flockAccels[i + 1] * dt;
+
+            // (c) Per-agent wander: sum of two low-frequency sines per
+            //     axis with per-agent phase offsets.  Produces smooth,
+            //     non-repeating jitter so each follower takes a subtly
+            //     different path even under identical flocking inputs.
+            //     Vertical amplitude is half the horizontal for a more
+            //     natural, ground-tethered feel.
+            agent.wanderTime += dt;
+            const double wt = agent.wanderTime;
+            double wx = std::sin(2.0 * M_PI * 0.37 * wt + agent.wanderPhase[0])
+                      + 0.5 * std::sin(2.0 * M_PI * 0.81 * wt + agent.wanderPhase[1]);
+            double wy = 0.5 * (std::sin(2.0 * M_PI * 0.29 * wt + agent.wanderPhase[2])
+                              + 0.5 * std::sin(2.0 * M_PI * 0.67 * wt + agent.wanderPhase[3]));
+            double wz = std::sin(2.0 * M_PI * 0.43 * wt + agent.wanderPhase[4])
+                      + 0.5 * std::sin(2.0 * M_PI * 0.91 * wt + agent.wanderPhase[5]);
+            // Normalize by the sum-of-amplitudes (1.5) so peak ≈ wanderStrength.
+            MVector wanderVel(wx * wanderStrength / 1.5,
+                              wy * wanderStrength / 1.5,
+                              wz * wanderStrength / 1.5);
+
+            // Compose desired-direction vector.  Direction comes from
+            // leader velocity + seek + flocking + wander; its magnitude
+            // will be overwritten below to match the leader's scalar
+            // speed (with a small per-agent scaling).
+            MVector dir = leader.velocity + seekVel * 0.5 + flockVel + wanderVel;
+
+            // Smooth blend direction toward the composed target to
+            // avoid velocity snaps when flocking or wander changes.
+            const double blendRate = 6.0;
+            double alpha = 1.0 - std::exp(-blendRate * dt);
+            agent.state.velocity = agent.state.velocity * (1.0 - alpha)
+                                 + dir * alpha;
+
+            // Enforce scalar-speed match with the leader, scaled by
+            // the per-agent speedScale (±15%).  If the leader is
+            // essentially still, followers stop too — mirroring the
+            // leader's motion scalar but not its direction.
+            double leaderSpeed = leader.velocity.length();
+            double targetSpeed = leaderSpeed * agent.speedScale;
+            double curSpeed    = agent.state.velocity.length();
+            if (targetSpeed < 1e-6) {
+                agent.state.velocity = MVector::zero;
+            } else if (curSpeed > 1e-9) {
+                agent.state.velocity *= targetSpeed / curSpeed;
+            }
+
+            // Integrate position
+            agent.state.position.x += agent.state.velocity.x * dt;
+            agent.state.position.y += agent.state.velocity.y * dt;
+            agent.state.position.z += agent.state.velocity.z * dt;
+
+            // Heading from actual velocity direction
+            double vx = agent.state.velocity.x;
+            double vz = agent.state.velocity.z;
+            double hSpeed = std::sqrt(vx * vx + vz * vz);
+            if (hSpeed > 0.01)
+                agent.state.heading = std::atan2(-vx, -vz);
         }
 
-        // (c) Flocking: treat as velocity offset (already in m/s-ish
-        //     units after weights).  dt gate keeps per-substep kick
-        //     small so nearby agents don't jitter.
-        MVector flockVel = flockAccels[i + 1] * dt;
-
-        // Compose desired velocity and clamp to maxSpeed.
-        MVector desiredVel = leader.velocity + seekVel * 0.5 + flockVel;
-        double desiredSpeed = desiredVel.length();
-        if (desiredSpeed > maxSpd && desiredSpeed > 1e-9) {
-            desiredVel *= maxSpd / desiredSpeed;
-        }
-
-        // Smooth blend toward desired (exponential, ~6/s response).
-        //   alpha ≈ 1 - e^(-6 dt) — independent of substep count.
-        const double blendRate = 6.0;
-        double alpha = 1.0 - std::exp(-blendRate * dt);
-        agent.state.velocity = agent.state.velocity * (1.0 - alpha)
-                             + desiredVel * alpha;
-
-        // 4. Integrate position
-        agent.state.position.x += agent.state.velocity.x * dt;
-        agent.state.position.y += agent.state.velocity.y * dt;
-        agent.state.position.z += agent.state.velocity.z * dt;
-
-        // 5. Heading from actual velocity direction
-        double vx = agent.state.velocity.x;
-        double vz = agent.state.velocity.z;
-        double hSpeed = std::sqrt(vx * vx + vz * vz);
-        if (hSpeed > 0.01)
-            agent.state.heading = std::atan2(-vx, -vz);
-
-        // 6. Cycle boundary smoothing
+        // 4. Cycle boundary smoothing
         if (agent.state.flapCycle != prevCycle)
             agent.controller.smoothParameters(agent.state);
     }

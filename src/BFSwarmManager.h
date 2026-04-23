@@ -32,6 +32,15 @@ struct BFAgent {
     BFState              state;
     BFWingModel          wingModel;
     BFManeuverController controller;
+
+    // ---- Per-agent randomization (decorrelates followers) ------
+    // Seeded once in spawn() so each follower has its own wander
+    // trajectory, seek gain, and target-speed variation — so they
+    // don't move in lockstep even though they share a leader.
+    double wanderTime       = 0.0;                     // accumulated seconds
+    double wanderPhase[6]   = { 0,0,0,0,0,0 };         // 3 axes × 2 freqs
+    double seekGain         = 1.5;                     // per-agent seek strength
+    double speedScale       = 1.0;                     // per-agent scaling of leader speed
 };
 
 class BFSwarmManager
@@ -45,6 +54,13 @@ public:
 
     // ---- Phase jitter ------------------------------------------
     double  maxPhaseJitter = 3.14159265358979323846;  // up to +/- PI
+
+    // ---- Wander (organic per-agent jitter) ---------------------
+    // Amplitude of the low-frequency sinusoidal wander velocity
+    // added to each follower's desired direction.  In the same
+    // scale as leader.velocity (m/s) before the scalar-speed
+    // normalization that caps magnitude to leader's speed.
+    double  wanderStrength = 0.6;
 
     // ---- Main interface ----------------------------------------
 
@@ -62,7 +78,11 @@ public:
     /// @param leader     Current leader state (position in metres).
     /// @param dt         Physics timestep (seconds).
     /// @param pathMode   If true, use fixed-frequency phase advance.
-    void stepFollowers(const BFState& leader, double dt, bool pathMode);
+    /// @param hoverMode  If true, followers only flap their wings —
+    ///                   velocity is forced to zero and position is
+    ///                   not integrated (mirrors the leader's hover).
+    void stepFollowers(const BFState& leader, double dt,
+                       bool pathMode, bool hoverMode);
 
     /// Apply a common max-speed cap to every agent's wing model and
     /// controller.  Call after spawn() (and whenever the leader's
