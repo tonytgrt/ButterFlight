@@ -892,17 +892,17 @@ global proc butterFlightUI()
                 -width 108;
 
             button
-                -label "Bake to Keys"
+                -label "Reset"
                 -backgroundColor 0.2 0.3 0.55
-                -command "bfBakeKeyframes"
-                -annotation "Bake simulation result to keyframe curves"
+                -command "bfReset"
+                -annotation "Restore all UI fields to their default values"
                 -width 108;
 
             button
-                -label "Reset"
+                -label "Delete All Keys"
                 -backgroundColor 0.5 0.2 0.2
-                -command "bfReset"
-                -annotation "Clear simulation and restore defaults"
+                -command "bfDeleteAllKeys"
+                -annotation "Remove every animation key from the rig hierarchy and any baked ButterFlight cameras"
                 -width 108;
 
         setParent ..;  // rowLayout
@@ -1597,6 +1597,85 @@ global proc bfBakeKeyframes()
     inViewMessage
         -position "topCenter"
         -message "ButterFlight: Bake stub executed. Connect C++ plugin to enable."
+        -fade;
+}
+
+
+// ============================================================
+// Callback: Delete All Keys
+//   Wipes every animation key from the rig hierarchy and from any
+//   ButterFlight cameras in the scene (transform channels + shape
+//   focalLength).  Destructive — confirms first.
+// ============================================================
+global proc bfDeleteAllKeys()
+{
+    global string $bf_rigField;
+    global string $bf_camNameField;
+    global string $bf_statCamNameField;
+
+    string $rig = `textFieldButtonGrp -query -text $bf_rigField`;
+
+    string $choice = `confirmDialog
+        -title "ButterFlight"
+        -message "Delete all animation keys from the rig hierarchy and ButterFlight cameras?\nThis cannot be undone via this dialog (use Ctrl+Z afterwards)."
+        -button "Delete"
+        -button "Cancel"
+        -defaultButton "Cancel"
+        -cancelButton "Cancel"`;
+    if ($choice != "Delete") return;
+
+    int $cleared = 0;
+
+    if ($rig != "" && `objExists $rig`) {
+        // Wipe every anim curve on the rig and all descendants.
+        cutKey -clear -hierarchy below -time ":" $rig;
+        $cleared++;
+        print ("// ButterFlight: Cleared keys on '" + $rig + "' hierarchy.\n");
+    }
+
+    // Camera transforms: keys live on T/R channels.
+    // Camera shapes: keys live on focalLength.
+    string $camCandidates[] = {};
+    string $camName = `textFieldGrp -query -text $bf_camNameField`;
+    string $statCamName = `textFieldGrp -query -text $bf_statCamNameField`;
+    if ($camName != "")     $camCandidates[size($camCandidates)] = $camName;
+    if ($statCamName != "") $camCandidates[size($camCandidates)] = $statCamName;
+    // Defaults in case the user hasn't customized the names.
+    $camCandidates[size($camCandidates)] = "BF_followCam";
+    $camCandidates[size($camCandidates)] = "BF_statCam";
+
+    string $seen[] = {};  // dedupe list
+    for ($cam in $camCandidates) {
+        if ($cam == "" || !`objExists $cam`) continue;
+        // Skip duplicates
+        int $isDup = 0;
+        for ($s in $seen) if ($s == $cam) { $isDup = 1; break; }
+        if ($isDup) continue;
+        $seen[size($seen)] = $cam;
+
+        cutKey -clear -time ":" $cam;
+        // Wipe focalLength on the shape (cutKey on transform doesn't
+        // touch shape attributes).
+        string $shapes[] = `listRelatives -shapes -fullPath $cam`;
+        for ($shape in $shapes) {
+            if (`attributeExists "focalLength" $shape`)
+                cutKey -clear -time ":" -attribute "focalLength" $shape;
+        }
+        $cleared++;
+        print ("// ButterFlight: Cleared keys on camera '" + $cam + "'.\n");
+    }
+
+    if ($cleared == 0) {
+        confirmDialog
+            -title "ButterFlight"
+            -message "Nothing to delete: no rig assigned and no ButterFlight cameras found."
+            -button "OK";
+        return;
+    }
+
+    inViewMessage
+        -position "topCenter"
+        -message ("ButterFlight: Cleared keys on " + $cleared + " object(s).")
         -fade;
 }
 
