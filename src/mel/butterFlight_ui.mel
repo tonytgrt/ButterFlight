@@ -62,6 +62,8 @@ global string $bf_hoverUseRigRotCheck;
 global string $bf_hoverRotXField;
 global string $bf_hoverRotYField;
 global string $bf_hoverRotZField;
+global string $bf_hoverNoiseCheck;
+global string $bf_hoverNoiseAmpField;
 
 // Swarm section
 global string $bf_swarmFrame;
@@ -461,6 +463,27 @@ global proc butterFlightUI()
                     -enable false
                     -annotation "Body pitch angle (nose up/down)"
                     -columnWidth2 120 160`;
+
+                separator -height 6 -style "in";
+                text -label "Hover Noise:" -align "left" -font "boldLabelFont";
+
+                global string $bf_hoverNoiseCheck;
+                $bf_hoverNoiseCheck = `checkBoxGrp
+                    -label "Enable Hover Noise"
+                    -value1 false
+                    -onCommand  "bfHoverNoiseToggle 1"
+                    -offCommand "bfHoverNoiseToggle 0"
+                    -annotation "Slowly drift the butterfly around the hover position so it doesn't appear locked in space"`;
+
+                global string $bf_hoverNoiseAmpField;
+                $bf_hoverNoiseAmpField = `floatFieldGrp
+                    -label "Noise Amplitude (cm)"
+                    -numberOfFields 1
+                    -value1 5.0
+                    -precision 2
+                    -enable false
+                    -annotation "Peak per-axis drift in Maya cm (X/Y/Z each oscillate up to this much)"
+                    -columnWidth2 140 140`;
 
             setParent ..;
         setParent ..;
@@ -1135,6 +1158,16 @@ global proc bfHoverRotToggle(int $state)
 
 
 // ============================================================
+// Callback: Hover Noise enable toggled
+// ============================================================
+global proc bfHoverNoiseToggle(int $state)
+{
+    global string $bf_hoverNoiseAmpField;
+    floatFieldGrp -edit -enable $state $bf_hoverNoiseAmpField;
+}
+
+
+// ============================================================
 // Callback: Swarm enable/disable toggle
 // ============================================================
 global proc bfSwarmToggle(int $state)
@@ -1309,6 +1342,8 @@ global proc bfSimulateCallback()
     global string $bf_hoverRotXField;
     global string $bf_hoverRotYField;
     global string $bf_hoverRotZField;
+    global string $bf_hoverNoiseCheck;
+    global string $bf_hoverNoiseAmpField;
     global string $bf_startFrameField;
     global string $bf_durationField;
     global string $bf_flapPeriodField;
@@ -1467,6 +1502,12 @@ global proc bfSimulateCallback()
             float $hry = `floatFieldGrp -query -value1 $bf_hoverRotYField`;
             float $hrz = `floatFieldGrp -query -value1 $bf_hoverRotZField`;
             $hoverFlag += " -hoverRotX " + $hrx + " -hoverRotY " + $hry + " -hoverRotZ " + $hrz;
+        }
+        int $hNoise = `checkBoxGrp -query -value1 $bf_hoverNoiseCheck`;
+        $hoverFlag += " -hoverNoise " + $hNoise;
+        if ($hNoise) {
+            float $hna = `floatFieldGrp -query -value1 $bf_hoverNoiseAmpField`;
+            $hoverFlag += " -hoverNoiseAmp " + $hna;
         }
     }
 
@@ -1721,6 +1762,8 @@ global proc bfReset()
     global string $bf_hoverRotXField;
     global string $bf_hoverRotYField;
     global string $bf_hoverRotZField;
+    global string $bf_hoverNoiseCheck;
+    global string $bf_hoverNoiseAmpField;
     global string $bf_windEnableCheck;
     global string $bf_agentCountField;
     global string $bf_spawnSpreadField;
@@ -1771,8 +1814,11 @@ global proc bfReset()
     floatFieldGrp       -edit -value1 0.0  $bf_hoverRotXField;
     floatFieldGrp       -edit -value1 0.0  $bf_hoverRotYField;
     floatFieldGrp       -edit -value1 0.0  $bf_hoverRotZField;
+    checkBoxGrp         -edit -value1 false $bf_hoverNoiseCheck;
+    floatFieldGrp       -edit -value1 5.0   $bf_hoverNoiseAmpField;
     bfHoverToggle 0;
     bfHoverRotToggle 0;
+    bfHoverNoiseToggle 0;
 
     optionMenuGrp -edit -select 1        $bf_speciesMenu;
     optionMenuGrp -edit -select 3        $bf_modeMenu;

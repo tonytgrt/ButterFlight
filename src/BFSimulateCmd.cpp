@@ -198,6 +198,10 @@ static const char* kHoverRotYFlag      = "-hry";
 static const char* kHoverRotYFlagLong  = "-hoverRotY";
 static const char* kHoverRotZFlag      = "-hrz";
 static const char* kHoverRotZFlagLong  = "-hoverRotZ";
+static const char* kHoverNoiseFlag     = "-hnz";
+static const char* kHoverNoiseFlagLong = "-hoverNoise";
+static const char* kHoverNoiseAmpFlag      = "-hna";
+static const char* kHoverNoiseAmpFlagLong  = "-hoverNoiseAmp";
 static const char* kAgentCountFlag      = "-ac";
 static const char* kAgentCountFlagLong  = "-agentCount";
 static const char* kSpawnSpreadFlag     = "-ss";
@@ -268,6 +272,8 @@ MSyntax BFSimulateCmd::newSyntax()
     syntax.addFlag(kHoverRotXFlag, kHoverRotXFlagLong, MSyntax::kDouble);
     syntax.addFlag(kHoverRotYFlag, kHoverRotYFlagLong, MSyntax::kDouble);
     syntax.addFlag(kHoverRotZFlag, kHoverRotZFlagLong, MSyntax::kDouble);
+    syntax.addFlag(kHoverNoiseFlag,    kHoverNoiseFlagLong,    MSyntax::kBoolean);
+    syntax.addFlag(kHoverNoiseAmpFlag, kHoverNoiseAmpFlagLong, MSyntax::kDouble);
     syntax.addFlag(kAgentCountFlag, kAgentCountFlagLong, MSyntax::kLong);
     syntax.addFlag(kSpawnSpreadFlag, kSpawnSpreadFlagLong, MSyntax::kDouble);
     syntax.addFlag(kRepulsionRadFlag, kRepulsionRadFlagLong, MSyntax::kDouble);
@@ -1286,6 +1292,22 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
     if (argData.isFlagSet(kHoverRotZFlag))
         argData.getFlagArgument(kHoverRotZFlag, 0, hoverRotZdeg);
 
+    // Hover-noise: optional 3D positional drift around the hover
+    // center.  Real butterflies don't hover perfectly statically — per
+    // Chen et al. 2022 §6.1, "the butterfly may not strictly hover ...
+    // generally, the butterfly endeavors to arrive at a destination,
+    // with highly dynamic motion in the process."  We approximate that
+    // chaos with a per-axis sum of two slow sines (≈0.2–0.5 Hz), each
+    // with a per-run random phase so the wander differs each simulate.
+    bool   hoverNoiseEnable = false;
+    double hoverNoiseAmpCm  = 5.0;
+    if (argData.isFlagSet(kHoverNoiseFlag))
+        argData.getFlagArgument(kHoverNoiseFlag, 0, hoverNoiseEnable);
+    if (argData.isFlagSet(kHoverNoiseAmpFlag))
+        argData.getFlagArgument(kHoverNoiseAmpFlag, 0, hoverNoiseAmpCm);
+    if (hoverNoiseAmpCm < 0.0) hoverNoiseAmpCm = 0.0;
+    double hoverNoiseAmpM = hoverNoiseAmpCm * kCmToM;
+
     // ---- Parse swarm flags -----------------------------------------
     int    swarmAgentCount = 1;
     double swarmSpawnSpread = 200.0;   // cm
@@ -1802,8 +1824,15 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
             m_state.position.x * kMToCm + ", " +
             m_state.position.y * kMToCm + ", " +
             m_state.position.z * kMToCm + ") cm, rot=(" +
-            hoverRotXdeg + ", " + hoverRotYdeg + ", " + hoverRotZdeg + ") deg");
+            hoverRotXdeg + ", " + hoverRotYdeg + ", " + hoverRotZdeg + ") deg" +
+            (hoverNoiseEnable
+                ? (MString(", noise=") + hoverNoiseAmpCm + " cm")
+                : MString("")));
     }
+    // Capture the hover-anchor position so noise drift is applied
+    // around it without accumulating over substeps.  Set even when
+    // noise is off (cheap; lets us reset cleanly later if needed).
+    MPoint hoverCenterPosM = m_state.position;
 
     // ---- Path-progress tracking variables -------------------------
     bool   pathActive      = hasPath; // true while actively following
@@ -1848,6 +1877,33 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
             MString("ButterFlight: path noise seed phases = ")
             + pnPhaseLatA + ", " + pnPhaseLatB + ", "
             + pnPhaseVerA + ", " + pnPhaseVerB);
+    }
+
+    // Hover-noise oscillator state.  Three independent axes each
+    // driven by a sum of two slow incommensurate sines (≈0.2-0.5 Hz)
+    // with per-run random phase, scaled so the peak amplitude is
+    // hoverNoiseAmpM along each axis.  Per-axis t=0 baselines are
+    // subtracted from every sample so the first frame sits exactly on
+    // the hover center (sin(random_phase) is generally non-zero, so
+    // without this the very first substep would already be offset).
+    double hnTime    = 0.0;
+    double hnPhX1 = 0.0, hnPhX2 = 0.0;
+    double hnPhY1 = 0.0, hnPhY2 = 0.0;
+    double hnPhZ1 = 0.0, hnPhZ2 = 0.0;
+    double hnBiasX = 0.0, hnBiasY = 0.0, hnBiasZ = 0.0;
+    if (hoverMode && hoverNoiseEnable) {
+        std::random_device rd;
+        std::mt19937 rng(rd());
+        std::uniform_real_distribution<double> dist(0.0, 2.0 * M_PI);
+        hnPhX1 = dist(rng); hnPhX2 = dist(rng);
+        hnPhY1 = dist(rng); hnPhY2 = dist(rng);
+        hnPhZ1 = dist(rng); hnPhZ2 = dist(rng);
+        hnBiasX = std::sin(hnPhX1) + 0.5 * std::sin(hnPhX2);
+        hnBiasY = std::sin(hnPhY1) + 0.5 * std::sin(hnPhY2);
+        hnBiasZ = std::sin(hnPhZ1) + 0.5 * std::sin(hnPhZ2);
+        MGlobal::displayInfo(
+            MString("ButterFlight: hover noise enabled, amp=")
+            + hoverNoiseAmpCm + " cm");
     }
     if (hasPath && duration > 0 && substeps > 0) {
         if (useVelocity) {
@@ -2035,7 +2091,34 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
                             MEulerRotation::kXYZ));
                     }
                 }
-                // Position/velocity/heading unchanged.
+
+                // Optional hover noise: drift the position around
+                // hoverCenterPosM using three independent slow-sine
+                // oscillators.  Each axis sums two incommensurate
+                // sines (≈0.2-0.5 Hz) for an organic, non-repeating
+                // wander.  Sum range is [-1.5, 1.5]; divide by 1.5 to
+                // get peak amplitude = hoverNoiseAmpM per axis.  The
+                // per-axis t=0 sample is subtracted so the first
+                // substep starts at exactly the hover center, then
+                // drifts smoothly from there.  Velocity stays at zero.
+                if (hoverNoiseEnable && hoverNoiseAmpM > 0.0) {
+                    const double t = hnTime;
+                    auto axisNoise = [&](double f1, double ph1,
+                                         double f2, double ph2,
+                                         double bias) {
+                        double s = std::sin(2.0 * M_PI * f1 * t + ph1)
+                                 + 0.5 * std::sin(2.0 * M_PI * f2 * t + ph2);
+                        return (hoverNoiseAmpM * (s - bias)) / 1.5;
+                    };
+                    double dx = axisNoise(0.31, hnPhX1, 0.47, hnPhX2, hnBiasX);
+                    double dy = axisNoise(0.23, hnPhY1, 0.41, hnPhY2, hnBiasY);
+                    double dz = axisNoise(0.27, hnPhZ1, 0.53, hnPhZ2, hnBiasZ);
+                    m_state.position = MPoint(hoverCenterPosM.x + dx,
+                                              hoverCenterPosM.y + dy,
+                                              hoverCenterPosM.z + dz);
+                    hnTime += simDt;
+                }
+                // Velocity / heading unchanged.
             } else {
                 // ---- Flight modes (free flight / path following) ---
 
