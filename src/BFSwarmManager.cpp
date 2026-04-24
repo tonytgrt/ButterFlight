@@ -259,6 +259,18 @@ MStatus BFSwarmManager::spawn(const MString& sourceRootName,
         m_agents[i].wanderTime = 0.0;
         m_agents[i].seekGain   = seekGainDist(rng);
         m_agents[i].speedScale = speedScaleDist(rng);
+
+        // Hover-noise anchor + t=0 bias.  The anchor is the scattered
+        // spawn position (in metres); the bias is the first sample of
+        // the per-axis sum-of-sines, subtracted later so the follower
+        // starts exactly at the anchor and drifts smoothly from there
+        // (sin(random_phase) is generally non-zero, so skipping this
+        // would snap the first substep by up to ±1.5× amplitude).
+        m_agents[i].hoverAnchorM = m_agents[i].state.position;
+        const double* ph = m_agents[i].wanderPhase;
+        m_agents[i].hoverNoiseBias[0] = std::sin(ph[0]) + 0.5 * std::sin(ph[1]);
+        m_agents[i].hoverNoiseBias[1] = std::sin(ph[2]) + 0.5 * std::sin(ph[3]);
+        m_agents[i].hoverNoiseBias[2] = std::sin(ph[4]) + 0.5 * std::sin(ph[5]);
     }
 
     MGlobal::displayInfo(
@@ -322,9 +334,40 @@ void BFSwarmManager::stepFollowers(const BFState& leader,
         if (hoverMode) {
             // Leader isn't moving, so followers shouldn't either.
             // They still flap (step 1) but stay at their spawn
-            // position with zero velocity.  Heading is left at
+            // anchor with zero velocity.  Heading is left at
             // whatever spawn() produced (typically 0).
             agent.state.velocity = MVector::zero;
+
+            // Follower hover-noise: if the leader has hover-noise on,
+            // give each follower its own small positional drift around
+            // its spawn anchor so followers don't look frozen next to
+            // a wandering leader.  Each follower uses its own
+            // wanderPhase[] so no two drift in lockstep.  Frequencies
+            // match the leader's (0.31/0.47, 0.23/0.41, 0.27/0.53 Hz);
+            // amplitude is scaled by followerHoverNoiseScale so
+            // followers look like satellites, not peers.
+            if (hoverNoiseEnable && hoverNoiseAmpM > 0.0) {
+                agent.wanderTime += dt;
+                const double t   = agent.wanderTime;
+                const double amp = hoverNoiseAmpM * followerHoverNoiseScale;
+                const double* ph = agent.wanderPhase;
+                auto axisNoise = [&](double f1, double ph1,
+                                     double f2, double ph2,
+                                     double bias) {
+                    double s = std::sin(2.0 * M_PI * f1 * t + ph1)
+                             + 0.5 * std::sin(2.0 * M_PI * f2 * t + ph2);
+                    return (amp * (s - bias)) / 1.5;
+                };
+                double dx = axisNoise(0.31, ph[0], 0.47, ph[1],
+                                      agent.hoverNoiseBias[0]);
+                double dy = axisNoise(0.23, ph[2], 0.41, ph[3],
+                                      agent.hoverNoiseBias[1]);
+                double dz = axisNoise(0.27, ph[4], 0.53, ph[5],
+                                      agent.hoverNoiseBias[2]);
+                agent.state.position = MPoint(agent.hoverAnchorM.x + dx,
+                                              agent.hoverAnchorM.y + dy,
+                                              agent.hoverAnchorM.z + dz);
+            }
         } else {
             // (a) Seek-leader: direction toward leader, magnitude grows
             //     with distance but saturates at maxSpeed.  Per-agent

@@ -41,6 +41,17 @@ struct BFAgent {
     double wanderPhase[6]   = { 0,0,0,0,0,0 };         // 3 axes × 2 freqs
     double seekGain         = 1.5;                     // per-agent seek strength
     double speedScale       = 1.0;                     // per-agent scaling of leader speed
+
+    // ---- Hover-noise anchor ------------------------------------
+    // Cached spawn position (metres) that the follower drifts
+    // around when the leader's hover-noise is active.  Without a
+    // fixed anchor, re-using state.position would cause the drift
+    // to integrate frame over frame.  hoverNoiseBias stores the
+    // t=0 sample of the per-axis sum-of-sines so the first substep
+    // sits exactly on the anchor instead of jumping to the first
+    // sine value.
+    MPoint hoverAnchorM;
+    double hoverNoiseBias[3] = { 0.0, 0.0, 0.0 };
 };
 
 class BFSwarmManager
@@ -61,6 +72,16 @@ public:
     // scale as leader.velocity (m/s) before the scalar-speed
     // normalization that caps magnitude to leader's speed.
     double  wanderStrength = 0.6;
+
+    // ---- Follower hover-noise ----------------------------------
+    // When hoverMode is passed to stepFollowers() AND hoverNoiseEnable
+    // is true, each follower drifts around its own spawn anchor using
+    // a sum-of-sines offset (same math as the leader's hover-noise).
+    // Amplitude is in metres; a 0.7× scale is applied internally so
+    // followers look like satellites rather than peers of the leader.
+    bool    hoverNoiseEnable = false;
+    double  hoverNoiseAmpM   = 0.0;
+    double  followerHoverNoiseScale = 0.7;   // followers' amp relative to leader
 
     // ---- Main interface ----------------------------------------
 

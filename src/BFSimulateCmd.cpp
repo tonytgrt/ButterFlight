@@ -2021,6 +2021,11 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
         // Flocking radii must be in metres (physics units)
         swarmMgr.flocking.separationRadius = swarmRepulsionRad * kCmToM;
         swarmMgr.flocking.neighborRadius   = swarmRepulsionRad * kCmToM * 4.0;
+        // Propagate the leader's hover-noise settings so followers can
+        // drift around their spawn anchors with matching character
+        // (applied inside stepFollowers() only when hoverMode=true).
+        swarmMgr.hoverNoiseEnable = hoverNoiseEnable;
+        swarmMgr.hoverNoiseAmpM   = hoverNoiseAmpM;
         status = swarmMgr.spawn(rigName, swarmAgentCount);
         if (status != MS::kSuccess) return status;
         swarmMgr.clearFollowerAnimCurves();
