@@ -1684,7 +1684,11 @@ MStatus BFSimulateCmd::doIt(const MArgList& args)
     // pathFromStart, OR continuing animation), we snap to the nearest
     // point on the curve and run an approach phase if the rig isn't
     // already there.
-    bool useFromStart = pathFromStart && startFrame <= 1;
+    // pathFromStart is a hard "teleport to curve uMin" request — honour
+    // it regardless of whether this is a fresh start or a continuation
+    // from a prior frame.  The approach phase only runs in the
+    // nearest-point branch (when pathFromStart is off).
+    bool useFromStart = pathFromStart;
     if (hasPath) {
         double uSnap;
         MPoint startPt;
