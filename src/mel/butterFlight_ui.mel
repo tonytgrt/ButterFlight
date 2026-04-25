@@ -8,7 +8,6 @@
 
 // ---- Global control-name variables --------------------------
 global string $bf_rigField;
-global string $bf_speciesMenu;
 global string $bf_modeMenu;
 
 // Path Following section
@@ -31,26 +30,6 @@ global string $bf_pathBlendModeMenu;
 
 // Butterfly velocity (applies to free flight and path following)
 global string $bf_velocityField;
-
-// Wind section
-global string $bf_windEnableCheck;
-global string $bf_windDirXField;
-global string $bf_windDirYField;
-global string $bf_windDirZField;
-global string $bf_windMagSlider;
-global string $bf_windTimeCheck;
-
-// Force parameters
-global string $bf_vortexGainXField;
-global string $bf_vortexGainYField;
-global string $bf_vortexGainZField;
-global string $bf_etaField;
-global string $bf_maxSpeedField;
-global string $bf_windowKField;
-
-// Species parameters
-global string $bf_massField;
-global string $bf_wingAreaField;
 
 // Hover section
 global string $bf_hoverFrame;
@@ -146,44 +125,6 @@ global proc butterFlightUI()
 
             setParent ..;  // columnLayout
         setParent ..;  // frameLayout
-
-
-        // ---- 2. Species Preset --------------------------------
-        frameLayout
-            -label "2  Species Preset"
-            -collapsable true
-            -collapse false
-            -marginWidth 6 -marginHeight 6;
-
-            columnLayout -adjustableColumn true -rowSpacing 4;
-
-                global string $bf_speciesMenu;
-                $bf_speciesMenu = `optionMenuGrp
-                    -label "Species"
-                    -changeCommand "bfUpdateSpecies"
-                    -columnWidth2 100 200`;
-                    menuItem -label "Monarch";
-                    menuItem -label "Swallowtail";
-                    menuItem -label "Custom";
-
-                global string $bf_massField;
-                $bf_massField = `floatFieldGrp
-                    -label "Body Mass (g)"
-                    -numberOfFields 1
-                    -value1 0.428
-                    -precision 4
-                    -columnWidth2 120 160`;
-
-                global string $bf_wingAreaField;
-                $bf_wingAreaField = `floatFieldGrp
-                    -label "Wing Area (cm^2)"
-                    -numberOfFields 1
-                    -value1 26.0
-                    -precision 3
-                    -columnWidth2 120 160`;
-
-            setParent ..;
-        setParent ..;
 
 
         // ---- 3. Simulation Mode -------------------------------
@@ -483,138 +424,6 @@ global proc butterFlightUI()
                     -precision 2
                     -enable false
                     -annotation "Peak per-axis drift in Maya cm (X/Y/Z each oscillate up to this much)"
-                    -columnWidth2 140 140`;
-
-            setParent ..;
-        setParent ..;
-
-
-        // ---- 5. Wind ------------------------------------------
-        frameLayout
-            -label "5  Wind"
-            -collapsable true
-            -collapse true
-            -marginWidth 6 -marginHeight 6;
-
-            columnLayout -adjustableColumn true -rowSpacing 4;
-
-                global string $bf_windEnableCheck;
-                $bf_windEnableCheck = `checkBoxGrp
-                    -label "Enable Wind"
-                    -value1 false
-                    -onCommand  "bfWindToggle 1"
-                    -offCommand "bfWindToggle 0"`;
-
-                global string $bf_windDirXField;
-                global string $bf_windDirYField;
-                global string $bf_windDirZField;
-
-                $bf_windDirXField = `floatFieldGrp
-                    -label "Direction X"
-                    -numberOfFields 1
-                    -value1 1.0
-                    -precision 3
-                    -enable false
-                    -columnWidth2 120 160`;
-
-                $bf_windDirYField = `floatFieldGrp
-                    -label "Direction Y"
-                    -numberOfFields 1
-                    -value1 0.0
-                    -precision 3
-                    -enable false
-                    -columnWidth2 120 160`;
-
-                $bf_windDirZField = `floatFieldGrp
-                    -label "Direction Z"
-                    -numberOfFields 1
-                    -value1 0.0
-                    -precision 3
-                    -enable false
-                    -columnWidth2 120 160`;
-
-                global string $bf_windMagSlider;
-                $bf_windMagSlider = `floatSliderGrp
-                    -label "Magnitude"
-                    -field true
-                    -minValue 0.0
-                    -maxValue 20.0
-                    -fieldMinValue 0.0
-                    -fieldMaxValue 100.0
-                    -value 5.0
-                    -enable false
-                    -columnWidth3 80 60 140`;
-
-                global string $bf_windTimeCheck;
-                $bf_windTimeCheck = `checkBoxGrp
-                    -label "Time-varying"
-                    -value1 false
-                    -enable false`;
-
-            setParent ..;
-        setParent ..;
-
-
-        // ---- 6. Force Parameters ------------------------------
-        frameLayout
-            -label "6  Force Parameters"
-            -collapsable true
-            -collapse true
-            -marginWidth 6 -marginHeight 6;
-
-            columnLayout -adjustableColumn true -rowSpacing 4;
-
-                text -label "Vortex Gain:" -align "left" -font "boldLabelFont";
-
-                global string $bf_vortexGainXField;
-                $bf_vortexGainXField = `floatFieldGrp
-                    -label "Gain X"
-                    -numberOfFields 1
-                    -value1 22.0
-                    -precision 3
-                    -columnWidth2 100 180`;
-
-                global string $bf_vortexGainYField;
-                $bf_vortexGainYField = `floatFieldGrp
-                    -label "Gain Y"
-                    -numberOfFields 1
-                    -value1 5.5
-                    -precision 3
-                    -columnWidth2 100 180`;
-
-                global string $bf_vortexGainZField;
-                $bf_vortexGainZField = `floatFieldGrp
-                    -label "Gain Z"
-                    -numberOfFields 1
-                    -value1 22.0
-                    -precision 3
-                    -columnWidth2 100 180`;
-
-                separator -height 6 -style "in";
-
-                global string $bf_etaField;
-                $bf_etaField = `floatFieldGrp
-                    -label "Eta"
-                    -numberOfFields 1
-                    -value1 3.66
-                    -precision 4
-                    -annotation "Curl-noise turbulence scale"
-                    -columnWidth2 100 180`;
-
-                global string $bf_maxSpeedField;
-                $bf_maxSpeedField = `floatFieldGrp
-                    -label "Max Speed (m/s)"
-                    -numberOfFields 1
-                    -value1 3.0
-                    -precision 3
-                    -columnWidth2 120 160`;
-
-                global string $bf_windowKField;
-                $bf_windowKField = `intFieldGrp
-                    -label "Smoothing Window k"
-                    -numberOfFields 1
-                    -value1 10
-                    -annotation "Sliding-window smoother width (frames)"
                     -columnWidth2 140 140`;
 
             setParent ..;
@@ -941,7 +750,6 @@ global proc butterFlightUI()
     // Apply initial defaults
     optionMenuGrp -edit -select 3 $bf_modeMenu;
     bfUpdateMode;
-    bfUpdateSpecies;
 }
 
 
@@ -960,16 +768,6 @@ global proc bfSelectRig()
         return;
     }
     string $joint = $sel[0];
-    // Warn if naming convention not followed
-    if (!startsWith($joint, "BF_")) {
-        string $choice = `confirmDialog
-            -title "Naming Warning"
-            -message ("Joint \"" + $joint + "\" does not begin with BF_.\nButterFlight expects BF_body as the root.\nUse anyway?")
-            -button "Yes"
-            -button "Cancel"
-            -defaultButton "Cancel"`;
-        if ($choice == "Cancel") return;
-    }
     textFieldButtonGrp -edit -text $joint $bf_rigField;
 }
 
@@ -1073,57 +871,6 @@ global proc bfRefreshVelocityEnable()
     int $scaleOn = `checkBoxGrp   -query -value1 $bf_pathSpeedEnableCheck`;
     int $velEnable = ($mode != 2 || !$scaleOn);
     floatFieldGrp -edit -enable $velEnable $bf_velocityField;
-}
-
-
-// ============================================================
-// Callback: Species preset changed
-// ============================================================
-global proc bfUpdateSpecies()
-{
-    global string $bf_speciesMenu;
-    global string $bf_massField;
-    global string $bf_wingAreaField;
-
-    int $idx = `optionMenuGrp -query -select $bf_speciesMenu`;
-
-    // Values from Chen et al. 2022 Tables 2 & 3
-    if ($idx == 1) {
-        // Monarch: mass 0.428 g, wing area 26 cm^2
-        floatFieldGrp -edit -value1 0.428 $bf_massField;
-        floatFieldGrp -edit -value1 26.0  $bf_wingAreaField;
-        floatFieldGrp -edit -enable false $bf_massField;
-        floatFieldGrp -edit -enable false $bf_wingAreaField;
-    } else if ($idx == 2) {
-        // Swallowtail: mass 0.34 g, wing area 28 cm^2
-        floatFieldGrp -edit -value1 0.34 $bf_massField;
-        floatFieldGrp -edit -value1 28.0 $bf_wingAreaField;
-        floatFieldGrp -edit -enable false $bf_massField;
-        floatFieldGrp -edit -enable false $bf_wingAreaField;
-    } else {
-        // Custom: user editable
-        floatFieldGrp -edit -enable true $bf_massField;
-        floatFieldGrp -edit -enable true $bf_wingAreaField;
-    }
-}
-
-
-// ============================================================
-// Callback: Wind enable toggle
-// ============================================================
-global proc bfWindToggle(int $state)
-{
-    global string $bf_windDirXField;
-    global string $bf_windDirYField;
-    global string $bf_windDirZField;
-    global string $bf_windMagSlider;
-    global string $bf_windTimeCheck;
-
-    floatFieldGrp   -edit -enable $state $bf_windDirXField;
-    floatFieldGrp   -edit -enable $state $bf_windDirYField;
-    floatFieldGrp   -edit -enable $state $bf_windDirZField;
-    floatSliderGrp  -edit -enable $state $bf_windMagSlider;
-    checkBoxGrp     -edit -enable $state $bf_windTimeCheck;
 }
 
 
@@ -1309,15 +1056,6 @@ global proc bfSimulateCallback()
 {
     global string $bf_rigField;
     global string $bf_modeMenu;
-    global string $bf_speciesMenu;
-    global string $bf_massField;
-    global string $bf_wingAreaField;
-    global string $bf_vortexGainXField;
-    global string $bf_vortexGainYField;
-    global string $bf_vortexGainZField;
-    global string $bf_etaField;
-    global string $bf_maxSpeedField;
-    global string $bf_windowKField;
     global string $bf_pathField;
     global string $bf_pathFromStartCheck;
     global string $bf_pathSpeedEnableCheck;
@@ -1383,26 +1121,12 @@ global proc bfSimulateCallback()
 
     // --- Gather parameters ---
     int    $mode      = `optionMenuGrp -query -select $bf_modeMenu`;
-    float  $mass      = `floatFieldGrp  -query -value1 $bf_massField`;
-    float  $wingArea  = `floatFieldGrp  -query -value1 $bf_wingAreaField`;
-    float  $gainX     = `floatFieldGrp  -query -value1 $bf_vortexGainXField`;
-    float  $gainY     = `floatFieldGrp  -query -value1 $bf_vortexGainYField`;
-    float  $gainZ     = `floatFieldGrp  -query -value1 $bf_vortexGainZField`;
-    float  $eta       = `floatFieldGrp  -query -value1 $bf_etaField`;
-    float  $maxSpeed  = `floatFieldGrp  -query -value1 $bf_maxSpeedField`;
-    int    $k         = `intFieldGrp    -query -value1 $bf_windowKField`;
     int    $startF    = `intFieldGrp    -query -value1 $bf_startFrameField`;
     int    $duration  = `intFieldGrp    -query -value1 $bf_durationField`;
     float  $flapPeriod = `floatFieldGrp -query -value1 $bf_flapPeriodField`;
 
     print ("// ButterFlight: Starting simulation on rig: " + $rig + "\n");
     print ("//   Mode:       " + $mode      + "\n");
-    print ("//   Mass:       " + $mass      + " g\n");
-    print ("//   Wing Area:  " + $wingArea  + " cm^2\n");
-    print ("//   Gain X/Y/Z: " + $gainX + " / " + $gainY + " / " + $gainZ + "\n");
-    print ("//   Eta:        " + $eta       + "\n");
-    print ("//   Max Speed:  " + $maxSpeed  + " m/s\n");
-    print ("//   Window k:   " + $k         + "\n");
     print ("//   Flap Period: " + $flapPeriod + " sec\n");
     print ("//   Frames:     " + $startF + " to " + ($startF + $duration - 1) + "\n");
 
@@ -1537,13 +1261,11 @@ global proc bfSimulateCallback()
             float  $crz = `floatFieldGrp -query -value1 $bf_camRotZField`;
             float  $fov = `floatFieldGrp -query -value1 $bf_camFOVField`;
 
-            // Auto frame distance: override Z offset from FOV + species wingspan
+            // Auto frame distance: override Z offset from FOV + Monarch wingspan
             int    $autoFrame = `checkBoxGrp -query -value1 $bf_camAutoFrameCheck`;
             if ($autoFrame) {
                 float $fill = `floatSliderGrp -query -value $bf_camFillRatioSlider`;
-                int   $sp = `optionMenuGrp -query -select $bf_speciesMenu`;
-                float $wingspan = 10.0;            // Monarch default
-                if ($sp == 2) $wingspan = 14.0;    // Swallowtail
+                float $wingspan = 10.0;  // Monarch default (cm)
                 $coz = bfCameraAutoDistance($fov, $fill, $wingspan);
             }
 
@@ -1743,14 +1465,7 @@ global proc bfReset()
     global string $bf_pathBlendPctField;
     global string $bf_pathBlendModeMenu;
     global string $bf_velocityField;
-    global string $bf_speciesMenu;
     global string $bf_modeMenu;
-    global string $bf_vortexGainXField;
-    global string $bf_vortexGainYField;
-    global string $bf_vortexGainZField;
-    global string $bf_etaField;
-    global string $bf_maxSpeedField;
-    global string $bf_windowKField;
     global string $bf_startFrameField;
     global string $bf_durationField;
     global string $bf_flapPeriodField;
@@ -1764,7 +1479,6 @@ global proc bfReset()
     global string $bf_hoverRotZField;
     global string $bf_hoverNoiseCheck;
     global string $bf_hoverNoiseAmpField;
-    global string $bf_windEnableCheck;
     global string $bf_agentCountField;
     global string $bf_spawnSpreadField;
     global string $bf_repulsionRadField;
@@ -1820,15 +1534,8 @@ global proc bfReset()
     bfHoverRotToggle 0;
     bfHoverNoiseToggle 0;
 
-    optionMenuGrp -edit -select 1        $bf_speciesMenu;
     optionMenuGrp -edit -select 3        $bf_modeMenu;
 
-    floatFieldGrp -edit -value1 22.0     $bf_vortexGainXField;
-    floatFieldGrp -edit -value1 5.5      $bf_vortexGainYField;
-    floatFieldGrp -edit -value1 22.0     $bf_vortexGainZField;
-    floatFieldGrp -edit -value1 3.66     $bf_etaField;
-    floatFieldGrp -edit -value1 3.0      $bf_maxSpeedField;
-    intFieldGrp   -edit -value1 10       $bf_windowKField;
     intFieldGrp   -edit -value1 1        $bf_startFrameField;
     intFieldGrp   -edit -value1 120      $bf_durationField;
     floatFieldGrp -edit -value1 1.0      $bf_flapPeriodField;
@@ -1838,9 +1545,6 @@ global proc bfReset()
     floatFieldGrp -edit -value1 200.0    $bf_spawnSpreadField;
     floatFieldGrp -edit -value1 50.0     $bf_repulsionRadField;
     bfSwarmToggle 0;
-
-    checkBoxGrp   -edit -value1 false    $bf_windEnableCheck;
-    bfWindToggle 0;
 
     // Follow-camera defaults
     checkBoxGrp    -edit -value1 false   $bf_camEnableCheck;
@@ -1864,7 +1568,6 @@ global proc bfReset()
     checkBoxGrp    -edit -value1 false      $bf_statCamAutoZoomCheck;
     bfStatCamToggle 0;
 
-    bfUpdateSpecies;
     bfUpdateMode;
 
     print "// ButterFlight: Panel reset to defaults.\n";
