@@ -12,9 +12,9 @@
 \usepackage{enumitem}
 \usetikzlibrary{shapes.geometric, arrows.meta, positioning, calc}
 
-% Figures live in ../Design_Doc/img/  — keep the design-doc relative
-% paths working.
-\graphicspath{{../Design_Doc/}}
+% Figures: design-doc figures live in ../Design_Doc/img/, new
+% Final-Report screenshots live in ./img/.
+\graphicspath{{./}{../Design_Doc/}}
 
 % ---- Section formatting (mirrors the Design Doc) ----
 \titleformat{\section}{\large\bfseries}{{\thesection.}}{0.5em}{}
@@ -1788,22 +1788,338 @@ Computer Animation} (2015), 111--118.
 
 % ------------------------------------------------------------
 \subsection{Documentation / Tutorial}
-% Document the workflow of the authoring tool — describe how a
-% user would use the tool from start to finish.
 % ------------------------------------------------------------
 
-% TODO: workflow walkthrough (load plugin, source MEL, open UI,
-% pick rig, choose mode, set parameters, simulate, scrub).
+This section walks through the complete artist-facing workflow of ButterFlight,
+from loading a rigged butterfly mesh to baking and rendering the final
+animation.  The tool is structured around a single MEL panel in Maya and three
+exclusive simulation modes (Hover, Path Following, Free Flight), all with
+optional swarm replication and cinematic camera support layered on top.
 
+\subsubsection{Step 1: Load the Rigged Butterfly}
+
+The user begins by loading a rigged butterfly mesh into the Maya scene.  The
+plug-in expects the standard ButterFlight skeleton structure: a \texttt{BF\_body}
+root joint with \texttt{BF\_thorax}, \texttt{BF\_forewing\_L/R},
+\texttt{BF\_hindwing\_L/R}, and \texttt{BF\_abdomen} as descendants, plus
+optional \texttt{BF\_head}, \texttt{BF\_antenna\_L/R}, and leg joints.  Skin
+weights should be bound to each wing/body part with the ``Bind to Selected
+joints'' option to avoid cross-influence.
+
+\begin{figure}[H]
+  \centering
+  \fbox{\parbox{0.65\textwidth}{\centering\vspace{3em}
+    \textit{[PLACEHOLDER: \texttt{img/skeleton\_structure.png} ---
+    Maya outliner showing the expected ButterFlight joint hierarchy
+    (\texttt{BF\_body} as root, with \texttt{BF\_thorax}, the four wings,
+    abdomen, head, antennae, and legs).]}\vspace{3em}}}
+  \caption{The ButterFlight rigging convention.  Joint names must follow the
+    \texttt{BF\_} prefix scheme so the plug-in can locate each joint
+    automatically.}
+  \label{fig:rig_structure}
+\end{figure}
+
+\subsubsection{Step 2: Open the ButterFlight Panel and Assign the Rig}
+
+After loading the plug-in (\texttt{loadPlugin "butterFlight.mll"}) and sourcing
+\texttt{butterFlight\_ui.mel}, calling \texttt{butterFlightUI} brings up the main
+panel.  The user selects the root joint of the rig in the viewport, then clicks
+\textbf{Select} in Section~1 to assign it.
+
+\begin{figure}[H]
+  \centering
+  \fbox{\parbox{0.55\textwidth}{\centering\vspace{3em}
+    \textit{[PLACEHOLDER: \texttt{img/panel\_overview.png} ---
+    full ButterFlight panel as it appears on first launch with the rig
+    assigned and Hover mode selected.]}\vspace{3em}}}
+  \caption{ButterFlight panel after launch, with the rig root assigned in
+    Section~1 and Hover selected as the simulation mode.}
+  \label{fig:panel_overview}
+\end{figure}
+
+\subsubsection{Step 3a: Hover Mode}
+
+In Hover mode, ButterFlight keeps the butterfly fixed in space while wing
+flapping, abdomen counter-phase oscillation, and an optional positional drift
+play out around the chosen anchor.  The user may either reuse the rig's
+current world position (default) or enter explicit X/Y/Z coordinates and
+roll/pitch/yaw angles.  The \textbf{Enable Hover Noise} option drives a slow
+three-axis drift (sum of two slow incommensurate sines per axis,
+$\approx 0.2$--$0.5$\,Hz) so the butterfly does not appear locked in place.
+
+In the Output Settings panel, the user sets the \textbf{Start Frame} and
+\textbf{Duration} of the animation along with the \textbf{Flap Period} (in
+seconds), which controls how rapidly the wings flap.  Clicking \textbf{Simulate}
+bakes the animation onto the rig joints over the requested frame range.
+
+\begin{figure}[H]
+  \centering
+  \fbox{\parbox{0.50\textwidth}{\centering\vspace{3em}
+    \textit{[PLACEHOLDER: \texttt{img/hover\_panel.png} ---
+    the Hover Settings sub-panel expanded, showing the
+    use-current-rig-position checkbox, custom XYZ fields, rotation fields,
+    and the hover-noise enable + amplitude controls.]}\vspace{3em}}}
+  \caption{Hover Settings panel.  When ``Use Current Rig Position'' is
+    checked, the butterfly hovers in place at its current world position;
+    otherwise the X/Y/Z fields take effect.  Hover Noise produces an organic
+    positional wander around that anchor.}
+  \label{fig:hover_panel}
+\end{figure}
+
+\subsubsection{Step 3b: Path Following Mode}
+
+In Path Following mode, the butterfly flies along a user-drawn NURBS curve.
+The user picks the curve from the scene via the \textbf{Select} button in the
+Path Settings panel.  Two start modes are available:
+
+\begin{itemize}
+  \item \textbf{Start from Path Start} (checked) --- the butterfly teleports
+    to the curve's first CV at the start of the simulation and immediately
+    begins following the curve.
+
+  \item \textbf{Nearest-point start} (default) --- the butterfly snaps to
+    the point on the curve nearest its current rig position.  When the rig
+    is more than 0.5\,cm from the curve, an \emph{approach phase} smoothly
+    interpolates position (quadratic, with a linear speed ramp), heading,
+    and full rotation from the rig pose to the curve snap point before
+    cursor-driven path following takes over.
+\end{itemize}
+
+The \textbf{Use Path Speed Scale} toggle automatically derives the cursor
+advance rate so the butterfly traverses the entire (remaining) curve over
+the simulation's duration.  Path Noise can be layered on for organic
+left/right/up/down sway around the curve target.
+
+\begin{figure}[H]
+  \centering
+  \fbox{\parbox{0.50\textwidth}{\centering\vspace{3em}
+    \textit{[PLACEHOLDER: \texttt{img/path\_panel.png} ---
+    the Path Settings sub-panel showing the curve picker, Start From Path
+    Start checkbox, Use Path Speed Scale toggle + scale field, Path Noise
+    toggle + amplitude, and the advanced Deceleration and Angle Blend
+    sub-sections.]}\vspace{3em}}}
+  \caption{Path Settings panel.  The Deceleration and Angle Blend
+    sub-sections (collapsed by default) provide a smooth landing into a
+    user-specified end pose---useful for blending path following into a
+    subsequent hover shot.}
+  \label{fig:path_panel}
+\end{figure}
+
+\subsubsection{Step 3c: Advanced Path Controls --- Deceleration and Angle Blend}
+
+For artists who need a smooth stop at the end of a path (e.g.\ to hand off
+into a hover shot), ButterFlight includes two complementary tools:
+
+\begin{itemize}
+  \item \textbf{Deceleration.}  Over the last $N\%$ of the curve, the cursor
+    advance fades to a small velocity floor using either a linear or
+    exponential curve.  The scale-driven \texttt{arcRate} formula is
+    automatically rederived to compensate so the cursor still reaches the
+    curve end on the final frame even with the slowdown applied.
+
+  \item \textbf{Angle Blend.}  Over the last $N\%$ of the curve, the
+    \texttt{BF\_thorax} local rotation is quaternion-slerped from the
+    path-tangent-derived pose toward an exact user-specified
+    (\texttt{rotateX}, \texttt{rotateY}, \texttt{rotateZ}) target.  On the
+    very last frame the thorax key is force-written from the typed Euler
+    values, sidestepping any quaternion-to-Euler roundtrip drift in
+    gimbal-lock branches.
+\end{itemize}
+
+\begin{figure}[H]
+  \centering
+  \fbox{\parbox{0.55\textwidth}{\centering\vspace{3em}
+    \textit{[PLACEHOLDER: \texttt{img/decel\_angle\_blend.png} ---
+    the Deceleration and Angle Blend sub-panels expanded, showing the
+    enable checkboxes, window-percentage fields, fade-mode option menus,
+    and the three Final Rotate X/Y/Z fields.]}\vspace{3em}}}
+  \caption{Advanced path-end controls.  Deceleration (top) fades cursor
+    speed; Angle Blend (bottom) interpolates the thorax to an exact
+    rotation target on the last frame.}
+  \label{fig:decel_angle_blend}
+\end{figure}
+
+\subsubsection{Step 3d: Free Flight Mode}
+
+Free Flight runs the full physical model (wing aerodynamics, curl-noise vortex
+forces, gravity) without any path or hover constraint.  The butterfly's
+velocity emerges from the force model and the inherent trajectory noise of the
+curl-noise field.  This mode is useful for ambient background motion or for
+seeding a swarm with one leader whose trajectory is not pre-authored.
+
+\subsubsection{Step 4: Cinematic Cameras (optional)}
+
+Two camera tools can be enabled in addition to any simulation mode:
+
+\begin{itemize}
+  \item \textbf{Follow Camera.}  Bakes a camera that maintains a fixed offset
+    relative to the butterfly across the animation.  When ``Use Current Camera
+    Transformation'' is on, the offset, rotation, and FOV are captured from
+    the active viewport camera at simulate time, so the artist can frame the
+    shot directly in the viewport and ButterFlight inherits exactly that
+    framing.
+
+  \item \textbf{Stationary Rotating Camera.}  A camera fixed at the active
+    viewport camera's position whose rotation animates each frame to keep
+    the butterfly at the same screen-space offset as the framing setup.  The
+    optional Auto Zoom keys focal length per frame
+    ($f_t = f_0 \cdot d_t / d_0$) so the butterfly stays roughly the same
+    apparent size as it moves toward or away from the camera.
+\end{itemize}
+
+\begin{figure}[H]
+  \centering
+  \fbox{\parbox{0.55\textwidth}{\centering\vspace{3em}
+    \textit{[PLACEHOLDER: \texttt{img/cameras\_panel.png} ---
+    the Follow Camera and Stationary Camera panels side by side, showing
+    the Use Current Camera Transformation toggle, manual offset fields,
+    spring stiffness, FOV, and the Auto Zoom checkbox.]}\vspace{3em}}}
+  \caption{Cinematic camera controls.  Both cameras can capture the active
+    viewport camera's transform at simulate time so the artist can frame
+    shots directly in Maya's viewport and have the bake match exactly.}
+  \label{fig:cameras_panel}
+\end{figure}
+
+\subsubsection{Step 5: Swarm (optional)}
+
+In any simulation mode, enabling \textbf{Swarm} duplicates the assigned rig
+into $N$ agents.  The leader follows the chosen mode (hover, path, or free)
+exactly as in the single-butterfly case; the followers run a flocking
+behaviour (cohesion, separation, alignment) that loosely tracks the leader's
+position while preserving individual variation in flap phase and trajectory
+noise.  Spawn spread (cm) and inter-agent repulsion radius (cm) are exposed
+as sliders.
+
+\subsubsection{Step 6: Simulate, Scrub, and Render}
+
+Clicking the green \textbf{Simulate} button bakes keyframes onto the rig
+joints (and onto any enabled cameras) over the specified frame range.  The
+result is standard Maya animation curves that scrub on the timeline and
+render without the plug-in loaded.  The blue \textbf{Reset} button restores
+all UI fields to defaults; the red \textbf{Delete All Keys} button clears
+every animation curve from the rig hierarchy and any ButterFlight cameras
+in the scene, useful for iterating between simulation runs.
 
 % ------------------------------------------------------------
 \subsection{Content Creation}
-% Screenshots with descriptions showing UI, workflow, and typical
-% output of the authoring tool.
 % ------------------------------------------------------------
 
-% TODO: UI panel screenshots; before/after viewport; final scene
-% renders; per-mode example outputs.
+This section showcases the typical output an artist can produce with
+ButterFlight, drawn from the final demo render.  All four shots below were
+generated by ButterFlight without any hand-keyed animation on the rig
+joints---only the initial rig pose, the user-drawn NURBS guide curves, and
+the simulation parameters were set by the artist.
+
+\subsubsection{UI in Action}
+
+\begin{figure}[H]
+  \centering
+  \fbox{\parbox{0.85\textwidth}{\centering\vspace{4em}
+    \textit{[PLACEHOLDER: \texttt{img/ui\_in\_maya.png} ---
+    full Maya screenshot showing the ButterFlight panel docked on the
+    right, the rigged butterfly + NURBS path in the viewport, and the
+    Channel Box / timeline at the bottom with baked animation curves
+    visible.]}\vspace{4em}}}
+  \caption{ButterFlight in use inside Maya 2026.  The left side shows the
+    viewport with a rigged Monarch butterfly on a NURBS guide curve; the
+    right side shows the ButterFlight panel; the timeline shows baked
+    keyframes after \textit{Simulate}.}
+  \label{fig:ui_in_maya}
+\end{figure}
+
+\subsubsection{Shot 1 --- Path Following with Follow Camera}
+
+In the opening shot of the demo, the butterfly flies through a spiky
+crystalline terrain along a guided NURBS curve.  A Follow Camera bakes from
+the active viewport framing, so the butterfly stays at the same screen
+position throughout the flight.  Path Noise is enabled at moderate amplitude
+to keep the trajectory from feeling mechanical.
+
+\begin{figure}[H]
+  \centering
+  \fbox{\parbox{0.85\textwidth}{\centering\vspace{4em}
+    \textit{[PLACEHOLDER: \texttt{img/shot1\_terrain\_followcam.png} ---
+    rendered frame from the demo showing the butterfly mid-path through
+    the spiky-terrain environment, captured by the follow camera.]}
+    \vspace{4em}}}
+  \caption{Shot~1 --- path following through a stylised terrain with the
+    follow camera locked to the butterfly's framing.}
+  \label{fig:shot1}
+\end{figure}
+
+\subsubsection{Shot 2 --- Overhead View Showing Path Noise}
+
+The second shot reveals the trajectory's lateral wander from above.  Path
+Noise produces an organic, non-repeating left/right swing around the guide
+curve, visible as the butterfly weaves slightly off the centerline.
+
+\begin{figure}[H]
+  \centering
+  \fbox{\parbox{0.85\textwidth}{\centering\vspace{4em}
+    \textit{[PLACEHOLDER: \texttt{img/shot2\_overhead\_pathnoise.png} ---
+    overhead render showing the butterfly's wandered trajectory relative
+    to the underlying NURBS guide curve.]}\vspace{4em}}}
+  \caption{Shot~2 --- overhead view making Path Noise's lateral sway
+    visible against the underlying guide curve.}
+  \label{fig:shot2}
+\end{figure}
+
+\subsubsection{Shot 3 --- Deceleration + Angle Blend into a Hover}
+
+In the third shot, the butterfly approaches a white rose at the end of a
+guide curve.  Deceleration smoothly fades cursor speed across the last
+$\sim$10\% of the curve, while Angle Blend rotates the thorax into a
+specified upright pose at exactly the final frame.  The result is a clean
+handoff from path following to a stable hover in front of the flower.
+
+\begin{figure}[H]
+  \centering
+  \fbox{\parbox{0.85\textwidth}{\centering\vspace{4em}
+    \textit{[PLACEHOLDER: \texttt{img/shot3\_decel\_hover.png} ---
+    rendered frame at the end of the deceleration + angle blend, showing
+    the butterfly stationary in front of the white rose.]}\vspace{4em}}}
+  \caption{Shot~3 --- Deceleration and Angle Blend deliver the butterfly
+    into a precise hover pose in front of the rose.}
+  \label{fig:shot3}
+\end{figure}
+
+\subsubsection{Shot 4 --- Nearest-Point Departure with Stationary Camera}
+
+The closing shot reverses the previous transition: the butterfly leaves the
+hover, snaps onto a new NURBS path using the nearest-point start with the
+smooth approach phase, and flies off into the distance.  A Stationary
+Rotating Camera (with Auto Zoom on) holds its world position while rotating
+to track the butterfly and scaling focal length to keep the apparent size
+roughly constant as the subject recedes.
+
+\begin{figure}[H]
+  \centering
+  \fbox{\parbox{0.85\textwidth}{\centering\vspace{4em}
+    \textit{[PLACEHOLDER: \texttt{img/shot4\_statcam\_flyaway.png} ---
+    rendered frame of the butterfly mid-departure, viewed from the
+    stationary camera as it pans and zooms to follow.]}\vspace{4em}}}
+  \caption{Shot~4 --- Stationary Rotating Camera with Auto Zoom tracks the
+    butterfly as it leaves the rose for the flower field beyond.}
+  \label{fig:shot4}
+\end{figure}
+
+\subsubsection{Swarm Output}
+
+Although not used in the four-shot demo, swarm simulation is supported in
+all three single-butterfly modes.  Figure~\ref{fig:swarm_output} shows a
+representative swarm run with $N{=}10$ Monarchs flocking around a leader on a
+hover anchor.
+
+\begin{figure}[H]
+  \centering
+  \fbox{\parbox{0.85\textwidth}{\centering\vspace{4em}
+    \textit{[PLACEHOLDER: \texttt{img/swarm\_output.png} ---
+    rendered or viewport screenshot showing 10 butterflies flocking around
+    a leader, each with its own flap phase.]}\vspace{4em}}}
+  \caption{Swarm output.  Each agent runs the full Module~1--3 pipeline
+    independently so flap phase and trajectory noise vary naturally.}
+  \label{fig:swarm_output}
+\end{figure}
 
 
 % ============================================================
