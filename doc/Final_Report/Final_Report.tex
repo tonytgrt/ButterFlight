@@ -2133,16 +2133,171 @@ hover anchor.
 % ------------------------------------------------------------
 
 \subsubsection{Features Implemented}
-% TODO: enumerate shipped features.
+
+The following features from the Design Doc were fully implemented and ship
+with the final build:
+
+\begin{itemize}
+  \item \textbf{Full wing kinematics (Module~1).} All five maneuvering angles
+    ($\theta_\beta$, $\theta_\gamma$, $\theta_\zeta$, $\theta_\psi$,
+    $\theta_\phi$) are evaluated per frame via the cosine maneuvering function
+    (Eq.~1) with sigmoid-modulated frequency and amplitude (Eqs.~2--3).
+    Per-angle parameters are taken directly from Table~3 of Chen et al.\ 2022.
+
+  \item \textbf{Quasi-steady aerodynamic force model (Module~2).} Per-wing
+    lift and drag are computed from the flat-plate approximation (Eqs.~4--6)
+    using the empirical polynomial coefficients. Wing-panel normals are derived
+    from joint world transforms rather than mesh queries.
+
+  \item \textbf{Curl-noise vortex force (Module~2).} A 3-D Perlin-based
+    curl-noise field (Eq.~7) produces turbulent vortex forces at the thorax
+    centre of mass, creating the characteristic erratic trajectory noise of
+    real butterfly flight.
+
+  \item \textbf{Maneuvering controller (Module~3).} Preferred acceleration
+    (Eq.~8), local aerodynamic acceleration (Eqs.~10--11), and sliding-window
+    parameter smoothing at cycle boundaries (Eq.~12) are all implemented and
+    integrated into the simulation loop.
+
+  \item \textbf{Three simulation modes:} Free Flight, Path Following (with
+    cursor-based steering), and Hover.
+
+  \item \textbf{Path following with speed control.} A time-based arc cursor
+    guarantees the butterfly traverses the NURBS guide curve over the specified
+    duration, with an artist-facing Path Speed Scale multiplier. Both
+    ``Start from Path Start'' and nearest-point snap modes are supported.
+
+  \item \textbf{Hover mode.} The butterfly holds a fixed position (either the
+    current rig location or user-specified coordinates) with optional
+    orientation control (pitch, yaw, roll). Minimum-frequency and
+    minimum-amplitude floors keep the wings flapping naturally at zero speed.
+
+  \item \textbf{Swarm / flocking.} Multiple butterflies are spawned with a
+    leader--follower flocking model (cohesion, separation, alignment). Each
+    agent runs the full Module~1--3 pipeline independently, so flap phase and
+    trajectory noise vary naturally across the group.
+
+  \item \textbf{Cinematic cameras.}
+    \begin{itemize}
+      \item \textit{Follow camera} with viewport-derived offsets
+        (``Use Current Camera Transformation'') or manual X/Y/Z offsets.
+      \item \textit{Stationary rotating camera} whose position is locked to
+        the viewport camera and whose rotation tracks the butterfly with a
+        preserved screen-space offset.
+      \item \textit{Auto-zoom} for the stationary camera scales focal length
+        per frame to keep the butterfly's apparent size roughly constant.
+    \end{itemize}
+
+  \item \textbf{Deceleration and angle blend.} Path-following mode can
+    smoothly decelerate the cursor across the last portion of the curve and
+    blend the thorax orientation into a target pose, enabling clean handoffs
+    from path following into hover.
+
+  \item \textbf{Keyframe baking.} All joint rotations and root translations
+    are written as standard Maya animation curves, scrubbable on the timeline
+    and renderable without the plug-in loaded.
+
+  \item \textbf{Full MEL UI panel.} Ten collapsible panels with
+    mode-dependent visibility, parameter validation, and Reset / Delete All
+    Keys utilities.
+\end{itemize}
 
 \subsubsection{What Worked}
-% TODO: which design choices held up; what was easier than expected.
+
+\begin{itemize}
+  \item \textbf{The three-module pipeline from Chen et al.\ held up well.}
+    Separating wing kinematics (Module~1), force computation (Module~2), and
+    maneuvering control (Module~3) made it possible for two team members to
+    develop and test modules in parallel with minimal merge friction.
+
+  \item \textbf{Cursor-based path steering.} Replacing the initial
+    velocity-based path-following approach with a time-based arc cursor solved
+    the traversal-guarantee problem cleanly. The cursor decouples traversal
+    rate from physics velocity limits, and the Path Speed Scale gives the
+    artist intuitive control over pacing.
+
+  \item \textbf{Viewport-derived camera offsets.} Capturing the active
+    viewport camera's transform at simulate time and computing a quaternion
+    offset relative to the look-at direction proved to be a robust and
+    intuitive workflow: the artist simply frames the shot, clicks Simulate,
+    and the baked camera preserves that framing throughout the animation.
+
+  \item \textbf{Minimum-frequency / minimum-amplitude floors for hover.}
+    Rather than fighting the physics pipeline (which produces zero lift at
+    zero velocity), bypassing \texttt{controller.step()} entirely in hover
+    mode and relying on wing-model floor values produced natural-looking
+    hovering animation with minimal implementation effort.
+
+  \item \textbf{MEL-to-C++ flag-based interface.} Keeping all simulation
+    logic in C++ and limiting the MEL layer to parameter collection and
+    command invocation avoided the performance and debugging difficulties of
+    mixed MEL/C++ simulation code.
+\end{itemize}
 
 \subsubsection{What Did Not Work}
-% TODO: things attempted that had to be redesigned or dropped.
+
+\begin{itemize}
+  \item \textbf{Velocity-based path speed control (first attempt).} The
+    original approach computed a desired velocity from curve length divided by
+    duration and passed it through the physics blender. The exponential blend
+    ($\alpha \approx 0.2\%$ per substep, blend rate~18) converged too slowly,
+    and the \texttt{maxSpeed} clamp on both desired and integrated velocity
+    made all curves above a certain length appear the same speed. Two
+    iteration rounds were needed before the cursor-based design was adopted.
+
+  \item \textbf{Left-wing joint mirroring via negative scale.} The original
+    butterfly rig used \texttt{scaleZ = -1} intermediate transforms to mirror
+    the left wings from the right. Maya's joint traversal and rotation
+    applicator produced incorrect results through these non-standard nodes.
+    The fix required deleting and recreating the left-wing joints using
+    \texttt{mirrorJoint}.
+
+  \item \textbf{MEL proc name collision with the C++ command.} The MEL
+    callback was originally named \texttt{bfSimulate()}, identical to the C++
+    plugin command name. Maya resolved the identifier to the MEL proc
+    (which took no arguments) instead of the C++ command, causing a
+    ``wrong number of arguments'' error. Renaming the MEL proc to
+    \texttt{bfSimulateCallback()} fixed the issue, but it required a fresh
+    Maya session to clear the cached definition.
+
+  \item \textbf{Skin binding in ``Joint hierarchy'' mode.} Default Bind Skin
+    binds the mesh to all joints in the hierarchy, causing one wing's mesh
+    to be deformed by both wing joints. Switching to ``Bind to Selected
+    Joints'' mode and binding each wing individually resolved this.
+
+  \item \textbf{Focal-length animation on camera shapes.}
+    \texttt{clearAnimCurves()} only wipes transform-level plugs; stale
+    focal-length keys from prior auto-zoom runs persisted until
+    \texttt{clearAnimCurveOnPlug()} was written to handle shape attributes
+    explicitly.
+\end{itemize}
 
 \subsubsection{Features Not Implemented}
-% TODO: features in the Design Doc that didn't ship — and why.
+
+\begin{itemize}
+  \item \textbf{Time-varying (sinusoidal) wind.} The Design Doc described an
+    optional sinusoidal modulation of the wind vector to simulate gusts. The
+    constant wind vector is supported (via the curl-noise vortex force), but
+    the time-varying envelope was not implemented. The constant wind already
+    produces convincing trajectory perturbation via the curl-noise field, and
+    the sinusoidal layer was deemed lower priority than the camera and
+    deceleration features that were added instead.
+
+  \item \textbf{Alembic / FBX export button.} The Design Doc included an
+    ``Export Cache'' button that would invoke Maya's built-in
+    \texttt{AbcExport} or \texttt{FBXExport} after baking. Because the baked
+    output is standard Maya keyframe animation, users can export through
+    Maya's native File~$\to$~Export dialogs without any special plug-in
+    support, so the dedicated button was deprioritized.
+
+  \item \textbf{Vortex-gain and force-parameter UI exposure.} The Design Doc's
+    ``Force Parameters'' panel (Section~5) was planned to expose per-axis
+    vortex gains (\textit{gain}$_{x,y,z}$), the $\eta$ scale, maximum speed,
+    and the sliding-window size $k$ as editable fields. These parameters are
+    currently hardcoded to the paper's empirical defaults. Exposing them was
+    deprioritized in favour of the camera system and deceleration/angle-blend
+    features, which had higher artist impact.
+\end{itemize}
 
 
 % ------------------------------------------------------------
@@ -2152,7 +2307,58 @@ hover anchor.
 % What prompted the design change?
 % ------------------------------------------------------------
 
-% TODO: each notable deviation, with cause and consequence.
+The following design changes were made relative to the original Design Doc
+technical approach:
+
+\begin{itemize}
+  \item \textbf{Cursor-based path steering replaced velocity-based steering.}
+    The Design Doc assumed path following would be driven by computing a
+    desired velocity from the path tangent and blending it into the physics
+    velocity via the maneuvering controller's exponential blend. After two
+    failed iterations (auto-derived speed from curve length, and clamped
+    desired velocity), the approach was replaced with a time-based arc cursor
+    that advances at a fixed rate per substep. This change was prompted by the
+    discovery that the \texttt{maxSpeed} clamp and the slow exponential blend
+    made velocity-based speed control fundamentally unreliable for guaranteeing
+    curve traversal within a specified duration.
+
+  \item \textbf{Hover mode bypasses the physics pipeline.} The Design Doc
+    implied hover would use the same force model with a stationary target.
+    In practice, at zero velocity, aerodynamic lift vanishes (Eq.~4 scales
+    with $|\mathbf{V}|^2$), gravity pulls the butterfly down, and vortex
+    forces push it off station. Rather than adding a PD controller to fight
+    these forces, hover mode was implemented by skipping
+    \texttt{controller.step()} entirely and running only the wing model with
+    minimum-frequency floors. This was simpler, more robust, and visually
+    equivalent.
+
+  \item \textbf{Camera system expanded beyond original scope.} The Design Doc
+    did not include cinematic cameras. During development, the follow camera
+    and stationary rotating camera (with auto-zoom) were added as new features
+    to support the demo scene workflow. This was prompted by the realization
+    that manually placing and animating cameras to frame a moving butterfly
+    was tedious and error-prone, and that viewport-derived offsets could
+    automate the process.
+
+  \item \textbf{Deceleration and angle blend added for path-to-hover
+    transitions.} These features were not in the original Design Doc but were
+    added to solve the jarring discontinuity when a butterfly reaches the end
+    of a path curve and transitions to free flight or hover.
+
+  \item \textbf{Swarm architecture changed from centroid-based to
+    leader--follower flocking.} The Design Doc proposed a swarm where each
+    agent's preferred acceleration targets the swarm centroid. The implemented
+    design uses a leader--follower model with Reynolds-style flocking rules
+    (cohesion, separation, alignment), which produces more natural group
+    behaviour and allows the leader to follow any single-butterfly mode
+    (path, hover, or free flight).
+
+  \item \textbf{Camera creation uses MEL \texttt{camera -name} instead of
+    C++ node creation.} Creating camera transforms in C++ and renaming them
+    was racy (sometimes producing \texttt{camera1} instead of the intended
+    name). Using the MEL command atomically creates the transform and shape
+    with the correct name.
+\end{itemize}
 
 
 % ------------------------------------------------------------
@@ -2161,7 +2367,22 @@ hover anchor.
 % member.
 % ------------------------------------------------------------
 
-% TODO: per-member total hours, sourced from weekly progress reports.
+\begin{table}[H]
+\centering
+\begin{tabular}{|l|c|}
+\hline
+\textbf{Team Member} & \textbf{Total Hours} \\
+\hline
+Cecilia Chen  & TODO \\
+Yiding Tian   & TODO \\
+\hline
+\textbf{Total} & TODO \\
+\hline
+\end{tabular}
+\caption{Cumulative man-hours from weekly progress reports.}
+\end{table}
+
+% TODO: Fill in actual hour totals from your weekly progress reports.
 
 
 % ------------------------------------------------------------
@@ -2170,45 +2391,48 @@ hover anchor.
 % functional tool usable by an artist?
 % ------------------------------------------------------------
 
-% TODO: feature gaps, polish, performance, robustness.
+The following work would be required to develop ButterFlight into a fully
+production-ready tool:
 
+\begin{itemize}
+  \item \textbf{Expose tunable physics parameters in the UI.} The per-axis
+    vortex gains (\textit{gain}$_{x,y,z}$), curl-noise scale $\eta$, maximum
+    speed, and sliding-window size $k$ are currently hardcoded. Exposing them
+    as UI sliders would let artists fine-tune the flight character without
+    editing source code, enabling different butterfly species or stylized
+    flight behaviours.
 
-% ------------------------------------------------------------
-\subsection{Third Party Software}
-% List ALL third party / other software used in the project that
-% was not written by the authors.  Brief description of each.
-% Also describe any source materials reviewed that were provided
-% or made available by the authors.
-% ------------------------------------------------------------
+  \item \textbf{Time-varying wind.} A sinusoidal or noise-driven wind
+    envelope would simulate gusts and thermal drafts, adding temporal
+    variation to the vortex-force perturbation.
 
-% TODO: Maya APIs, libraries, Chen et al. 2022 paper, FBX/Alembic
-% exporters, XGen, Arnold/Renderer, asset packs, etc.
+  \item \textbf{Takeoff and landing transitions.} The current simulation
+    assumes the butterfly is always in flight. Adding takeoff (leg-push
+    momentum) and landing (approach deceleration, leg-contact IK) would
+    enable seamless integration into scenes where the butterfly interacts with
+    surfaces.
 
+  \item \textbf{Species presets.} The Monarch butterfly parameters from
+    Chen et al.\ are hardcoded. A preset system with different wing areas,
+    masses, and maneuvering-angle ranges would let the artist switch between
+    species (e.g., Swallowtail, Painted Lady) with a single menu selection.
 
-% ------------------------------------------------------------
-\subsection{AI Tools and Software}
-% It is OK to have used AI tools.  Describe how AI was used
-% across each phase of the project.
-% ------------------------------------------------------------
+  \item \textbf{Collision avoidance with scene geometry.} Currently the
+    butterfly can fly through meshes in the scene. Adding raycasting or
+    signed-distance-field queries against the environment would let the
+    maneuvering controller steer around obstacles.
 
-\subsubsection{Literature Survey}
-% Describe how AI was used in preparing the Literature Survey
-% (finding relevant references, summarizing previous works, etc.).
-% What tools and software were used?
-% TODO
+  \item \textbf{Performance optimisation for large swarms.} The current
+    swarm implementation runs the full Module~1--3 pipeline per agent per
+    frame. For swarms larger than $\sim$20 agents, precomputing wing normals,
+    batching force evaluations, or using SIMD noise would be necessary to
+    maintain interactive performance.
 
-\subsubsection{Design Doc}
-% Describe how AI was used in preparing the Design Doc (software
-% design details, work plan task decomposition; enhancing,
-% editing, or revising what was written).  What tools were used?
-% TODO
-
-\subsubsection{Authoring Tool Software Development}
-% Describe how AI was used to develop the authoring tool itself
-% (Maya APIs, classes/functions; C++ class descriptions; code
-% generation; UI design and implementation, etc.).  What tools
-% were used?
-% TODO
+  \item \textbf{Procedural wing deformation.} The current model drives rigid
+    joint rotations only. Adding secondary flex and bend via blendshapes or
+    a lattice deformer would improve visual fidelity, especially in close-up
+    shots.
+\end{itemize}
 
 
 % ============================================================
