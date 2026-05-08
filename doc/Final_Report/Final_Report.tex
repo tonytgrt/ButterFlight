@@ -2385,16 +2385,14 @@ technical approach:
 \hline
 \textbf{Team Member} & \textbf{Total Hours} \\
 \hline
-Cecilia Chen  & TODO \\
+Cecilia Chen  & 50 \\
 Yiding Tian   & 80 \\
 \hline
-\textbf{Total} & TODO \\
+\textbf{Total} & 130 \\
 \hline
 \end{tabular}
 \caption{Cumulative man-hours from weekly progress reports.}
 \end{table}
-
-% TODO: Fill in actual hour totals from your weekly progress reports.
 
 
 % ------------------------------------------------------------
@@ -2446,6 +2444,103 @@ production-ready tool:
     shots.
 \end{itemize}
 
+
+% ------------------------------------------------------------
+\subsection{Third Party Software}
+% List ALL third party / other software used in the project that
+% was not written by the authors.  Brief description of each.
+% Also describe any source materials reviewed that were provided
+% or made available by the authors.
+% ------------------------------------------------------------
+
+\begin{itemize}
+  \item \textbf{Autodesk Maya 2026 C++ API (devkit).} The entire plug-in is
+    built against the Maya 2026 C++ SDK. The following API classes are used
+    extensively:
+    \begin{itemize}
+      \item \texttt{MPxCommand} --- base class for the \texttt{bfSimulate}
+        command; provides flag parsing via \texttt{MArgDatabase} and
+        undo/redo hooks.
+      \item \texttt{MFnDagNode} / \texttt{MItDag} --- traverse the joint
+        hierarchy from the root to locate all \texttt{BF\_*} joints.
+      \item \texttt{MFnTransform} --- read and set world-space translation
+        and rotation on the root joint each frame.
+      \item \texttt{MFnAnimCurve} --- create and write
+        \texttt{animCurveTA} (time$\to$angle) and \texttt{animCurveTL}
+        (time$\to$linear) nodes for baking joint rotations and root
+        position as Maya keyframe curves.
+      \item \texttt{MFnNurbsCurve} --- sample the user-specified path curve
+        (\texttt{closestPoint}, \texttt{getPointAtParam},
+        \texttt{findLengthFromParam}, \texttt{findParamFromLength}) for
+        path-following mode.
+      \item \texttt{MFnCamera} --- set vertical field of view and read
+        focal length for the cinematic camera system.
+      \item \texttt{MAnimControl} --- query frame rate and set the playback
+        range to the baked frame span.
+      \item \texttt{M3dView} --- capture the active viewport camera's
+        transform for viewport-derived camera offsets.
+      \item \texttt{MVector} / \texttt{MPoint} / \texttt{MMatrix} /
+        \texttt{MQuaternion} --- all vector, point, matrix, and quaternion
+        arithmetic throughout the simulation.
+    \end{itemize}
+
+  \item \textbf{Maya MEL scripting.} The UI panel
+    (\texttt{butterFlight\_ui.mel}) is written entirely in MEL using standard
+    UI commands (\texttt{window}, \texttt{frameLayout}, \texttt{columnLayout},
+    \texttt{optionMenuGrp}, \texttt{floatFieldGrp}, \texttt{button}, etc.)
+    and the built-in \texttt{camera} command for atomic camera creation.
+
+  \item \textbf{CMake 3.25+.} Used as the build system to locate the Maya
+    devkit and generate the Visual Studio 2022 solution. Not required at
+    runtime.
+
+  \item \textbf{Chen et al.\ 2022 reference paper.} ``A Practical Model for
+    Realistic Butterfly Flight Simulation'' (ACM Transactions on Graphics)
+    provides all equations, parameter tables, and the three-module simulation
+    architecture that ButterFlight implements. The paper's Table~3 Monarch
+    butterfly parameters are used directly as defaults.
+\end{itemize}
+
+
+% ------------------------------------------------------------
+\subsection{AI Tools and Software}
+% It is OK to have used AI tools.  Describe how AI was used
+% across each phase of the project.
+% ------------------------------------------------------------
+
+\subsubsection{Literature Survey}
+
+Claude Code (Anthropic) was used to help locate relevant prior work on
+insect flight simulation, aerodynamic modeling, and curl-noise techniques.
+It assisted with summarizing candidate papers and identifying which
+references were most relevant to the Chen et al.\ 2022 approach.
+
+\subsubsection{Design Doc}
+
+Claude Code (Anthropic) was used to help structure the Design Doc,
+including refining the task decomposition in the Work Plan, editing
+section descriptions for clarity, and cross-checking that the algorithm
+details matched the notation in the reference paper.
+
+\subsubsection{Authoring Tool Software Development}
+
+Two AI tools were used during software development:
+
+\textbf{Claude Code (Anthropic)} was used as the primary AI coding assistant.
+It assisted with:
+\begin{itemize}
+  \item Generating initial implementations of C++ classes
+    (\texttt{BFWingModel}, \texttt{BFAerodynamics}, helper functions)
+    from the paper's equations.
+  \item Writing and iterating on the MEL UI layout, callbacks, and
+    mode-switching logic.
+  \item Debugging visual artifacts such as incorrect wing orientations
+    and joint-rotation anomalies.
+  \item Drafting the Final Report \LaTeX{} content.
+\end{itemize}
+
+\textbf{Nano Banana (Google Gemini)} was used to generate the butterfly
+wing textures applied to the rigged mesh.
 
 % ============================================================
 \section{Lessons Learned}
