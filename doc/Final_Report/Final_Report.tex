@@ -1808,11 +1808,12 @@ joints'' option to avoid cross-influence.
 
 \begin{figure}[H]
   \centering
-  \fbox{\parbox{0.65\textwidth}{\centering\vspace{3em}
-    \textit{[PLACEHOLDER: \texttt{img/skeleton\_structure.png} ---
-    Maya outliner showing the expected ButterFlight joint hierarchy
-    (\texttt{BF\_body} as root, with \texttt{BF\_thorax}, the four wings,
-    abdomen, head, antennae, and legs).]}\vspace{3em}}}
+  \includegraphics[width=1.0\textwidth]{img/skeleton_structure.png}
+%   \fbox{\parbox{0.65\textwidth}{\centering\vspace{3em}
+%     \textit{[PLACEHOLDER: \texttt{img/skeleton\_structure.png} ---
+%     Maya outliner showing the expected ButterFlight joint hierarchy
+%     (\texttt{BF\_body} as root, with \texttt{BF\_thorax}, the four wings,
+%     abdomen, head, antennae, and legs).]}\vspace{3em}}}
   \caption{The ButterFlight rigging convention.  Joint names must follow the
     \texttt{BF\_} prefix scheme so the plug-in can locate each joint
     automatically.}
@@ -1828,12 +1829,13 @@ panel.  The user selects the root joint of the rig in the viewport, then clicks
 
 \begin{figure}[H]
   \centering
-  \fbox{\parbox{0.55\textwidth}{\centering\vspace{3em}
-    \textit{[PLACEHOLDER: \texttt{img/panel\_overview.png} ---
-    full ButterFlight panel as it appears on first launch with the rig
-    assigned and Hover mode selected.]}\vspace{3em}}}
+  \includegraphics[width=1.0\textwidth]{img/panel_overview.png}
+%   \fbox{\parbox{0.55\textwidth}{\centering\vspace{3em}
+%     \textit{[PLACEHOLDER: \texttt{img/panel\_overview.png} ---
+%     full ButterFlight panel as it appears on first launch with the rig
+%     assigned and Hover mode selected.]}\vspace{3em}}}
   \caption{ButterFlight panel after launch, with the rig root assigned in
-    Section~1 and Hover selected as the simulation mode.}
+    Section~1.}
   \label{fig:panel_overview}
 \end{figure}
 
@@ -1854,11 +1856,12 @@ bakes the animation onto the rig joints over the requested frame range.
 
 \begin{figure}[H]
   \centering
-  \fbox{\parbox{0.50\textwidth}{\centering\vspace{3em}
-    \textit{[PLACEHOLDER: \texttt{img/hover\_panel.png} ---
-    the Hover Settings sub-panel expanded, showing the
-    use-current-rig-position checkbox, custom XYZ fields, rotation fields,
-    and the hover-noise enable + amplitude controls.]}\vspace{3em}}}
+  \includegraphics[width=1.0\textwidth]{img/hover_panel.png}
+%   \fbox{\parbox{0.50\textwidth}{\centering\vspace{3em}
+%     \textit{[PLACEHOLDER: \texttt{img/hover\_panel.png} ---
+%     the Hover Settings sub-panel expanded, showing the
+%     use-current-rig-position checkbox, custom XYZ fields, rotation fields,
+%     and the hover-noise enable + amplitude controls.]}\vspace{3em}}}
   \caption{Hover Settings panel.  When ``Use Current Rig Position'' is
     checked, the butterfly hovers in place at its current world position;
     otherwise the X/Y/Z fields take effect.  Hover Noise produces an organic
@@ -1892,12 +1895,13 @@ left/right/up/down sway around the curve target.
 
 \begin{figure}[H]
   \centering
-  \fbox{\parbox{0.50\textwidth}{\centering\vspace{3em}
-    \textit{[PLACEHOLDER: \texttt{img/path\_panel.png} ---
-    the Path Settings sub-panel showing the curve picker, Start From Path
-    Start checkbox, Use Path Speed Scale toggle + scale field, Path Noise
-    toggle + amplitude, and the advanced Deceleration and Angle Blend
-    sub-sections.]}\vspace{3em}}}
+  \includegraphics[width=1.0\textwidth]{img/path_panel.png}
+%   \fbox{\parbox{0.50\textwidth}{\centering\vspace{3em}
+%     \textit{[PLACEHOLDER: \texttt{img/path\_panel.png} ---
+%     the Path Settings sub-panel showing the curve picker, Start From Path
+%     Start checkbox, Use Path Speed Scale toggle + scale field, Path Noise
+%     toggle + amplitude, and the advanced Deceleration and Angle Blend
+%     sub-sections.]}\vspace{3em}}}
   \caption{Path Settings panel.  The Deceleration and Angle Blend
     sub-sections (collapsed by default) provide a smooth landing into a
     user-specified end pose---useful for blending path following into a
@@ -1928,11 +1932,12 @@ into a hover shot), ButterFlight includes two complementary tools:
 
 \begin{figure}[H]
   \centering
-  \fbox{\parbox{0.55\textwidth}{\centering\vspace{3em}
-    \textit{[PLACEHOLDER: \texttt{img/decel\_angle\_blend.png} ---
-    the Deceleration and Angle Blend sub-panels expanded, showing the
-    enable checkboxes, window-percentage fields, fade-mode option menus,
-    and the three Final Rotate X/Y/Z fields.]}\vspace{3em}}}
+  \includegraphics[width=1.0\textwidth]{img/path_panel.png}
+%   \fbox{\parbox{0.55\textwidth}{\centering\vspace{3em}
+%     \textit{[PLACEHOLDER: \texttt{img/decel\_angle\_blend.png} ---
+%     the Deceleration and Angle Blend sub-panels expanded, showing the
+%     enable checkboxes, window-percentage fields, fade-mode option menus,
+%     and the three Final Rotate X/Y/Z fields.]}\vspace{3em}}}
   \caption{Advanced path-end controls.  Deceleration (top) fades cursor
     speed; Angle Blend (bottom) interpolates the thorax to an exact
     rotation target on the last frame.}
@@ -1969,11 +1974,12 @@ Two camera tools can be enabled in addition to any simulation mode:
 
 \begin{figure}[H]
   \centering
-  \fbox{\parbox{0.55\textwidth}{\centering\vspace{3em}
-    \textit{[PLACEHOLDER: \texttt{img/cameras\_panel.png} ---
-    the Follow Camera and Stationary Camera panels side by side, showing
-    the Use Current Camera Transformation toggle, manual offset fields,
-    spring stiffness, FOV, and the Auto Zoom checkbox.]}\vspace{3em}}}
+  \includegraphics[width=1.0\textwidth]{img/cameras_panel.png}
+%   \fbox{\parbox{0.55\textwidth}{\centering\vspace{3em}
+%     \textit{[PLACEHOLDER: \texttt{img/cameras\_panel.png} ---
+%     the Follow Camera and Stationary Camera panels side by side, showing
+%     the Use Current Camera Transformation toggle, manual offset fields,
+%     spring stiffness, FOV, and the Auto Zoom checkbox.]}\vspace{3em}}}
   \caption{Cinematic camera controls.  Both cameras can capture the active
     viewport camera's transform at simulate time so the artist can frame
     shots directly in Maya's viewport and have the bake match exactly.}
@@ -2014,12 +2020,13 @@ the simulation parameters were set by the artist.
 
 \begin{figure}[H]
   \centering
-  \fbox{\parbox{0.85\textwidth}{\centering\vspace{4em}
-    \textit{[PLACEHOLDER: \texttt{img/ui\_in\_maya.png} ---
-    full Maya screenshot showing the ButterFlight panel docked on the
-    right, the rigged butterfly + NURBS path in the viewport, and the
-    Channel Box / timeline at the bottom with baked animation curves
-    visible.]}\vspace{4em}}}
+  \includegraphics[width=1.0\textwidth]{img/ui_in_maya.png}
+%   \fbox{\parbox{0.85\textwidth}{\centering\vspace{4em}
+%     \textit{[PLACEHOLDER: \texttt{img/ui\_in\_maya.png} ---
+%     full Maya screenshot showing the ButterFlight panel docked on the
+%     right, the rigged butterfly + NURBS path in the viewport, and the
+%     Channel Box / timeline at the bottom with baked animation curves
+%     visible.]}\vspace{4em}}}
   \caption{ButterFlight in use inside Maya 2026.  The left side shows the
     viewport with a rigged Monarch butterfly on a NURBS guide curve; the
     right side shows the ButterFlight panel; the timeline shows baked
@@ -2037,11 +2044,12 @@ to keep the trajectory from feeling mechanical.
 
 \begin{figure}[H]
   \centering
-  \fbox{\parbox{0.85\textwidth}{\centering\vspace{4em}
-    \textit{[PLACEHOLDER: \texttt{img/shot1\_terrain\_followcam.png} ---
-    rendered frame from the demo showing the butterfly mid-path through
-    the spiky-terrain environment, captured by the follow camera.]}
-    \vspace{4em}}}
+  \includegraphics[width=1.0\textwidth]{img/shot1_terrain.png}
+%   \fbox{\parbox{0.85\textwidth}{\centering\vspace{4em}
+%     \textit{[PLACEHOLDER: \texttt{img/shot1\_terrain\_followcam.png} ---
+%     rendered frame from the demo showing the butterfly mid-path through
+%     the spiky-terrain environment, captured by the follow camera.]}
+%     \vspace{4em}}}
   \caption{Shot~1 --- path following through a stylised terrain with the
     follow camera locked to the butterfly's framing.}
   \label{fig:shot1}
@@ -2055,10 +2063,11 @@ curve, visible as the butterfly weaves slightly off the centerline.
 
 \begin{figure}[H]
   \centering
-  \fbox{\parbox{0.85\textwidth}{\centering\vspace{4em}
-    \textit{[PLACEHOLDER: \texttt{img/shot2\_overhead\_pathnoise.png} ---
-    overhead render showing the butterfly's wandered trajectory relative
-    to the underlying NURBS guide curve.]}\vspace{4em}}}
+  \includegraphics[width=1.0\textwidth]{img/shot2_overhead.png}
+%   \fbox{\parbox{0.85\textwidth}{\centering\vspace{4em}
+%     \textit{[PLACEHOLDER: \texttt{img/shot2\_overhead\_pathnoise.png} ---
+%     overhead render showing the butterfly's wandered trajectory relative
+%     to the underlying NURBS guide curve.]}\vspace{4em}}}
   \caption{Shot~2 --- overhead view making Path Noise's lateral sway
     visible against the underlying guide curve.}
   \label{fig:shot2}
@@ -2074,10 +2083,11 @@ handoff from path following to a stable hover in front of the flower.
 
 \begin{figure}[H]
   \centering
-  \fbox{\parbox{0.85\textwidth}{\centering\vspace{4em}
-    \textit{[PLACEHOLDER: \texttt{img/shot3\_decel\_hover.png} ---
-    rendered frame at the end of the deceleration + angle blend, showing
-    the butterfly stationary in front of the white rose.]}\vspace{4em}}}
+  \includegraphics[width=1.0\textwidth]{img/shot3_decel.png}
+%   \fbox{\parbox{0.85\textwidth}{\centering\vspace{4em}
+%     \textit{[PLACEHOLDER: \texttt{img/shot3\_decel\_hover.png} ---
+%     rendered frame at the end of the deceleration + angle blend, showing
+%     the butterfly stationary in front of the white rose.]}\vspace{4em}}}
   \caption{Shot~3 --- Deceleration and Angle Blend deliver the butterfly
     into a precise hover pose in front of the rose.}
   \label{fig:shot3}
@@ -2094,10 +2104,11 @@ roughly constant as the subject recedes.
 
 \begin{figure}[H]
   \centering
-  \fbox{\parbox{0.85\textwidth}{\centering\vspace{4em}
-    \textit{[PLACEHOLDER: \texttt{img/shot4\_statcam\_flyaway.png} ---
-    rendered frame of the butterfly mid-departure, viewed from the
-    stationary camera as it pans and zooms to follow.]}\vspace{4em}}}
+  \includegraphics[width=1.0\textwidth]{img/shot4_statcam.png}
+%   \fbox{\parbox{0.85\textwidth}{\centering\vspace{4em}
+%     \textit{[PLACEHOLDER: \texttt{img/shot4\_statcam\_flyaway.png} ---
+%     rendered frame of the butterfly mid-departure, viewed from the
+%     stationary camera as it pans and zooms to follow.]}\vspace{4em}}}
   \caption{Shot~4 --- Stationary Rotating Camera with Auto Zoom tracks the
     butterfly as it leaves the rose for the flower field beyond.}
   \label{fig:shot4}
@@ -2112,10 +2123,11 @@ hover anchor.
 
 \begin{figure}[H]
   \centering
-  \fbox{\parbox{0.85\textwidth}{\centering\vspace{4em}
-    \textit{[PLACEHOLDER: \texttt{img/swarm\_output.png} ---
-    rendered or viewport screenshot showing 10 butterflies flocking around
-    a leader, each with its own flap phase.]}\vspace{4em}}}
+  \includegraphics[width=1.0\textwidth]{img/swarm.png}
+%   \fbox{\parbox{0.85\textwidth}{\centering\vspace{4em}
+%     \textit{[PLACEHOLDER: \texttt{img/swarm\_output.png} ---
+%     rendered or viewport screenshot showing 10 butterflies flocking around
+%     a leader, each with its own flap phase.]}\vspace{4em}}}
   \caption{Swarm output.  Each agent runs the full Module~1--3 pipeline
     independently so flap phase and trajectory noise vary naturally.}
   \label{fig:swarm_output}
@@ -2374,7 +2386,7 @@ technical approach:
 \textbf{Team Member} & \textbf{Total Hours} \\
 \hline
 Cecilia Chen  & TODO \\
-Yiding Tian   & TODO \\
+Yiding Tian   & 80 \\
 \hline
 \textbf{Total} & TODO \\
 \hline
@@ -2443,8 +2455,283 @@ production-ready tool:
 % developing Maya/Houdini plugins.
 % ============================================================
 
-% TODO: enumerate lessons (per Maya quirks, MEL gotchas, build
-% setup, animation curve handling, joint orient pitfalls, etc.).
+The list below collects the gotchas, undocumented behaviours, and Maya-API
+nuances we wish we had known on day~one.  These are written for future
+CIS~6600 students who will inevitably hit some of the same walls.
+
+\subsection*{MEL UI and Plug-in Round-Trip}
+
+\begin{itemize}
+  \item \textbf{Long flag names must be at least 4 characters.}  We initially
+    named the rig flag \texttt{-rig}; Maya treated the 3-character name as a
+    short flag and refused to register it (``Invalid flag'').  Renaming to
+    \texttt{-rigRoot} fixed the issue.  Lesson: long names $\geq 4$ chars,
+    short names $\leq 3$.
+
+  \item \textbf{MEL proc names collide with C++ command names.}  Our MEL
+    callback was originally named \texttt{bfSimulate()}, identical to the
+    C++ \texttt{MPxCommand}.  When the callback called \texttt{bfSimulate -...}
+    via \texttt{eval}, MEL resolved the no-arg MEL proc instead of the C++
+    command, producing ``Wrong number of arguments''.  Lesson: always give
+    callbacks a different name (we now use \texttt{bfSimulateCallback}).
+    A fresh Maya session is required after the rename to clear the cached
+    proc table.
+
+  \item \textbf{\texttt{optionMenuGrp -select} is 1-indexed.}  C-style 0-based
+    indexing produces ``Invalid menu item'' silently in some Maya versions
+    and an off-by-one selection in others.
+
+  \item \textbf{Global variables shadow each other across panels.}  All MEL
+    UI control names are stored as globals.  Two panels that both use, e.g.,
+    \texttt{\$bf\_pathField} will overwrite each other's control handles
+    silently.  Lesson: prefix globals by the panel section consistently
+    (\texttt{\$bf\_path*}, \texttt{\$bf\_hover*}, \texttt{\$bf\_cam*}).
+
+  \item \textbf{Re-sourcing the MEL file does not always pick up the new
+    procs.}  After a rename or signature change, calling the new name from
+    the Script Editor sometimes still hits the cached old definition.  When
+    behaviour seems impossibly stale, restart Maya.
+
+  \item \textbf{The plug-in must be reloaded after every rebuild.}  Even if
+    Maya's Plug-in Manager says the \texttt{.mll} is loaded, it is the
+    \emph{previous} build until \texttt{unloadPlugin} + \texttt{loadPlugin}
+    is run.  We wasted multiple sessions debugging ``why isn't my code
+    running'' before adding a load-unload step to our test loop.
+\end{itemize}
+
+\subsection*{Animation Curves and Keyframe Baking}
+
+\begin{itemize}
+  \item \textbf{\texttt{clearAnimCurves(path)} only wipes the transform
+    plugs.}  Translation and rotation channels are cleared, but shape-level
+    attributes such as \texttt{focalLength} on a camera shape are not
+    touched.  When the auto-zoom feature was toggled off between runs, the
+    previous run's focal-length curve persisted.  Lesson: walk the plug
+    connection of the specific shape attribute and clear it explicitly.
+    We added a \texttt{clearAnimCurveOnPlug(path, attrName)} helper that
+    follows \texttt{MPlug::connectedTo} to the \texttt{kAnimCurve*} node
+    and removes all keys.
+
+  \item \textbf{Pick the right \texttt{MFnAnimCurve} type.}  Rotation keys
+    use \texttt{kAnimCurveTA} (time$\to$angle, radians).  Time-to-double
+    keys (e.g.\ focal length, scale, custom attributes) need
+    \texttt{kAnimCurveTU}.  Translation uses \texttt{kAnimCurveTL}.
+    Mismatching the type produces silently-wrong animation that scrubs
+    correctly per-frame but evaluates wrong elsewhere.
+
+  \item \textbf{Calling \texttt{addKey} at the same time twice overwrites.}
+    This is actually useful: in hover mode and angle blend, we override the
+    thorax key after \texttt{writeAllKeys} has already written it, and the
+    second \texttt{addKey} replaces the first cleanly.  No need to delete
+    first.
+
+  \item \textbf{Quaternion-to-Euler is not unique.}  \texttt{MQuaternion::
+    asEulerRotation()} picks a valid Euler representation but it may not
+    be the one the user typed (e.g.\ $(180^\circ, -160^\circ, 0^\circ)$
+    can come back as $(0^\circ, 20^\circ, 180^\circ)$).  For exact
+    final-frame channel-box values, force-write the user's typed Euler
+    instead of round-tripping through quaternion.
+\end{itemize}
+
+\subsection*{Cameras}
+
+\begin{itemize}
+  \item \textbf{C++ \texttt{MFnCamera::create()} + rename is racy.}
+    Occasionally the rename failed and the camera ended up named
+    \texttt{camera1}, breaking subsequent \texttt{objExists} checks.
+    Switching to the MEL \texttt{camera -name "..."} command creates the
+    transform and shape atomically with the right name.  Lesson: when
+    deterministic naming matters, prefer the MEL command over C++
+    \texttt{MFn} create + rename.
+
+  \item \textbf{Focal length is a shape attribute, not a transform attribute.}
+    \texttt{MFnTransform} has no idea about it.  Setting it requires
+    \texttt{MFnCamera::setVerticalFieldOfView()} or a \texttt{setAttr} on
+    the \emph{shape} node.  Same for clearing animation: see the
+    \texttt{clearAnimCurveOnPlug} note above.
+
+  \item \textbf{Capture viewport state \emph{before} the simulation's
+    seeding time change.}  Our follow camera reads
+    \texttt{M3dView::active3dView().getCamera()} for the viewport
+    transform.  If we read it after the seeding block jumped Maya's
+    current time to a previous frame, we got the camera's transform from
+    that other frame instead of the framing the user actually set up.
+    Lesson: capture all viewport / scene state up-front, then perform
+    time changes.
+\end{itemize}
+
+\subsection*{Joints, Skinning, and the Rig}
+
+\begin{itemize}
+  \item \textbf{Default Bind Skin uses ``Joint hierarchy''}, not ``Selected
+    joints''.  Binding the left wing to the rig hierarchy attached
+    \emph{both} wings' meshes to \emph{both} wing joints, producing
+    cross-influence the moment one side rotated.  Switch the
+    \emph{Bind to} option to ``Selected joints'' and bind each piece
+    individually.  Same fix recovered the left antenna from a similarly
+    split bind weeks later.
+
+  \item \textbf{Mirroring joints under a negative-scale transform doesn't
+    work.}  Maya silently inserts a compensating intermediate transform
+    that breaks the joint hierarchy traversal.  Use
+    \texttt{mirrorJoint -mirrorYZ -mirrorBehavior -searchReplace "R" "L"}
+    to produce a clean mirrored joint chain.
+
+  \item \textbf{Channel-box rotation values are \emph{after} joint orient.}
+    When debugging rotation-related bugs, remember that what you read in the
+    Channel Box is the \texttt{rotate} attribute, but the world rotation is
+    \texttt{parentWorld * jointOrient * rotate}.  Setting
+    \texttt{rotate} via \texttt{MFnTransform::setRotation} respects this,
+    so it usually behaves as expected, but if a rig's joint orient is
+    non-zero you cannot just compare ``my rotation values'' to ``the rig's
+    initial pose values'' directly.
+
+  \item \textbf{Scaling the rig after binding breaks the simulation.}
+    Skin clusters embed the bind-time joint world matrices.  If the
+    artist scales the model after binding, the wing-joint normals computed
+    by the aerodynamic solver no longer agree with the visual mesh.
+    Lesson: lock final scale before binding, or re-bind after scaling.
+\end{itemize}
+
+\subsection*{Frame Rate, Substeps, and Time Units}
+
+\begin{itemize}
+  \item \textbf{Decouple physics rate from output FPS.}  Our first build
+    used \texttt{simDt = 1/fps} directly, so changing the playback fps
+    silently changed the wing flap rate (since \texttt{f*t} also changed).
+    Solution: pick a target physics rate (we use $\sim$960~Hz), compute
+    \texttt{substeps = ceil(targetHz / fps)}, then \texttt{simDt = simRate /
+    (fps * substeps)}.  This keeps the per-substep physics step constant
+    regardless of how many frames-per-second the user is rendering.
+
+  \item \textbf{\texttt{simRate} compresses physics time relative to
+    playback time.}  In our setup \texttt{simRate $\approx$ 0.182} for
+    \texttt{flapPeriod = 1\,sec}, meaning \texttt{m\_state.velocity} is in
+    m/sim-sec, not m/playback-sec.  We initially computed an approach-phase
+    velocity using \texttt{arcRate * fps * substeps * kCmToM}, which
+    produced a value $\sim$5$\times$ smaller than the path-following
+    steady-state.  The butterfly visibly stopped at handoff while the
+    spring spun velocity back up.  Lesson: when crossing between
+    cursor-rate (cm/substep) and physics velocity (m/sim-sec), use
+    \texttt{rate * kCmToM / simDt}, never the playback-time multiplier.
+
+  \item \textbf{Maya's frame rate comes from the scene time unit, not from
+    a flag.}  We originally exposed an \texttt{-fps} command flag and got
+    bug reports about flap speed being wrong on machines whose Maya was set
+    to 30~fps.  Reading \texttt{MTime(1.0, kSeconds).as(MTime::uiUnit())}
+    fetches the correct value automatically.
+\end{itemize}
+
+\subsection*{Asymptotic Curves and Numerical Floors}
+
+\begin{itemize}
+  \item \textbf{Decel curves that hit zero never reach the end of the
+    integral.}  Both linear $1{-}t$ and normalised exponential
+    $\propto e^{-kt}$ go to 0 at $t{=}1$, which makes
+    $\int dt/\text{mult}(t)$ diverge.  In a discrete simulation, the
+    cursor would advance ever more slowly and the butterfly would never
+    actually arrive at the curve end.  Lesson: add a small velocity floor
+    (we use 5\% of base rate).  The integral becomes finite, the cursor
+    arrives, and visually the curve looks identical to the floor-less
+    version because the floor only kicks in for the last $\sim$5\% of the
+    decel zone.
+
+  \item \textbf{Quaternion slerp needs short-arc selection.}  Naively
+    interpolating $a \to b$ when their dot product is negative produces a
+    long way around the sphere.  Flip $b \to -b$ first so dot is positive,
+    then slerp.  We also fall back to a normalised \texttt{lerp} when the
+    dot product is very close to 1, since $\sin\theta \to 0$ in the
+    denominator.
+
+  \item \textbf{Random-phase noise is non-zero at $t{=}0$.}  We added
+    organic positional drift to hover mode using
+    $\sin(2\pi f t + \phi_1) + 0.5\sin(2\pi f' t + \phi_2)$ with random
+    $\phi$.  At $t{=}0$ the sample is generally non-zero, so the first
+    frame of the simulation visibly jumped from the rig's anchor position.
+    Lesson: precompute the $t{=}0$ sample and subtract it from every
+    sample, so the curve passes through zero on frame~1.
+\end{itemize}
+
+\subsection*{NURBS Curves}
+
+\begin{itemize}
+  \item \textbf{\texttt{MFnNurbsCurve::closestPoint} is well-defined only
+    for nearly-planar curves.}  Steeply 3-D paths can produce overshoot or
+    multiple local minima.  For path following this was usually fine, but
+    we noticed occasional snap-to-wrong-loop behaviour on curves that
+    crossed themselves in 3D.
+
+  \item \textbf{Cache total arc length, don't recompute per substep.}
+    \texttt{length()} and \texttt{findLengthFromParam} re-evaluate the
+    curve internally.  Calling them every substep was a measurable
+    slowdown on long paths.  Compute total length once at simulation
+    start, only call \texttt{findParamFromLength} per substep.
+\end{itemize}
+
+\subsection*{Build and Toolchain}
+
+\begin{itemize}
+  \item \textbf{C4819 ``character cannot be represented in current code
+    page'' is mostly noise on Windows.}  MSVC emits this for any source
+    file containing UTF-8 multi-byte characters when the system code page
+    is not UTF-8 (936 / Chinese in our case).  It does not affect the
+    compiled binary but it floods the build log and obscures real
+    warnings.  Workaround: filter it from the build output, or save the
+    affected files as UTF-8 with BOM.
+
+  \item \textbf{Use the Maya devkit headers as the source of truth.}  The
+    Autodesk online API docs occasionally lag the headers (e.g.\ for
+    Maya~2026's new flags on existing classes).  When a method seems to
+    be missing or behaving differently from the docs, check
+    \texttt{<maya devkit>/include/maya/MFn*.h} directly.
+
+  \item \textbf{Read the included Maya devkit examples.}  The
+    \texttt{<maya devkit>/devkit/plug-ins/} folder ships with worked
+    examples for \texttt{MPxCommand}, \texttt{MPxNode}, undoable commands,
+    custom locator drawing, etc.  These are far more useful than the
+    online API reference for understanding how the pieces fit together
+    inside a real plug-in.
+\end{itemize}
+
+\subsection*{Maya Viewport Quirks}
+
+\begin{itemize}
+  \item \textbf{Viewport 2.0 motion blur lives on
+    \texttt{hardwareRenderingGlobals}, not on the camera.}  We hit a
+    confusing bug where the viewport became blurry the moment the user
+    released Alt after tumbling, but stayed sharp during interaction.
+    The cause was scene-level motion blur enabled on
+    \texttt{hardwareRenderingGlobals.motionBlurEnable}, which Maya
+    suppresses during interactive tumble (so the blurry frame is what you
+    see when you let go).  This is unrelated to the plug-in but worth
+    flagging because the symptom looked like a viewport bug.
+\end{itemize}
+
+\subsection*{General Process Lessons}
+
+\begin{itemize}
+  \item \textbf{Add structured logging early.}  Every time we hit a
+    ``why isn't my code running'' bug, the answer was either ``a guard
+    condition I didn't realise was false'' or ``a code path I didn't
+    realise was being taken''.  Sprinkling
+    \texttt{MGlobal::displayInfo} calls at every major branch made the
+    debugging loop dramatically faster.
+
+  \item \textbf{Implement the simplest end-to-end pipeline first, then
+    layer features.}  The first useful build of ButterFlight was a single
+    butterfly with constant velocity along a straight line.  Everything
+    after that was incremental: forces, sigmoid frequency, sliding-window
+    smoother, path following, hover, cameras, swarm.  Trying to wire the
+    full force model up before the basic keyframe baking was working
+    would have been impossible to debug.
+
+  \item \textbf{Maintain a CLAUDE.md / project-context document.}  Across
+    a long project with multiple AI-assisted coding sessions, the single
+    most leveraged document was a top-level project description that any
+    fresh assistant could read to understand units, joint conventions,
+    file layout, and known gotchas.  This kept the AI's suggestions
+    consistent with the existing codebase rather than fighting it.
+\end{itemize}
 
 
 % ============================================================
